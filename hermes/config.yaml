@@ -1,0 +1,24 @@
+# ─────────────────────────────────────────────────────────────
+# Hermes Agent — Configuração principal
+# Copie para ~/.hermes/config.yaml e ajuste as variáveis
+# ─────────────────────────────────────────────────────────────
+
+mcp_servers:
+  agenda_atende:
+    url: "http://localhost:8000/mcp"
+    headers:
+      Authorization: "Bearer ${AGENDA_API_KEY}"
+
+kanban:
+  dispatch_in_gateway: true
+  dispatch_interval_seconds: 30
+  auto_decompose: false
+  orchestrator_profile: "orquestrador"
+  failure_limit: 2
+
+gateway:
+  platforms:
+    whatsapp:
+      enabled: true
+      # provider: "whatsapp-web.js"   # ou n8n, Twilio, etc.
+      # session_path: "./whatsapp-session"
