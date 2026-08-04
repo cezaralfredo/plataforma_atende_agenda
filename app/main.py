@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.api.health import router as health_router
 from app.api.users import router as users_router
@@ -22,3 +23,6 @@ app.include_router(appointments_router)
 app.include_router(payments_router)
 app.include_router(webhooks_router)
 app.include_router(mcp_router)
+
+# Prometheus metrics
+Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
