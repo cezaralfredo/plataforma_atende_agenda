@@ -6,6 +6,9 @@
 .git
 .gitignore
 
+# Opencode
+.opencode/
+
 # Python
 __pycache__
 *.py[cod]
