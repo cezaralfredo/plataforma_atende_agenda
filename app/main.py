@@ -10,6 +10,7 @@ from app.api.appointments import router as appointments_router
 from app.api.webhooks import router as webhooks_router
 from app.api.payments import router as payments_router
 from app.mcp.router import router as mcp_router
+from app.admin.router import router as admin_router
 from app.config import settings
 
 app = FastAPI(title=settings.app_name, debug=settings.debug)
@@ -23,6 +24,7 @@ app.include_router(appointments_router)
 app.include_router(payments_router)
 app.include_router(webhooks_router)
 app.include_router(mcp_router)
+app.include_router(admin_router)
 
 # Prometheus metrics
 Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)

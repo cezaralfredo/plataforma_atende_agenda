@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+
+{% block title %}Profissionais - Admin Agenda Atende{% endblock %}
+
+{% block page_title %}Profissionais{% endblock %}
+
+{% block content %}
+<div x-data="professionals()" x-init="loadProfessionals()" class="space-y-6">
+    <!-- Header with Actions -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-100 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <h3 class="text-lg font-semibold text-gray-900">Profissionais Cadastrados</h3>
+        <div class="flex space-x-3">
+            <a href="/api/docs#/Professionals/create_professional_professionals__post"
+               target="_blank"
+               class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center text-sm">
+                <i class="fas fa-plus mr-2"></i> Novo Profissional
+            </a>
+            <a href="/api/docs#/Services/create_service_services__post"
+               target="_blank"
+               class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center text-sm">
+                <i class="fas fa-scissors mr-2"></i> Novo Serviço
+            </a>
+            <a href="/api/docs#/Availability/create_availability_availability__post"
+               target="_blank"
+               class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center text-sm">
+                <i class="fas fa-calendar-plus mr-2"></i> Nova Disponibilidade
+            </a>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-gray-50">
+                    <tr class="text-left text-sm text-gray-500 border-b border-gray-100">
+                        <th class="pb-3 px-4 font-medium">ID</th>
+                        <th class="pb-3 px-4 font-medium">Profissional</th>
+                        <th class="pb-3 px-4 font-medium">Contato</th>
+                        <th class="pb-3 px-4 font-medium">Status</th>
+                        <th class="pb-3 px-4 font-medium">Serviços</th>
+                        <th class="pb-3 px-4 font-medium">Agend. Hoje</th>
+                        <th class="pb-3 px-4 font-medium">Agend. Semana</th>
+                        <th class="pb-3 px-4 font-medium">Receita Mês</th>
+                        <th class="pb-3 px-4 font-medium">Ações</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    <template x-for="prof in professionals" :key="prof.id">
+                        <tr class="hover:bg-gray-50">
+                            <td class="py-3 px-4 text-sm font-mono text-gray-600" x-text="prof.id"></td>
+                            <td class="py-3 px-4">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
+                                        <span class="text-sm font-medium text-gray-600" x-text="prof.name.charAt(0)"></span>
+                                    </div>
+                                    <div class="ml-3">
+                                        <p class="text-sm font-medium text-gray-900" x-text="prof.name"></p>
+                                        <p class="text-xs text-gray-500" x-text="prof.bio ? prof.bio.substring(0, 50) + '...' : 'Sem bio'"></p>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="py-3 px-4 text-sm text-gray-900">
+                                <div x-text="prof.phone || 'Não informado'"></div>
+                                <div class="text-xs text-gray-500" x-text="prof.email || ''"></div>
+                            </td>
+                            <td class="py-3 px-4">
+                                <span class="status-badge" :class="prof.active ? 'status-confirmed' : 'status-cancelled'"
+                                      x-text="prof.active ? 'Ativo' : 'Inativo'"></span>
+                            </td>
+                            <td class="py-3 px-4 text-sm text-gray-900" x-text="prof.services_count"></td>
+                            <td class="py-3 px-4 text-sm font-medium text-gray-900" x-text="prof.appointments_today"></td>
+                            <td class="py-3 px-4 text-sm text-gray-900" x-text="prof.appointments_week"></td>
+                            <td class="py-3 px-4 text-sm font-medium text-gray-900" x-text="formatCurrency(prof.revenue_month_cents)"></td>
+                            <td class="py-3 px-4">
+                                <div class="flex items-center space-x-2">
+                                    <a :href="'/api/docs#/Professionals/get_professional_professionals__' + prof.id + '__get'"
+                                       target="_blank"
+                                       class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                                        Ver API
+                                    </a>
+                                    <a :href="'/api/docs#/Services/create_service_services__post'"
+                                       target="_blank"
+                                       class="text-green-600 hover:text-green-800 text-sm font-medium">
+                                        + Serviço
+                                    </a>
+                                    <a :href="'/api/docs#/Availability/create_availability_availability__post'"
+                                       target="_blank"
+                                       class="text-purple-600 hover:text-purple-800 text-sm font-medium">
+                                        + Disponibilidade
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                    </template>
+                    <tr x-show="professionals.length === 0 && !loading">
+                        <td colspan="9" class="py-8 text-center text-gray-500">
+                            <div class="flex flex-col items-center">
+                                <i class="fas fa-users text-4xl text-gray-300 mb-2"></i>
+                                <p>Nenhum profissional cadastrado</p>
+                                <a href="/api/docs#/Professionals/create_professional_professionals__post"
+                                   target="_blank"
+                                   class="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+                                    Cadastrar primeiro profissional
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr x-show="loading">
+                        <td colspan="9" class="py-8 text-center text-gray-500">
+                            <div class="flex justify-center items-center">
+                                <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                                <span class="ml-2">Carregando...</span>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        <div class="bg-white rounded-lg shadow-sm p-4 border border-gray-100 text-center">
+            <p class="text-sm text-gray-500">Total Profissionais</p>
+            <p class="text-3xl font-bold text-gray-900" x-text="professionals.length"></p>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm p-4 border border-gray-100 text-center">
+            <p class="text-sm text-gray-500">Ativos</p>
+            <p class="text-3xl font-bold text-green-600" x-text="activeCount"></p>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm p-4 border border-gray-100 text-center">
+            <p class="text-sm text-gray-500">Total Serviços</p>
+            <p class="text-3xl font-bold text-blue-600" x-text="totalServices"></p>
+        </div>
+        <div class="bg-white rounded-lg shadow-sm p-4 border border-gray-100 text-center">
+            <p class="text-sm text-gray-500">Receita Mês (Total)</p>
+            <p class="text-3xl font-bold text-purple-600" x-text="formatCurrency(totalRevenueMonth)"></p>
+        </div>
+    </div>
+</div>
+
+<script>
+function professionals() {
+    return {
+        professionals: [],
+        loading: false,
+
+        async loadProfessionals() {
+            this.loading = true;
+            try {
+                const response = await fetch('/admin/professionals', {
+                    headers: { 'X-Admin-Key': '{{ request.headers.get("x-admin-key") }}' }
+                });
+                const html = await response.text();
+                // Parse HTML to extract data - simpler: use a separate API endpoint
+                // For now, we'll fetch from the API directly
+                const apiResponse = await fetch('/admin/api/professionals', {
+                    headers: { 'X-Admin-Key': '{{ request.headers.get("x-admin-key") }}' }
+                });
+                this.professionals = await apiResponse.json();
+            } catch (error) {
+                console.error('Erro ao carregar profissionais:', error);
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        get activeCount() {
+            return this.professionals.filter(p => p.active).length;
+        },
+
+        get totalServices() {
+            return this.professionals.reduce((sum, p) => sum + (p.services_count || 0), 0);
+        },
+
+        get totalRevenueMonth() {
+            return this.professionals.reduce((sum, p) => sum + (p.revenue_month_cents || 0), 0);
+        },
+
+        formatCurrency(cents) {
+            if (!cents) return 'R$ 0,00';
+            const reais = (cents / 100).toFixed(2);
+            return 'R$ ' + reais.replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        }
+    }
+}
+</script>
+{% endblock %}

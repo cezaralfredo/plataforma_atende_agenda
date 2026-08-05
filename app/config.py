@@ -4,6 +4,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     database_url: str = "postgresql://agenda_user:agenda_pass@localhost:5432/agenda_atende"
     api_key: str = "dev-api-key-change-in-production"
+    admin_api_key: str = "dev-admin-key-change-in-production"
     app_name: str = "Agenda Atende"
     debug: bool = True
 

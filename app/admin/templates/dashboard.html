@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Admin Agenda Atende{% endblock %}
+
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<div x-data="dashboard()" x-init="loadKPIs()" class="space-y-6">
+    <!-- KPI Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+        <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
+            <div class="flex items-center">
+                <div class="p-3 bg-blue-100 rounded-lg">
+                    <i class="fas fa-calendar-day text-blue-600 text-2xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm text-gray-500">Agendamentos Hoje</p>
+                    <p class="text-2xl font-bold text-gray-900" x-text="kpis.appointments_today">0</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
+            <div class="flex items-center">
+                <div class="p-3 bg-yellow-100 rounded-lg">
+                    <i class="fas fa-clock text-yellow-600 text-2xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm text-gray-500">Pendentes</p>
+                    <p class="text-2xl font-bold text-gray-900" x-text="kpis.appointments_pending">0</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
+            <div class="flex items-center">
+                <div class="p-3 bg-green-100 rounded-lg">
+                    <i class="fas fa-check-circle text-green-600 text-2xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm text-gray-500">Confirmados</p>
+                    <p class="text-2xl font-bold text-gray-900" x-text="kpis.appointments_confirmed">0</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
+            <div class="flex items-center">
+                <div class="p-3 bg-purple-100 rounded-lg">
+                    <i class="fas fa-money-bill-wave text-purple-600 text-2xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm text-gray-500">Receita Hoje</p>
+                    <p class="text-2xl font-bold text-gray-900" x-text="formatCurrency(kpis.revenue_today_cents)">R$ 0,00</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
+            <div class="flex items-center">
+                <div class="p-3 bg-indigo-100 rounded-lg">
+                    <i class="fas fa-chart-line text-indigo-600 text-2xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm text-gray-500">Receita Semana</p>
+                    <p class="text-2xl font-bold text-gray-900" x-text="formatCurrency(kpis.revenue_week_cents)">R$ 0,00</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
+            <div class="flex items-center">
+                <div class="p-3 bg-pink-100 rounded-lg">
+                    <i class="fas fa-calendar-alt text-pink-600 text-2xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm text-gray-500">Receita Mês</p>
+                    <p class="text-2xl font-bold text-gray-900" x-text="formatCurrency(kpis.revenue_month_cents)">R$ 0,00</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Second row KPIs -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
+            <div class="flex items-center">
+                <div class="p-3 bg-orange-100 rounded-lg">
+                    <i class="fas fa-exclamation-circle text-orange-600 text-2xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm text-gray-500">Pagamentos Pendentes</p>
+                    <p class="text-2xl font-bold text-gray-900" x-text="kpis.payments_pending">0</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
+            <div class="flex items-center">
+                <div class="p-3 bg-red-100 rounded-lg">
+                    <i class="fas fa-ban text-red-600 text-2xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm text-gray-500">Vencidos</p>
+                    <p class="text-2xl font-bold text-gray-900" x-text="kpis.payments_overdue">0</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
+            <div class="flex items-center">
+                <div class="p-3 bg-teal-100 rounded-lg">
+                    <i class="fas fa-user-check text-teal-600 text-2xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm text-gray-500">Prof. Ativos</p>
+                    <p class="text-2xl font-bold text-gray-900" x-text="kpis.professionals_active">0</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
+            <div class="flex items-center">
+                <div class="p-3 bg-cyan-100 rounded-lg">
+                    <i class="fas fa-users text-cyan-600 text-2xl"></i>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm text-gray-500">Total Clientes</p>
+                    <p class="text-2xl font-bold text-gray-900" x-text="kpis.clients_total">0</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions & Recent Activity -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Quick Actions -->
+        <div class="lg:col-span-1 bg-white rounded-lg shadow-sm border border-gray-100">
+            <div class="p-4 border-b border-gray-100">
+                <h3 class="text-lg font-semibold text-gray-900">Ações Rápidas</h3>
+            </div>
+            <div class="p-4 space-y-3">
+                <a href="/admin/appointments"
+                   class="block p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors">
+                    <div class="flex items-center">
+                        <i class="fas fa-plus-circle text-blue-600 text-xl mr-3"></i>
+                        <div>
+                            <p class="font-medium text-gray-900">Novo Agendamento</p>
+                            <p class="text-sm text-gray-500">Criar reserva manual</p>
+                        </div>
+                    </div>
+                </a>
+                <a href="/admin/appointments?status=pending"
+                   class="block p-4 bg-yellow-50 rounded-lg hover:bg-yellow-100 transition-colors">
+                    <div class="flex items-center">
+                        <i class="fas fa-clock text-yellow-600 text-xl mr-3"></i>
+                        <div>
+                            <p class="font-medium text-gray-900">Pendentes</p>
+                            <p class="text-sm text-gray-500">Ver agendamentos aguardando</p>
+                        </div>
+                    </div>
+                </a>
+                <a href="/admin/payments?status=pending"
+                   class="block p-4 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors">
+                    <div class="flex items-center">
+                        <i class="fas fa-credit-card text-orange-600 text-xl mr-3"></i>
+                        <div>
+                            <p class="font-medium text-gray-900">Pagamentos Pendentes</p>
+                            <p class="text-sm text-gray-500">Acompanhar cobranças</p>
+                        </div>
+                    </div>
+                </a>
+                <a href="/admin/professionals"
+                   class="block p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors">
+                    <div class="flex items-center">
+                        <i class="fas fa-user-plus text-green-600 text-xl mr-3"></i>
+                        <div>
+                            <p class="font-medium text-gray-900">Novo Profissional</p>
+                            <p class="text-sm text-gray-500">Cadastrar prestador</p>
+                        </div>
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        <!-- Professionals Overview -->
+        <div class="lg:col-span-2 bg-white rounded-lg shadow-sm border border-gray-100">
+            <div class="p-4 border-b border-gray-100 flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-gray-900">Profissionais - Visão Rápida</h3>
+                <a href="/admin/professionals" class="text-sm text-blue-600 hover:text-blue-800">Ver todos</a>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead>
+                        <tr class="text-left text-sm text-gray-500 border-b border-gray-100">
+                            <th class="pb-3 px-4 font-medium">Profissional</th>
+                            <th class="pb-3 px-4 font-medium">Status</th>
+                            <th class="pb-3 px-4 font-medium">Hoje</th>
+                            <th class="pb-3 px-4 font-medium">Semana</th>
+                            <th class="pb-3 px-4 font-medium">Receita Mês</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        <template x-for="prof in professionals" :key="prof.id">
+                            <tr class="hover:bg-gray-50">
+                                <td class="py-3 px-4">
+                                    <div class="flex items-center">
+                                        <div class="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
+                                            <span class="text-sm font-medium text-gray-600" x-text="prof.name.charAt(0)"></span>
+                                        </div>
+                                        <div class="ml-3">
+                                            <p class="text-sm font-medium text-gray-900" x-text="prof.name"></p>
+                                            <p class="text-xs text-gray-500" x-text="prof.services_count + ' serviços'"></p>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="py-3 px-4">
+                                    <span class="status-badge" :class="prof.active ? 'status-confirmed' : 'status-cancelled'"
+                                          x-text="prof.active ? 'Ativo' : 'Inativo'"></span>
+                                </td>
+                                <td class="py-3 px-4 text-sm text-gray-900" x-text="prof.appointments_today"></td>
+                                <td class="py-3 px-4 text-sm text-gray-900" x-text="prof.appointments_week"></td>
+                                <td class="py-3 px-4 text-sm font-medium text-gray-900" x-text="formatCurrency(prof.revenue_month_cents)"></td>
+                            </tr>
+                        </template>
+                        <tr v-if="professionals.length === 0">
+                            <td colspan="5" class="py-8 text-center text-gray-500">Nenhum profissional cadastrado</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Status -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-100">
+        <div class="p-4 border-b border-gray-100">
+            <h3 class="text-lg font-semibold text-gray-900">Status do Sistema</h3>
+        </div>
+        <div class="p-4 grid grid-cols-1 sm:grid-cols-4 gap-4 text-center">
+            <div class="p-4 bg-green-50 rounded-lg">
+                <i class="fas fa-server text-green-600 text-3xl mb-2"></i>
+                <p class="text-sm text-gray-500">API</p>
+                <p class="font-bold text-green-600">Online</p>
+            </div>
+            <div class="p-4 bg-green-50 rounded-lg">
+                <i class="fas fa-database text-green-600 text-3xl mb-2"></i>
+                <p class="text-sm text-gray-500">PostgreSQL</p>
+                <p class="font-bold text-green-600">Conectado</p>
+            </div>
+            <div class="p-4 bg-green-50 rounded-lg">
+                <i class="fas fa-exchange-alt text-green-600 text-3xl mb-2"></i>
+                <p class="text-sm text-gray-500">Asaas</p>
+                <p class="font-bold text-green-600">Sandbox</p>
+            </div>
+            <div class="p-4 bg-green-50 rounded-lg">
+                <i class="fas fa-robot text-green-600 text-3xl mb-2"></i>
+                <p class="text-sm text-gray-500">Hermes/MCP</p>
+                <p class="font-bold text-green-600">Disponível</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function dashboard() {
+    return {
+        kpis: {},
+        professionals: [],
+
+        async loadKPIs() {
+            try {
+                const response = await fetch('/admin/api/kpis', {
+                    headers: { 'X-Admin-Key': '{{ request.headers.get("x-admin-key") }}' }
+                });
+                this.kpis = await response.json();
+
+                // Load professionals for overview
+                const profsResponse = await fetch('/admin/professionals', {
+                    headers: { 'X-Admin-Key': '{{ request.headers.get("x-admin-key") }}' }
+                });
+                // We'll parse from the HTML or use a separate endpoint
+                // For now, use a simple approach
+            } catch (error) {
+                console.error('Erro ao carregar KPIs:', error);
+            }
+        },
+
+        formatCurrency(cents) {
+            if (!cents) return 'R$ 0,00';
+            const reais = (cents / 100).toFixed(2);
+            return 'R$ ' + reais.replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        }
+    }
+}
+</script>
+{% endblock %}
