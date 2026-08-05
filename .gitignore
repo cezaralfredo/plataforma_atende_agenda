@@ -1,8 +1,66 @@
+# Python
 __pycache__/
 *.py[cod]
 *.egg-info/
-.env
+.pytest_cache/
+.coverage
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
 venv/
 .venv/
+env/
+
+# Environment files (SECRETS - NUNCA COMMITAR)
+.env
+.env.*
+!.env.example
+
+# Database
 *.db
+*.sqlite
+*.sqlite3
+test_agenda.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Backups
+backups/
+*.sql.gz
+
+# Docker
+.docker/
+
+# Documentation build
+docs/_build/
+
+# Opencode
+.opencode/
+
+# Hermes (configuração local)
+hermes/.hermes/
+
+# Alembic compiled
 alembic/versions/*.pyc
+
+# Test artifacts
+htmlcov/
+.coverage.*
+
+# Distribution
+dist/
+build/
