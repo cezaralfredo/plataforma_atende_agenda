@@ -73,7 +73,7 @@ services:
   # API - FastAPI Application
   # -----------------------------------------------------------------------------
   api:
-    image: ${REGISTRY:-ghcr.io}/${{ github.repository }}:latest
+    image: ${REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY:-agenda-atende}:latest
     container_name: agenda_atende_api
     environment:
       - DATABASE_URL=postgresql://agenda_user:${POSTGRES_PASSWORD}@postgres:5432/agenda_atende

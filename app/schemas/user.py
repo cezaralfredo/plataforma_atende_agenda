@@ -23,4 +23,4 @@ class UserRead(BaseModel):
     phone: str
     email: str | None = None
     asaas_customer_id: str | None = None
-    created_at: str | None = None
+    created_at: datetime | None = None

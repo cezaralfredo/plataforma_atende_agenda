@@ -44,6 +44,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # Instalar apenas runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
+    postgresql-client \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -r appgroup && useradd -r -g appgroup appuser
 

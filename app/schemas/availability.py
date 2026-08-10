@@ -1,20 +1,30 @@
-from datetime import time
-from pydantic import BaseModel, ConfigDict
+from datetime import time, date, datetime
+from pydantic import BaseModel, ConfigDict, model_validator
 
 
 class AvailabilityCreate(BaseModel):
     professional_id: int
     day_of_week: int | None = None
-    start_time: str | None = None
-    end_time: str | None = None
-    specific_date: str | None = None
+    start_time: time | None = None
+    end_time: time | None = None
+    specific_date: date | None = None
+
+    @model_validator(mode="after")
+    def validate_schedule(self):
+        if (self.day_of_week is None) == (self.specific_date is None):
+            raise ValueError("Informe um dia da semana ou uma data espec\u00edfica")
+        if self.start_time is None or self.end_time is None:
+            raise ValueError("Os hor\u00e1rios de in\u00edcio e fim s\u00e3o obrigat\u00f3rios")
+        if self.end_time <= self.start_time:
+            raise ValueError("O hor\u00e1rio final deve ser posterior ao inicial")
+        return self
 
 
 class AvailabilityUpdate(BaseModel):
     day_of_week: int | None = None
-    start_time: str | None = None
-    end_time: str | None = None
-    specific_date: str | None = None
+    start_time: time | None = None
+    end_time: time | None = None
+    specific_date: date | None = None
 
 
 class AvailabilityRead(BaseModel):
@@ -23,11 +33,12 @@ class AvailabilityRead(BaseModel):
     id: int
     professional_id: int
     day_of_week: int | None = None
-    start_time: str | None = None
-    end_time: str | None = None
-    specific_date: str | None = None
+    start_time: time | None = None
+    end_time: time | None = None
+    specific_date: date | None = None
+    created_at: datetime | None = None
 
 
 class TimeSlot(BaseModel):
-    start: str
-    end: str
+    start: datetime
+    end: datetime

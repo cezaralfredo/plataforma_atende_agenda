@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/payments", tags=["payments"])
 async def create_payment(data: PaymentCreate, db: Session = Depends(get_db)):
     svc = PaymentService(db)
     try:
-        payment = await svc.create_charge(data.appointment_id, data.billing_type)
+        payment = await svc.create_charge(data.appointment_id, data.billing_type, data.amount_cents)
         return payment
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

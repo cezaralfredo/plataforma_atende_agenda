@@ -1,10 +1,19 @@
-from pydantic import BaseModel, ConfigDict
+from datetime import datetime
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class PaymentCreate(BaseModel):
     appointment_id: int
-    amount_cents: int
+    amount_cents: int | None = None
     billing_type: str = "pix"
+
+    @field_validator("billing_type")
+    @classmethod
+    def normalize_billing_type(cls, value: str) -> str:
+        normalized = value.lower()
+        if normalized not in {"pix", "boleto", "credit_card", "undefined"}:
+            raise ValueError("Forma de pagamento inv\u00e1lida")
+        return normalized
 
 
 class PaymentRead(BaseModel):
@@ -17,9 +26,9 @@ class PaymentRead(BaseModel):
     billing_type: str
     status: str
     invoice_url: str | None = None
-    received_at: str | None = None
-    created_at: str | None = None
-    updated_at: str | None = None
+    received_at: datetime | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
 
 
 class AsaasCustomerCreate(BaseModel):

@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy.orm import Session
 
@@ -16,7 +17,12 @@ class AppointmentRepository(BaseRepository):
     def list_by_professional(self, professional_id: int):
         return self.db.query(Appointment).filter(Appointment.professional_id == professional_id).order_by(Appointment.start_time.desc()).all()
 
-    def find_conflicting(self, professional_id: int, start_time: str, end_time: str, exclude_id: int | None = None):
+    def find_conflicting(self, professional_id: int, start_time: datetime | str, end_time: datetime | str, exclude_id: Optional[int] = None):
+        if isinstance(start_time, str):
+            start_time = datetime.fromisoformat(start_time)
+        if isinstance(end_time, str):
+            end_time = datetime.fromisoformat(end_time)
+
         query = self.db.query(Appointment).filter(
             Appointment.professional_id == professional_id,
             Appointment.start_time < end_time,
@@ -26,6 +32,13 @@ class AppointmentRepository(BaseRepository):
         if exclude_id:
             query = query.filter(Appointment.id != exclude_id)
         return query.all()
+
+    def expire_pending(self, now: datetime) -> int:
+        return self.db.query(Appointment).filter(
+            Appointment.status == "pending",
+            Appointment.expires_at.is_not(None),
+            Appointment.expires_at <= now,
+        ).update({"status": "cancelled"}, synchronize_session=False)
 
     def list_by_status(self, status: str):
         return self.db.query(Appointment).filter(Appointment.status == status).all()
