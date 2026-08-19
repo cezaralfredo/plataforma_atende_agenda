@@ -33,7 +33,7 @@ class AdminKPIs(BaseModel):
     payments_overdue: int
     professionals_active: int
     professionals_total: int
-    clients_total: int
+    users_total: int
 
 
 class AdminAppointment(BaseModel):

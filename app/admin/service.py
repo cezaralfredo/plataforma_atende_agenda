@@ -79,8 +79,8 @@ class AdminService:
 
         professionals_total = self.db.query(func.count(Professional.id)).scalar() or 0
 
-        # Clients
-        clients_total = self.db.query(func.count(User.id)).scalar() or 0
+        # Users
+        users_total = self.db.query(func.count(User.id)).scalar() or 0
 
         return {
             "appointments_today": appointments_today,
@@ -93,7 +93,7 @@ class AdminService:
             "payments_overdue": payments_overdue,
             "professionals_active": professionals_active,
             "professionals_total": professionals_total,
-            "clients_total": clients_total,
+            "users_total": users_total,
         }
 
     def list_appointments(
