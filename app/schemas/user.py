@@ -6,12 +6,14 @@ class UserCreate(BaseModel):
     name: str
     phone: str
     email: str | None = None
+    whatsapp_number: str | None = None
 
 
 class UserUpdate(BaseModel):
     name: str | None = None
     phone: str | None = None
     email: str | None = None
+    whatsapp_number: str | None = None
     asaas_customer_id: str | None = None
 
 
@@ -22,5 +24,6 @@ class UserRead(BaseModel):
     name: str
     phone: str
     email: str | None = None
+    whatsapp_number: str | None = None
     asaas_customer_id: str | None = None
     created_at: datetime | None = None
