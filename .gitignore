@@ -61,6 +61,7 @@ alembic/versions/*.pyc
 # Test artifacts
 htmlcov/
 .coverage.*
+coverage.xml
 
 # Distribution
 dist/
