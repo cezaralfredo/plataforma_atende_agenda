@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from tests.seed import seed_appointment, seed_data, seed_payment
 
 
@@ -153,7 +154,7 @@ class TestFluxoCompleto:
         resp = client.post("/webhooks/asaas", json={
             "event": "PAYMENT_RECEIVED",
             "payment": {"id": pay.asaas_payment_id},
-        })
+        }, headers={"asaas-access-token": settings.asaas_webhook_token})
         assert resp.status_code == 200
         assert resp.json()["status"] == "ok"
 
@@ -165,11 +166,11 @@ class TestFluxoCompleto:
         client.post("/webhooks/asaas", json={
             "event": "PAYMENT_RECEIVED",
             "payment": {"id": pay.asaas_payment_id},
-        })
+        }, headers={"asaas-access-token": settings.asaas_webhook_token})
         resp = client.post("/webhooks/asaas", json={
             "event": "PAYMENT_RECEIVED",
             "payment": {"id": pay.asaas_payment_id},
-        })
+        }, headers={"asaas-access-token": settings.asaas_webhook_token})
         assert resp.status_code == 200
         assert resp.json()["status"] == "ignored"
 
