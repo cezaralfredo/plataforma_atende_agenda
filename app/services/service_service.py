@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from app.repositories import ServiceRepository
 from app.schemas.service import ServiceCreate, ServiceUpdate

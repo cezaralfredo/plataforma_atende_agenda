@@ -1,4 +1,5 @@
 import os
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 from sqlalchemy.pool import QueuePool
@@ -23,7 +24,6 @@ if "neon.tech" in os.environ.get("DATABASE_URL", ""):
         "keepalives_interval": 5,
         "keepalives_count": 3,
         "application_name": "agenda_atende",
-        "connect_timeout": 10,
         "tcp_user_timeout": 10000,
     }
 else:

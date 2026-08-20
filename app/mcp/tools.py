@@ -1,8 +1,7 @@
-from datetime import datetime
 
 from sqlalchemy.orm import Session
 
-from app.schemas.appointment import AppointmentCreate, AppointmentUpdate
+from app.schemas.appointment import AppointmentCreate
 from app.schemas.user import UserCreate, UserUpdate
 from app.services.appointment_service import AppointmentService
 from app.services.availability_service import AvailabilityService
@@ -225,13 +224,13 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
 
         elif name == "cadastrar_cliente":
             svc = UserService(db)
-            data = UserCreate(
+            user_create = UserCreate(
                 name=arguments["name"],
                 phone=arguments["phone"],
                 email=arguments.get("email"),
                 whatsapp_number=arguments.get("whatsapp_number"),
             )
-            user = svc.create(data)
+            user = svc.create(user_create)
             return {
                 "content": [
                     {
@@ -351,8 +350,8 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
             return {"content": [{"type": "text", "text": f"Cliente encontrado: {user.name} (ID: {user.id})"}]}
 
         elif name == "cadastrar_cliente":
-            from app.services.user_service import UserService
             from app.schemas.user import UserCreate
+            from app.services.user_service import UserService
             svc = UserService(db)
             data = UserCreate(
                 name=arguments["name"],
@@ -364,8 +363,8 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
             return {"content": [{"type": "text", "text": f"Cliente cadastrado! ID: {user.id}, Nome: {user.name}"}]}
 
         elif name == "atualizar_cliente":
-            from app.services.user_service import UserService
             from app.schemas.user import UserUpdate
+            from app.services.user_service import UserService
             svc = UserService(db)
             data = UserUpdate(
                 name=arguments.get("name"),
@@ -379,8 +378,8 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
             return {"content": [{"type": "text", "text": f"Cliente atualizado! ID: {user.id}, Nome: {user.name}"}]}
 
         elif name == "vincular_whatsapp":
-            from app.services.user_service import UserService
             from app.schemas.user import UserUpdate
+            from app.services.user_service import UserService
             svc = UserService(db)
             data = UserUpdate(whatsapp_number=arguments["whatsapp_number"])
             user = svc.update(arguments["user_id"], data)
