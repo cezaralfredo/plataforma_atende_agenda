@@ -1,4 +1,5 @@
 from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict
 
 
@@ -26,4 +27,4 @@ class UserRead(BaseModel):
     email: str | None = None
     whatsapp_number: str | None = None
     asaas_customer_id: str | None = None
-    created_at: str | None = None
+    created_at: datetime | None = None
