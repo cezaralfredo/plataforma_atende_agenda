@@ -1,8 +1,7 @@
-from datetime import date, datetime, timedelta
-from decimal import Decimal
-from typing import Optional, List, Tuple
-from sqlalchemy import func, and_, or_, select, text
-from sqlalchemy.orm import Session, joinedload
+from datetime import date, timedelta
+
+from sqlalchemy import and_, func, or_
+from sqlalchemy.orm import Session
 
 from app.models.appointment import Appointment
 from app.models.payment import Payment
@@ -19,7 +18,6 @@ class AdminService:
         today = date.today()
         week_ago = today - timedelta(days=7)
         month_ago = today - timedelta(days=30)
-        now = datetime.now()
 
         # Appointments today
         appointments_today = self.db.query(func.count(Appointment.id)).filter(
@@ -74,13 +72,13 @@ class AdminService:
 
         # Professionals
         professionals_active = self.db.query(func.count(Professional.id)).filter(
-            Professional.active == True
+            Professional.active.is_(True)
         ).scalar() or 0
 
         professionals_total = self.db.query(func.count(Professional.id)).scalar() or 0
 
-        # Clients
-        clients_total = self.db.query(func.count(User.id)).scalar() or 0
+        # Users
+        users_total = self.db.query(func.count(User.id)).scalar() or 0
 
         return {
             "appointments_today": appointments_today,
@@ -93,19 +91,19 @@ class AdminService:
             "payments_overdue": payments_overdue,
             "professionals_active": professionals_active,
             "professionals_total": professionals_total,
-            "clients_total": clients_total,
+            "users_total": users_total,
         }
 
     def list_appointments(
         self,
-        date_from: Optional[date] = None,
-        date_to: Optional[date] = None,
-        professional_id: Optional[int] = None,
-        status: Optional[str] = None,
-        search: Optional[str] = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+        professional_id: int | None = None,
+        status: str | None = None,
+        search: str | None = None,
         page: int = 1,
         page_size: int = 20,
-    ) -> Tuple[List[dict], int]:
+    ) -> tuple[list[dict], int]:
         query = self.db.query(
             Appointment,
             User.name.label("client_name"),
@@ -174,14 +172,14 @@ class AdminService:
 
     def list_payments(
         self,
-        date_from: Optional[date] = None,
-        date_to: Optional[date] = None,
-        professional_id: Optional[int] = None,
-        status: Optional[str] = None,
-        search: Optional[str] = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+        professional_id: int | None = None,
+        status: str | None = None,
+        search: str | None = None,
         page: int = 1,
         page_size: int = 20,
-    ) -> Tuple[List[dict], int]:
+    ) -> tuple[list[dict], int]:
         query = self.db.query(
             Payment,
             User.name.label("client_name"),
@@ -244,7 +242,7 @@ class AdminService:
 
         return payments, total
 
-    def list_professionals(self) -> List[dict]:
+    def list_professionals(self) -> list[dict]:
         today = date.today()
         week_ago = today - timedelta(days=7)
         month_ago = today - timedelta(days=30)
@@ -297,7 +295,7 @@ class AdminService:
 
         return result
 
-    def appointment_action(self, appointment_id: int, action: str, notes: Optional[str] = None) -> Optional[dict]:
+    def appointment_action(self, appointment_id: int, action: str, notes: str | None = None) -> dict | None:
         apt = self.db.query(Appointment).filter(Appointment.id == appointment_id).first()
         if not apt:
             return None
@@ -326,7 +324,7 @@ class AdminService:
             "notes": apt.notes,
         }
 
-    def payment_action(self, payment_id: int, action: str) -> Optional[dict]:
+    def payment_action(self, payment_id: int, action: str) -> dict | None:
         payment = self.db.query(Payment).filter(Payment.id == payment_id).first()
         if not payment:
             return None
@@ -343,7 +341,7 @@ class AdminService:
         else:
             return {"error": "Ação inválida"}
 
-    def get_appointment_detail(self, appointment_id: int) -> Optional[dict]:
+    def get_appointment_detail(self, appointment_id: int) -> dict | None:
         row = self.db.query(
             Appointment,
             User.name.label("client_name"),

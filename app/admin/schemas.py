@@ -1,8 +1,7 @@
 from datetime import date, datetime
-from decimal import Decimal
-from typing import Optional
-from pydantic import BaseModel, ConfigDict
 from enum import Enum
+
+from pydantic import BaseModel, ConfigDict
 
 
 class AppointmentStatus(str, Enum):
@@ -33,7 +32,7 @@ class AdminKPIs(BaseModel):
     payments_overdue: int
     professionals_active: int
     professionals_total: int
-    clients_total: int
+    users_total: int
 
 
 class AdminAppointment(BaseModel):
@@ -46,18 +45,18 @@ class AdminAppointment(BaseModel):
     start_time: datetime
     end_time: datetime
     status: str
-    expires_at: Optional[datetime] = None
-    notes: Optional[str] = None
+    expires_at: datetime | None = None
+    notes: str | None = None
     created_at: datetime
 
     # Related data
-    client_name: Optional[str] = None
-    client_phone: Optional[str] = None
-    professional_name: Optional[str] = None
-    service_name: Optional[str] = None
-    service_price_cents: Optional[int] = None
-    payment_status: Optional[str] = None
-    payment_id: Optional[int] = None
+    client_name: str | None = None
+    client_phone: str | None = None
+    professional_name: str | None = None
+    service_name: str | None = None
+    service_price_cents: int | None = None
+    payment_status: str | None = None
+    payment_id: int | None = None
 
 
 class AdminPayment(BaseModel):
@@ -65,21 +64,21 @@ class AdminPayment(BaseModel):
 
     id: int
     appointment_id: int
-    asaas_payment_id: Optional[str] = None
+    asaas_payment_id: str | None = None
     amount_cents: int
     billing_type: str
     status: str
-    invoice_url: Optional[str] = None
-    received_at: Optional[datetime] = None
+    invoice_url: str | None = None
+    received_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
     # Related data
-    client_name: Optional[str] = None
-    client_phone: Optional[str] = None
-    professional_name: Optional[str] = None
-    service_name: Optional[str] = None
-    appointment_start: Optional[datetime] = None
+    client_name: str | None = None
+    client_phone: str | None = None
+    professional_name: str | None = None
+    service_name: str | None = None
+    appointment_start: datetime | None = None
 
 
 class AdminProfessional(BaseModel):
@@ -87,10 +86,10 @@ class AdminProfessional(BaseModel):
 
     id: int
     name: str
-    phone: Optional[str] = None
-    email: Optional[str] = None
-    bio: Optional[str] = None
-    photo_url: Optional[str] = None
+    phone: str | None = None
+    email: str | None = None
+    bio: str | None = None
+    photo_url: str | None = None
     active: bool
 
     # Computed
@@ -101,18 +100,18 @@ class AdminProfessional(BaseModel):
 
 
 class AdminFilters(BaseModel):
-    date_from: Optional[date] = None
-    date_to: Optional[date] = None
-    professional_id: Optional[int] = None
-    status: Optional[str] = None
-    search: Optional[str] = None
+    date_from: date | None = None
+    date_to: date | None = None
+    professional_id: int | None = None
+    status: str | None = None
+    search: str | None = None
     page: int = 1
     page_size: int = 20
 
 
 class AppointmentAction(BaseModel):
     action: str  # cancel, confirm
-    notes: Optional[str] = None
+    notes: str | None = None
 
 
 class PaymentAction(BaseModel):

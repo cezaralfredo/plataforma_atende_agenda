@@ -3,13 +3,66 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.schemas.appointment import AppointmentCreate, AppointmentUpdate
+from app.schemas.user import UserCreate, UserUpdate
 from app.services.appointment_service import AppointmentService
 from app.services.availability_service import AvailabilityService
 from app.services.payment_service import PaymentService
 from app.services.service_service import ServiceService
-
+from app.services.user_service import UserService
 
 TOOL_DEFINITIONS = [
+    {
+        "name": "buscar_cliente_por_telefone",
+        "description": "Busca um cliente pelo número de telefone/WhatsApp",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "phone": {"type": "string", "description": "Número de telefone no formato 55XXXXXXXXXXX"},
+            },
+            "required": ["phone"],
+        },
+    },
+    {
+        "name": "cadastrar_cliente",
+        "description": "Cadastra um novo cliente",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Nome completo do cliente"},
+                "phone": {"type": "string", "description": "Número de telefone no formato 55XXXXXXXXXXX"},
+                "email": {"type": "string", "description": "Email do cliente (opcional)"},
+                "whatsapp_number": {"type": "string", "description": "Número do WhatsApp no formato 55XXXXXXXXXXX (opcional)"},
+            },
+            "required": ["name", "phone"],
+        },
+    },
+    {
+        "name": "atualizar_cliente",
+        "description": "Atualiza dados de um cliente existente",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "user_id": {"type": "integer", "description": "ID do cliente"},
+                "name": {"type": "string", "description": "Nome completo (opcional)"},
+                "phone": {"type": "string", "description": "Telefone (opcional)"},
+                "email": {"type": "string", "description": "Email (opcional)"},
+                "whatsapp_number": {"type": "string", "description": "WhatsApp (opcional)"},
+            },
+            "required": ["user_id"],
+        },
+    },
+    {
+        "name": "vincular_whatsapp",
+        "description": "Vincula um número de WhatsApp a um cliente existente",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "user_id": {"type": "integer", "description": "ID do cliente"},
+                "whatsapp_number": {"type": "string", "description": "Número do WhatsApp no formato 55XXXXXXXXXXX"},
+            },
+            "required": ["user_id", "whatsapp_number"],
+        },
+    },
     {
         "name": "listar_servicos",
         "description": "Lista serviços disponíveis por profissional ou categoria",
@@ -163,7 +216,52 @@ TOOL_DEFINITIONS = [
 
 async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
     try:
-        if name == "listar_servicos":
+        if name == "buscar_cliente_por_telefone":
+            svc = UserService(db)
+            user = svc.find_by_phone(arguments["phone"])
+            if not user:
+                return {"content": [{"type": "text", "text": "Cliente não encontrado."}]}
+            return {"content": [{"type": "text", "text": _format_cliente(user)}]}
+
+        elif name == "cadastrar_cliente":
+            svc = UserService(db)
+            data = UserCreate(
+                name=arguments["name"],
+                phone=arguments["phone"],
+                email=arguments.get("email"),
+                whatsapp_number=arguments.get("whatsapp_number"),
+            )
+            user = svc.create(data)
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"Cliente cadastrado com sucesso!\n{_format_cliente(user)}",
+                    }
+                ]
+            }
+
+        elif name == "atualizar_cliente":
+            svc = UserService(db)
+            data = UserUpdate(
+                name=arguments.get("name"),
+                phone=arguments.get("phone"),
+                email=arguments.get("email"),
+                whatsapp_number=arguments.get("whatsapp_number"),
+            )
+            user = svc.update(arguments["user_id"], data)
+            if not user:
+                return {"content": [{"type": "text", "text": "Cliente não encontrado."}]}
+            return {"content": [{"type": "text", "text": f"Cliente atualizado!\n{_format_cliente(user)}"}]}
+
+        elif name == "vincular_whatsapp":
+            svc = UserService(db)
+            user = svc.link_whatsapp(arguments["user_id"], arguments["whatsapp_number"])
+            if not user:
+                return {"content": [{"type": "text", "text": "Cliente não encontrado."}]}
+            return {"content": [{"type": "text", "text": f"WhatsApp vinculado com sucesso!\n{_format_cliente(user)}"}]}
+
+        elif name == "listar_servicos":
             svc = ServiceService(db)
             professional_id = arguments.get("professional_id")
             result = svc.list(
@@ -304,7 +402,7 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
     except Exception as e:
         return {
             "isError": True,
-            "content": [{"type": "text", "text": f"Erro: {str(e)}"}],
+            "content": [{"type": "text", "text": f"Erro: {e!s}"}],
         }
 
 
@@ -341,3 +439,14 @@ def _format_servicos(services, include_professional: bool = True) -> str:
         lines.append(service_line)
     
     return "\n".join(lines)
+
+
+def _format_cliente(user) -> str:
+    whatsapp = user.whatsapp_number or "-"
+    return (
+        f"  ID: {user.id}\n"
+        f"  Nome: {user.name}\n"
+        f"  Telefone: {user.phone}\n"
+        f"  Email: {user.email or '-'}\n"
+        f"  WhatsApp: {whatsapp}"
+    )

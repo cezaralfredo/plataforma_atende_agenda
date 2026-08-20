@@ -9,4 +9,4 @@ class ProfessionalRepository(BaseRepository):
         super().__init__(db, Professional)
 
     def list_active(self):
-        return self.db.query(Professional).filter(Professional.active == True).all()
+        return self.db.query(Professional).filter(Professional.active.is_(True)).all()

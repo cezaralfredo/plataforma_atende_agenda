@@ -1,3 +1,5 @@
+from datetime import date, datetime, time
+
 from sqlalchemy.orm import Session
 
 from app.models.appointment import Appointment
@@ -13,7 +15,7 @@ def seed_data(db: Session) -> dict:
         name="João Silva",
         phone="+5511999999999",
         email="joao@email.com",
-        created_at="2026-07-29T10:00:00",
+        created_at=datetime(2026, 7, 29, 10, 0, 0),
     )
     db.add(user)
     db.flush()
@@ -53,24 +55,24 @@ def seed_data(db: Session) -> dict:
     availability = Availability(
         professional_id=professional.id,
         day_of_week=2,
-        start_time="08:00",
-        end_time="12:00",
+        start_time=time(8, 0),
+        end_time=time(12, 0),
     )
     db.add(availability)
 
     availability2 = Availability(
         professional_id=professional.id,
         day_of_week=2,
-        start_time="13:00",
-        end_time="18:00",
+        start_time=time(13, 0),
+        end_time=time(18, 0),
     )
     db.add(availability2)
 
     availability3 = Availability(
         professional_id=professional.id,
-        specific_date="2026-07-30",
-        start_time="09:00",
-        end_time="17:00",
+        specific_date=date(2026, 7, 30),
+        start_time=time(9, 0),
+        end_time=time(17, 0),
     )
     db.add(availability3)
 
@@ -90,11 +92,11 @@ def seed_appointment(db: Session, entities: dict) -> Appointment:
         user_id=entities["user"].id,
         professional_id=entities["professional"].id,
         service_id=entities["service"].id,
-        start_time="2026-07-30T09:00:00",
-        end_time="2026-07-30T10:00:00",
+        start_time=datetime(2026, 7, 30, 9, 0, 0),
+        end_time=datetime(2026, 7, 30, 10, 0, 0),
         status="awaiting_payment",
-        created_at="2026-07-29T10:00:00",
-        expires_at="2026-07-29T10:30:00",
+        created_at=datetime(2026, 7, 29, 10, 0, 0),
+        expires_at=datetime(2026, 7, 29, 10, 30, 0),
     )
     db.add(apt)
     db.commit()
@@ -103,7 +105,7 @@ def seed_appointment(db: Session, entities: dict) -> Appointment:
 
 
 def seed_payment(db: Session, appointment: Appointment) -> Payment:
-    from datetime import datetime
+    now = datetime.now()
 
     pay = Payment(
         appointment_id=appointment.id,
@@ -112,8 +114,8 @@ def seed_payment(db: Session, appointment: Appointment) -> Payment:
         billing_type="pix",
         status="pending",
         invoice_url="https://asaas.com/pay/abc123",
-        created_at=datetime.now().isoformat(),
-        updated_at=datetime.now().isoformat(),
+        created_at=now,
+        updated_at=now,
     )
     db.add(pay)
     db.commit()

@@ -3,10 +3,14 @@ Teste E2E — Fluxo Completo
 Simula: cadastro → criar agendamento → cobrança → webhook pagamento → confirmação
 """
 
+import asyncio
+from unittest.mock import AsyncMock
+
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from tests.seed import seed_data, seed_appointment, seed_payment
+from app.config import settings
+from tests.seed import seed_appointment, seed_data, seed_payment
 
 
 class TestFluxoCompleto:
@@ -93,6 +97,40 @@ class TestFluxoCompleto:
         })
         assert resp.status_code == 409
 
+    def test_reserva_fora_do_horario_e_rejeitada(self, client: TestClient, db_session: Session):
+        entities = seed_data(db_session)
+        resp = client.post("/api/appointments", json={
+            "user_id": entities["user"].id,
+            "professional_id": entities["professional"].id,
+            "service_id": entities["service"].id,
+            "start_time": "2026-07-30T17:00:00",
+            "end_time": "2026-07-30T18:00:00",
+        })
+        assert resp.status_code == 409
+        assert "disponibilidade" in resp.json()["detail"]
+
+    def test_reserva_com_duracao_incorreta_e_rejeitada(self, client: TestClient, db_session: Session):
+        entities = seed_data(db_session)
+        resp = client.post("/api/appointments", json={
+            "user_id": entities["user"].id,
+            "professional_id": entities["professional"].id,
+            "service_id": entities["service"].id,
+            "start_time": "2026-07-30T10:00:00",
+            "end_time": "2026-07-30T10:30:00",
+        })
+        assert resp.status_code == 409
+        assert "dura" in resp.json()["detail"]
+
+    def test_disponibilidade_invalida_e_rejeitada(self, client: TestClient, db_session: Session):
+        entities = seed_data(db_session)
+        resp = client.post("/api/availability", json={
+            "professional_id": entities["professional"].id,
+            "day_of_week": 8,
+            "start_time": "10:00:00",
+            "end_time": "09:00:00",
+        })
+        assert resp.status_code == 422
+
     def test_cancelar_reserva(self, client: TestClient, db_session: Session):
         entities = seed_data(db_session)
         apt = seed_appointment(db_session, entities)
@@ -116,7 +154,7 @@ class TestFluxoCompleto:
         resp = client.post("/webhooks/asaas", json={
             "event": "PAYMENT_RECEIVED",
             "payment": {"id": pay.asaas_payment_id},
-        })
+        }, headers={"asaas-access-token": settings.asaas_webhook_token})
         assert resp.status_code == 200
         assert resp.json()["status"] == "ok"
 
@@ -128,13 +166,32 @@ class TestFluxoCompleto:
         client.post("/webhooks/asaas", json={
             "event": "PAYMENT_RECEIVED",
             "payment": {"id": pay.asaas_payment_id},
-        })
+        }, headers={"asaas-access-token": settings.asaas_webhook_token})
         resp = client.post("/webhooks/asaas", json={
             "event": "PAYMENT_RECEIVED",
             "payment": {"id": pay.asaas_payment_id},
-        })
+        }, headers={"asaas-access-token": settings.asaas_webhook_token})
         assert resp.status_code == 200
         assert resp.json()["status"] == "ignored"
+
+    def test_criacao_de_cobranca_e_idempotente(self, db_session: Session):
+        from app.services.payment_service import PaymentService
+
+        entities = seed_data(db_session)
+        appointment = seed_appointment(db_session, entities)
+        service = PaymentService(db_session)
+        service.asaas.create_customer = AsyncMock(return_value={"id": "cus_123"})
+        service.asaas.create_payment = AsyncMock(return_value={
+            "id": "pay_123", "invoiceUrl": "https://asaas.test/pay_123"
+        })
+
+        payment = asyncio.run(service.create_charge(appointment.id, "PIX"))
+        repeated = asyncio.run(service.create_charge(appointment.id, "pix"))
+
+        assert payment.billing_type == "pix"
+        assert payment.amount_cents == entities["service"].price_cents
+        assert repeated.id == payment.id
+        assert service.asaas.create_payment.await_count == 1
 
     def test_mcp_listar_servicos(self, client: TestClient, db_session: Session):
         from app.config import settings

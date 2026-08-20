@@ -1,9 +1,14 @@
 from __future__ import annotations
-from datetime import datetime, timedelta
+
+from datetime import datetime, time, timedelta
 
 from sqlalchemy.orm import Session
 
-from app.repositories import AvailabilityRepository, AppointmentRepository, ServiceRepository
+from app.repositories import (
+    AppointmentRepository,
+    AvailabilityRepository,
+    ServiceRepository,
+)
 from app.schemas.availability import AvailabilityCreate, AvailabilityUpdate, TimeSlot
 
 
@@ -31,27 +36,41 @@ class AvailabilityService:
         return self.repo.delete(availability_id)
 
     def check_availability(self, professional_id: int, date_str: str) -> list[TimeSlot]:
-        date = datetime.strptime(date_str, "%Y-%m-%d").date()
-        day_of_week = date.weekday()
+        try:
+            date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            return []
 
-        slots = self.repo.find_by_date(professional_id, date_str)
+        day_of_week = date_obj.weekday()
+
+        # Get specific date availability first
+        slots = self.repo.find_by_date(professional_id, date_obj)
         if not slots:
+            # Fall back to recurring weekly availability
             slots = self.repo.find_by_day(professional_id, day_of_week)
 
         if not slots:
             return []
 
         available_slots: list[TimeSlot] = []
-        day_start = date_str
-        day_end = date_str
 
         for slot in slots:
-            slot_start = f"{day_start}T{slot.start_time}"
-            slot_end = f"{day_end}T{slot.end_time}"
-            available_slots.append(TimeSlot(start=slot_start, end=slot_end))
+            if slot.specific_date:
+                slot_date = slot.specific_date
+            else:
+                slot_date = date_obj
+
+            if slot.start_time and slot.end_time:
+                slot_start = datetime.combine(slot_date, slot.start_time)
+                slot_end = datetime.combine(slot_date, slot.end_time)
+                available_slots.append(TimeSlot(start=slot_start, end=slot_end))
+
+        # Get busy appointments for the day
+        day_start = datetime.combine(date_obj, time.min)
+        day_end = datetime.combine(date_obj, time.max)
 
         busy = self.appointment_repo.find_conflicting(
-            professional_id, f"{date_str}T00:00", f"{date_str}T23:59"
+            professional_id, day_start.isoformat(), day_end.isoformat()
         )
 
         if not busy:
@@ -61,9 +80,20 @@ class AvailabilityService:
         for slot in available_slots:
             current_start = slot.start
             for b in sorted(busy, key=lambda x: x.start_time):
-                if b.start_time > current_start:
-                    free_slots.append(TimeSlot(start=current_start, end=b.start_time))
-                current_start = max(current_start, b.end_time)
+                busy_start = b.start_time
+                busy_end = b.end_time
+                if isinstance(busy_start, str):
+                    busy_start = datetime.fromisoformat(busy_start)
+                if isinstance(busy_end, str):
+                    busy_end = datetime.fromisoformat(busy_end)
+
+                # An appointment outside this availability window must not
+                # expand or consume this window.
+                if busy_end <= current_start or busy_start >= slot.end:
+                    continue
+                if busy_start > current_start:
+                    free_slots.append(TimeSlot(start=current_start, end=min(busy_start, slot.end)))
+                current_start = max(current_start, min(busy_end, slot.end))
             if current_start < slot.end:
                 free_slots.append(TimeSlot(start=current_start, end=slot.end))
 
@@ -71,7 +101,7 @@ class AvailabilityService:
 
     def get_time_slots_for_service(self, professional_id: int, service_id: int, date_str: str) -> list[TimeSlot]:
         service = self.service_repo.get(service_id)
-        if not service:
+        if not service or service.professional_id != professional_id:
             return []
 
         free_periods = self.check_availability(professional_id, date_str)
@@ -80,15 +110,23 @@ class AvailabilityService:
         duration = timedelta(minutes=service.duration_minutes)
 
         for period in free_periods:
-            period_start = datetime.fromisoformat(period.start)
-            period_end = datetime.fromisoformat(period.end)
+            period_start = period.start
+            period_end = period.end
             cursor = period_start
             while cursor + duration <= period_end:
                 end = cursor + duration
                 slots.append(TimeSlot(
-                    start=cursor.isoformat(),
-                    end=end.isoformat(),
+                    start=cursor,
+                    end=end,
                 ))
                 cursor = end
 
         return slots
+
+    def is_interval_available(self, professional_id: int, start: datetime, end: datetime) -> bool:
+        """Return whether the entire requested interval is inside one free period."""
+        date_str = start.date().isoformat()
+        if end.date() != start.date():
+            return False
+        return any(period.start <= start and end <= period.end
+                   for period in self.check_availability(professional_id, date_str))

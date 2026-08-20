@@ -2,7 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.schemas.appointment import AppointmentCreate, AppointmentRead, AppointmentUpdate
+from app.schemas.appointment import (
+    AppointmentCreate,
+    AppointmentRead,
+    AppointmentUpdate,
+)
 from app.services.appointment_service import AppointmentService
 
 router = APIRouter(prefix="/api/appointments", tags=["appointments"])
@@ -42,7 +46,10 @@ def get_appointment(appointment_id: int, db: Session = Depends(get_db)):
 @router.put("/{appointment_id}", response_model=AppointmentRead)
 def update_appointment(appointment_id: int, data: AppointmentUpdate, db: Session = Depends(get_db)):
     service = AppointmentService(db)
-    apt = service.update(appointment_id, data)
+    try:
+        apt = service.update(appointment_id, data)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
     if not apt:
         raise HTTPException(status_code=404, detail="Agendamento não encontrado")
     return apt
@@ -60,7 +67,10 @@ def cancel_appointment(appointment_id: int, db: Session = Depends(get_db)):
 @router.post("/{appointment_id}/confirm", response_model=AppointmentRead)
 def confirm_appointment(appointment_id: int, db: Session = Depends(get_db)):
     service = AppointmentService(db)
-    apt = service.confirm(appointment_id)
+    try:
+        apt = service.confirm(appointment_id)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
     if not apt:
         raise HTTPException(status_code=404, detail="Agendamento não encontrado")
     return apt

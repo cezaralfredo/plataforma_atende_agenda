@@ -1,17 +1,17 @@
 from fastapi import FastAPI
 from prometheus_fastapi_instrumentator import Instrumentator
 
+from app.admin.router import router as admin_router
+from app.api.appointments import router as appointments_router
+from app.api.availability import router as availability_router
 from app.api.health import router as health_router
-from app.api.users import router as users_router
+from app.api.payments import router as payments_router
 from app.api.professionals import router as professionals_router
 from app.api.services import router as services_router
-from app.api.availability import router as availability_router
-from app.api.appointments import router as appointments_router
+from app.api.users import router as users_router
 from app.api.webhooks import router as webhooks_router
-from app.api.payments import router as payments_router
-from app.mcp.router import router as mcp_router
-from app.admin.router import router as admin_router
 from app.config import settings
+from app.mcp.router import router as mcp_router
 
 app = FastAPI(title=settings.app_name, debug=settings.debug)
 

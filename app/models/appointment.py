@@ -1,4 +1,13 @@
-from sqlalchemy import ForeignKey, Integer, String, Text
+from datetime import datetime
+
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    String,
+    Text,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -6,25 +15,37 @@ from app.database import Base
 
 class Appointment(Base):
     __tablename__ = "appointments"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'confirmed', 'cancelled', 'completed', 'awaiting_payment')",
+            name="check_appointment_status",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"), nullable=False, index=True
+    )
     professional_id: Mapped[int] = mapped_column(
-        ForeignKey("professionals.id"), nullable=False
+        ForeignKey("professionals.id"), nullable=False, index=True
     )
     service_id: Mapped[int] = mapped_column(
-        ForeignKey("services.id"), nullable=False
+        ForeignKey("services.id"), nullable=False, index=True
     )
-    start_time: Mapped[str] = mapped_column(String(30), nullable=False)
-    end_time: Mapped[str] = mapped_column(String(30), nullable=False)
+    start_time: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    end_time: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
     status: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="pending"
+        String(20), nullable=False, default="pending", index=True
     )
-    expires_at: Mapped[str] = mapped_column(String(30), nullable=True)
-    notified_at: Mapped[str] = mapped_column(String(30), nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    notified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     notes: Mapped[str] = mapped_column(Text, nullable=True)
-    created_at: Mapped[str] = mapped_column(
-        String(30), nullable=False, default="now()"
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
     user = relationship("User", back_populates="appointments")

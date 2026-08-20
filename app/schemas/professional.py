@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict
 
 
@@ -29,3 +31,4 @@ class ProfessionalRead(BaseModel):
     bio: str | None = None
     photo_url: str | None = None
     active: bool
+    created_at: datetime | None = None

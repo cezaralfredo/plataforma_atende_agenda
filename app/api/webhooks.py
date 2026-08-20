@@ -2,16 +2,16 @@ import hmac
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
 from app.models.appointment import Appointment
 from app.models.payment import Payment
+from app.models.webhook_event import WebhookEvent
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
-
-PROCESSED_EVENTS: set[str] = set()
 
 STATUS_MAP = {
     "PAYMENT_RECEIVED": "received",
@@ -39,10 +39,6 @@ async def asaas_webhook(request: Request, db: Session = Depends(get_db)):
     event = body.get("event", "")
     payment_data = body.get("payment", {})
 
-    event_id = f"{event}_{payment_data.get('id', '')}"
-    if event_id in PROCESSED_EVENTS:
-        return {"status": "ignored", "reason": "duplicate"}
-
     if not payment_data:
         return {"status": "ignored", "reason": "no_payment_data"}
 
@@ -52,19 +48,23 @@ async def asaas_webhook(request: Request, db: Session = Depends(get_db)):
     if not payment:
         return {"status": "ignored", "reason": "payment_not_found"}
 
+    event_id = f"{event}_{asaas_payment_id}"
+    db.add(WebhookEvent(provider_event_id=event_id))
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        return {"status": "ignored", "reason": "duplicate"}
+
     new_status = STATUS_MAP.get(event)
     if new_status and new_status != payment.status:
         payment.status = new_status
-        payment.updated_at = datetime.now().isoformat()
+        payment.updated_at = datetime.now()
         if new_status in ("received", "confirmed"):
-            payment.received_at = datetime.now().isoformat()
+            payment.received_at = datetime.now()
             db.query(Appointment).filter(Appointment.id == payment.appointment_id).update(
                 {"status": "confirmed"}
             )
         db.commit()
-
-    PROCESSED_EVENTS.add(event_id)
-    if len(PROCESSED_EVENTS) > 1000:
-        PROCESSED_EVENTS.clear()
 
     return {"status": "ok"}
