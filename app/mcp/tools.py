@@ -316,8 +316,13 @@ def _format_servicos(services, include_professional: bool = True) -> str:
     seen = set()  # Para deduplicação quando não filtrado por profissional
     
     for s in services:
-        # Chave única para deduplicação: (nome, preço, duração, categoria)
-        dedup_key = (s.name, s.price_cents, s.duration_minutes, s.category)
+        # Chave única para deduplicação
+        # Se include_professional=True e tem professional carregado, inclui professional_id
+        # Se include_professional=False, dedup por (nome, preço, duração, categoria)
+        if include_professional and s.professional:
+            dedup_key = (s.name, s.price_cents, s.duration_minutes, s.category, s.professional_id)
+        else:
+            dedup_key = (s.name, s.price_cents, s.duration_minutes, s.category)
         
         if include_professional and s.professional_id and not hasattr(s, 'professional'):
             # Se não tem relationship carregada, não deduplica
@@ -329,8 +334,8 @@ def _format_servicos(services, include_professional: bool = True) -> str:
         else:
             service_line = f"  #{s.id} {s.name} - R$ {s.price_cents / 100:.2f} ({s.duration_minutes}min)"
         
-        # Deduplicação apenas quando não filtrado por profissional específico
-        if dedup_key in seen and include_professional:
+        # Deduplicação: sempre aplica, mas com chaves diferentes
+        if dedup_key in seen:
             continue
         seen.add(dedup_key)
         lines.append(service_line)
