@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Optional
 
 from sqlalchemy.orm import Session
 
@@ -17,7 +16,7 @@ class AppointmentRepository(BaseRepository):
     def list_by_professional(self, professional_id: int):
         return self.db.query(Appointment).filter(Appointment.professional_id == professional_id).order_by(Appointment.start_time.desc()).all()
 
-    def find_conflicting(self, professional_id: int, start_time: datetime | str, end_time: datetime | str, exclude_id: Optional[int] = None):
+    def find_conflicting(self, professional_id: int, start_time: datetime | str, end_time: datetime | str, exclude_id: int | None = None):
         if isinstance(start_time, str):
             start_time = datetime.fromisoformat(start_time)
         if isinstance(end_time, str):

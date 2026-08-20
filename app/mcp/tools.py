@@ -10,7 +10,6 @@ from app.services.payment_service import PaymentService
 from app.services.service_service import ServiceService
 from app.services.user_service import UserService
 
-
 TOOL_DEFINITIONS = [
     {
         "name": "buscar_cliente_por_telefone",
@@ -322,7 +321,7 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
     except Exception as e:
         return {
             "isError": True,
-            "content": [{"type": "text", "text": f"Erro: {str(e)}"}],
+            "content": [{"type": "text", "text": f"Erro: {e!s}"}],
         }
 
 

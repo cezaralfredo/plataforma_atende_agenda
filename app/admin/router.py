@@ -1,14 +1,14 @@
 from datetime import date
-from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Header
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from app.database import get_db
-from app.config import settings
+from app.admin.schemas import AppointmentAction, PaymentAction
 from app.admin.service import AdminService
-from app.admin.schemas import AdminFilters, AppointmentAction, PaymentAction
+from app.config import settings
+from app.database import get_db
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -36,11 +36,11 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
 @router.get("/appointments", response_class=HTMLResponse, dependencies=[Depends(verify_admin_key)])
 async def appointments_page(
     request: Request,
-    date_from: Optional[date] = None,
-    date_to: Optional[date] = None,
-    professional_id: Optional[int] = None,
-    status: Optional[str] = None,
-    search: Optional[str] = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    professional_id: int | None = None,
+    status: str | None = None,
+    search: str | None = None,
     page: int = 1,
     page_size: int = 20,
     db: Session = Depends(get_db),
@@ -115,11 +115,11 @@ async def appointment_action(
 @router.get("/payments", response_class=HTMLResponse, dependencies=[Depends(verify_admin_key)])
 async def payments_page(
     request: Request,
-    date_from: Optional[date] = None,
-    date_to: Optional[date] = None,
-    professional_id: Optional[int] = None,
-    status: Optional[str] = None,
-    search: Optional[str] = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    professional_id: int | None = None,
+    status: str | None = None,
+    search: str | None = None,
     page: int = 1,
     page_size: int = 20,
     db: Session = Depends(get_db),
@@ -194,11 +194,11 @@ async def api_kpis(db: Session = Depends(get_db)):
 
 @router.get("/api/appointments", dependencies=[Depends(verify_admin_key)])
 async def api_appointments(
-    date_from: Optional[date] = None,
-    date_to: Optional[date] = None,
-    professional_id: Optional[int] = None,
-    status: Optional[str] = None,
-    search: Optional[str] = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    professional_id: int | None = None,
+    status: str | None = None,
+    search: str | None = None,
     page: int = 1,
     page_size: int = 20,
     db: Session = Depends(get_db),
@@ -225,11 +225,11 @@ async def api_appointments(
 
 @router.get("/api/payments", dependencies=[Depends(verify_admin_key)])
 async def api_payments(
-    date_from: Optional[date] = None,
-    date_to: Optional[date] = None,
-    professional_id: Optional[int] = None,
-    status: Optional[str] = None,
-    search: Optional[str] = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    professional_id: int | None = None,
+    status: str | None = None,
+    search: str | None = None,
     page: int = 1,
     page_size: int = 20,
     db: Session = Depends(get_db),

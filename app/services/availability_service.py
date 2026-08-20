@@ -1,10 +1,14 @@
 from __future__ import annotations
-from datetime import datetime, timedelta, date, time
-from typing import Optional
+
+from datetime import datetime, time, timedelta
 
 from sqlalchemy.orm import Session
 
-from app.repositories import AvailabilityRepository, AppointmentRepository, ServiceRepository
+from app.repositories import (
+    AppointmentRepository,
+    AvailabilityRepository,
+    ServiceRepository,
+)
 from app.schemas.availability import AvailabilityCreate, AvailabilityUpdate, TimeSlot
 
 

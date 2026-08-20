@@ -2,7 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.schemas.appointment import AppointmentCreate, AppointmentRead, AppointmentUpdate
+from app.schemas.appointment import (
+    AppointmentCreate,
+    AppointmentRead,
+    AppointmentUpdate,
+)
 from app.services.appointment_service import AppointmentService
 
 router = APIRouter(prefix="/api/appointments", tags=["appointments"])

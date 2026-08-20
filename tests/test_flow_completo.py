@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from tests.seed import seed_data, seed_appointment, seed_payment
+from tests.seed import seed_appointment, seed_data, seed_payment
 
 
 class TestFluxoCompleto:

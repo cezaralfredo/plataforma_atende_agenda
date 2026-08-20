@@ -1,4 +1,5 @@
-from datetime import datetime, date, time
+from datetime import date, datetime, time
+
 from sqlalchemy.orm import Session
 
 from app.models.appointment import Appointment

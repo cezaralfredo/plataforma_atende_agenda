@@ -1,13 +1,11 @@
 from datetime import datetime, timedelta
-from typing import Optional
 
-from sqlalchemy.orm import Session
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.appointment import Appointment
+from app.models.payment import Payment
 from app.repositories import UserRepository
 from app.repositories.appointment_repo import AppointmentRepository
-from app.models.payment import Payment
 from app.repositories.payment_repo import PaymentRepository
 from app.services.asaas_client import AsaasClient
 
@@ -145,5 +143,5 @@ class PaymentService:
 
         return updated
 
-    def get_payment_by_appointment(self, appointment_id: int) -> Optional[Payment]:
+    def get_payment_by_appointment(self, appointment_id: int) -> Payment | None:
         return self.db.query(Payment).filter(Payment.appointment_id == appointment_id).first()

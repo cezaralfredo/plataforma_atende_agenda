@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -16,11 +16,11 @@ class AppointmentService:
         self.availability_service = AvailabilityService(db)
 
     def _expire_pending(self) -> None:
-        self.repo.expire_pending(datetime.now(timezone.utc))
+        self.repo.expire_pending(datetime.now(UTC))
         self.repo.db.commit()
 
     def create(self, data: AppointmentCreate):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         self._expire_pending()
 
         if not self.repo.db.get(User, data.user_id):
@@ -93,7 +93,7 @@ class AppointmentService:
             return None
         if appointment.status in {"cancelled", "completed"}:
             raise ValueError("N\u00e3o \u00e9 poss\u00edvel confirmar este agendamento")
-        if appointment.status == "pending" and appointment.expires_at and appointment.expires_at <= datetime.now(timezone.utc):
+        if appointment.status == "pending" and appointment.expires_at and appointment.expires_at <= datetime.now(UTC):
             self.repo.update(appointment_id, status="cancelled")
             raise ValueError("A reserva expirou")
         return self.repo.update(appointment_id, status="confirmed")

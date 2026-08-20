@@ -2,7 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.schemas.availability import AvailabilityCreate, AvailabilityRead, AvailabilityUpdate, TimeSlot
+from app.schemas.availability import (
+    AvailabilityCreate,
+    AvailabilityRead,
+    AvailabilityUpdate,
+    TimeSlot,
+)
 from app.services.availability_service import AvailabilityService
 
 router = APIRouter(prefix="/api/availability", tags=["availability"])
