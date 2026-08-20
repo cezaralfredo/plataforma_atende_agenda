@@ -341,52 +341,6 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
                 lines.append(f"  #{a.id} - {a.start_time} a {a.end_time} - Status: {a.status}")
             return {"content": [{"type": "text", "text": "\n".join(lines)}]}
 
-        elif name == "buscar_cliente_por_telefone":
-            from app.services.user_service import UserService
-            svc = UserService(db)
-            user = svc.get_by_phone(arguments["phone"])
-            if not user:
-                return {"content": [{"type": "text", "text": "Cliente não encontrado."}]}
-            return {"content": [{"type": "text", "text": f"Cliente encontrado: {user.name} (ID: {user.id})"}]}
-
-        elif name == "cadastrar_cliente":
-            from app.schemas.user import UserCreate
-            from app.services.user_service import UserService
-            svc = UserService(db)
-            data = UserCreate(
-                name=arguments["name"],
-                phone=arguments["phone"],
-                email=arguments.get("email"),
-                whatsapp_number=arguments.get("whatsapp_number"),
-            )
-            user = svc.create(data)
-            return {"content": [{"type": "text", "text": f"Cliente cadastrado! ID: {user.id}, Nome: {user.name}"}]}
-
-        elif name == "atualizar_cliente":
-            from app.schemas.user import UserUpdate
-            from app.services.user_service import UserService
-            svc = UserService(db)
-            data = UserUpdate(
-                name=arguments.get("name"),
-                phone=arguments.get("phone"),
-                email=arguments.get("email"),
-                whatsapp_number=arguments.get("whatsapp_number"),
-            )
-            user = svc.update(arguments["user_id"], data)
-            if not user:
-                return {"content": [{"type": "text", "text": "Cliente não encontrado."}]}
-            return {"content": [{"type": "text", "text": f"Cliente atualizado! ID: {user.id}, Nome: {user.name}"}]}
-
-        elif name == "vincular_whatsapp":
-            from app.schemas.user import UserUpdate
-            from app.services.user_service import UserService
-            svc = UserService(db)
-            data = UserUpdate(whatsapp_number=arguments["whatsapp_number"])
-            user = svc.update(arguments["user_id"], data)
-            if not user:
-                return {"content": [{"type": "text", "text": "Cliente não encontrado."}]}
-            return {"content": [{"type": "text", "text": f"WhatsApp vinculado! Cliente: {user.name} (ID: {user.id})"}]}
-
         else:
             return {
                 "isError": True,
