@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.repositories import ServiceRepository
 from app.schemas.service import ServiceCreate, ServiceUpdate
@@ -19,7 +19,8 @@ class ServiceService:
             return self.repo.list_by_professional(professional_id)
         if category is not None:
             return self.repo.list_by_category(category)
-        return self.repo.list(skip=skip, limit=limit)
+        # Quando sem filtro, carrega o relacionamento professional para incluir o nome
+        return self.repo.list_with_professional(skip=skip, limit=limit)
 
     def update(self, service_id: int, data: ServiceUpdate):
         return self.repo.update(service_id, **data.model_dump())

@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.service import Service
 from app.repositories.base import BaseRepository
@@ -13,3 +13,13 @@ class ServiceRepository(BaseRepository):
 
     def list_by_category(self, category: str):
         return self.db.query(Service).filter(Service.category == category).all()
+
+    def list_with_professional(self, skip: int = 0, limit: int = 100):
+        """Lista serviços carregando o relacionamento professional (para incluir nome na resposta)"""
+        return (
+            self.db.query(Service)
+            .options(joinedload(Service.professional))
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
