@@ -1,48 +1,39 @@
 import os
+from contextlib import contextmanager
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 from sqlalchemy.pool import QueuePool
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from psycopg2 import OperationalError
 
-# Database URL from environment
-database_url = os.environ.get("DATABASE_URL", "postgresql+psycopg://postgres:postgres@localhost:5432/agenda_atende")
+from app.config import settings
+
+# Database URL from settings (which loads from .env)
+database_url = settings.database_url
 
 # Check if using Neon (SSL required) or local PostgreSQL
-is_neon = "neon.tech" in os.environ.get("DATABASE_URL", "")
+is_neon = "neon.tech" in database_url
 
-# SSL and connection arguments for PostgreSQL
-connect_args = {}
-
-if "neon.tech" in os.environ.get("DATABASE_URL", ""):
-    # Neon requires SSL and specific settings - aggressive keepalive for Neon
-    connect_args = {
-        "sslmode": "require",
-        "channel_binding": "require",
-        "connect_timeout": 10,
-        "keepalives": 1,
-        "keepalives_idle": 10,
-        "keepalives_interval": 5,
-        "keepalives_count": 3,
-        "application_name": "agenda_atende",
-        "tcp_user_timeout": 10000,
-    }
-else:
-    # Local PostgreSQL settings
-    connect_args = {
-        "sslmode": "prefer",
-        "keepalives": 1,
-        "keepalives_idle": 30,
-        "keepalives_interval": 10,
-        "keepalives_count": 3,
-        "application_name": "agenda_atende",
-    }
+# SSL and connection arguments for PostgreSQL - aggressive keepalive for Neon
+connect_args = {
+    "sslmode": "require" if is_neon else "prefer",
+    "channel_binding": "require" if is_neon else "prefer",
+    "connect_timeout": 30,
+    "keepalives": 1,
+    "keepalives_idle": 30,
+    "keepalives_interval": 10,
+    "keepalives_count": 5,
+    "application_name": "agenda_atende",
+    "tcp_user_timeout": 30000,
+}
 
 # Engine configuration with robust connection pooling and SSL handling
 engine = create_engine(
     database_url,
     poolclass=QueuePool,
     pool_pre_ping=True,           # CRITICAL: validates connections before use
-    pool_recycle=120,             # Recycle connections every 2 minutes
+    pool_recycle=180,             # Recycle connections every 3 minutes (Neon closes idle at 5min)
     pool_size=10,                 # Base pool size
     max_overflow=20,              # Allow up to 20 additional connections
     pool_timeout=30,              # Timeout for getting connection from pool
@@ -56,6 +47,27 @@ class Base(DeclarativeBase):
     pass
 
 
+@retry(
+    wait=wait_exponential(multiplier=1, min=1, max=10),
+    stop=stop_after_attempt(3),
+    retry=retry_if_exception_type(OperationalError),
+    reraise=True
+)
+def get_db_session():
+    """Get a database session with automatic retry on connection errors."""
+    db = SessionLocal()
+    try:
+        # Test connection before yielding
+        db.execute(text("SELECT 1"))
+        yield db
+    except OperationalError:
+        db.close()
+        raise
+    finally:
+        db.close()
+
+
+# Backward compatibility
 def get_db():
     db = SessionLocal()
     try:
