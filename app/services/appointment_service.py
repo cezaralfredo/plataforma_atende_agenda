@@ -2,6 +2,7 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
+from app.business_time import as_business_time
 from app.models.professional import Professional
 from app.models.service import Service
 from app.models.user import User
@@ -32,26 +33,30 @@ class AppointmentService:
         if not service or service.professional_id != data.professional_id:
             raise ValueError("Servi\u00e7o n\u00e3o pertence ao profissional informado")
 
-        expected_end = data.start_time + timedelta(minutes=service.duration_minutes)
-        if data.end_time != expected_end:
+        start_time = as_business_time(data.start_time)
+        end_time = as_business_time(data.end_time)
+        expected_end = start_time + timedelta(minutes=service.duration_minutes)
+        if end_time != expected_end:
             raise ValueError("A dura\u00e7\u00e3o da reserva deve corresponder \u00e0 dura\u00e7\u00e3o do servi\u00e7o")
 
         available = self.availability_service.is_interval_available(
-            data.professional_id, data.start_time, data.end_time
+            data.professional_id, start_time, end_time
         )
         if not available:
             raise ValueError("O hor\u00e1rio solicitado est\u00e1 fora da disponibilidade do profissional")
 
         # Check for conflicts
         conflicts = self.repo.find_conflicting(
-            data.professional_id, data.start_time, data.end_time
+            data.professional_id, start_time, end_time
         )
         if conflicts:
             raise ValueError("Já existe uma reserva neste horário")
 
         expires_at = now + timedelta(minutes=30)
         return self.repo.create(
-            **data.model_dump(),
+            **data.model_dump(exclude={"start_time", "end_time"}),
+            start_time=start_time,
+            end_time=end_time,
             status="pending",
             expires_at=expires_at,
             created_at=now,

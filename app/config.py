@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     api_key: str = "dev-api-key-change-in-production"
     admin_api_key: str = "dev-admin-key-change-in-production"
     app_name: str = "Agenda Atende"
+    app_timezone: str = "America/Sao_Paulo"
     debug: bool = True
 
     asaas_api_key: str = ""
