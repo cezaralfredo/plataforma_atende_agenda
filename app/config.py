@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     debug: bool = True
 
     asaas_api_key: str = ""
-    asaas_base_url: str = "https://sandbox.asaas.com/api/v3"
+    asaas_base_url: str = "https://api-sandbox.asaas.com/v3"
     asaas_webhook_token: str = ""
 
     @model_validator(mode="after")
