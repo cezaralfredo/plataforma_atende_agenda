@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.business_time import as_business_time
@@ -53,14 +54,23 @@ class AppointmentService:
             raise ValueError("Já existe uma reserva neste horário")
 
         expires_at = now + timedelta(minutes=30)
-        return self.repo.create(
-            **data.model_dump(exclude={"start_time", "end_time"}),
-            start_time=start_time,
-            end_time=end_time,
-            status="pending",
-            expires_at=expires_at,
-            created_at=now,
-        )
+        try:
+            return self.repo.create(
+                **data.model_dump(exclude={"start_time", "end_time"}),
+                start_time=start_time,
+                end_time=end_time,
+                status="pending",
+                expires_at=expires_at,
+                created_at=now,
+            )
+        except IntegrityError as exc:
+            self.repo.db.rollback()
+            constraint_name = getattr(
+                getattr(exc.orig, "diag", None), "constraint_name", None
+            )
+            if constraint_name == "exclude_professional_overlapping_appointments":
+                raise ValueError("Já existe uma reserva neste horário") from exc
+            raise
 
     def get(self, appointment_id: int):
         self._expire_pending()

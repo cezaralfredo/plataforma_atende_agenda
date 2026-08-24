@@ -13,6 +13,7 @@ class Payment(Base):
             "status IN ('pending', 'received', 'confirmed', 'overdue', 'refunded', 'cancelled')",
             name="check_payment_status",
         ),
+        CheckConstraint("amount_cents >= 0", name="check_payment_amount"),
         CheckConstraint(
             "billing_type IN ('pix', 'boleto', 'credit_card', 'undefined')",
             name="check_billing_type",
