@@ -1,6 +1,6 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -39,8 +39,8 @@ async def appointments_page(
     professional_id: int | None = None,
     status: str | None = None,
     search: str | None = None,
-    page: int = 1,
-    page_size: int = 20,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
     service = AdminService(db)
@@ -118,8 +118,8 @@ async def payments_page(
     professional_id: int | None = None,
     status: str | None = None,
     search: str | None = None,
-    page: int = 1,
-    page_size: int = 20,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
     service = AdminService(db)
@@ -203,8 +203,8 @@ async def api_appointments(
     professional_id: int | None = None,
     status: str | None = None,
     search: str | None = None,
-    page: int = 1,
-    page_size: int = 20,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
     service = AdminService(db)
@@ -234,8 +234,8 @@ async def api_payments(
     professional_id: int | None = None,
     status: str | None = None,
     search: str | None = None,
-    page: int = 1,
-    page_size: int = 20,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
     service = AdminService(db)

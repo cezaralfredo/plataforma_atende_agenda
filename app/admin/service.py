@@ -1,6 +1,6 @@
 from datetime import date, timedelta
 
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.appointment import Appointment
@@ -63,7 +63,7 @@ class AdminService:
 
         # Payments pending/overdue
         payments_pending = self.db.query(func.count(Payment.id)).filter(
-            Payment.status.in_(["pending", "confirmed"])
+            Payment.status == "pending"
         ).scalar() or 0
 
         payments_overdue = self.db.query(func.count(Payment.id)).filter(
@@ -104,6 +104,12 @@ class AdminService:
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list[dict], int]:
+        latest_payment_id = (
+            select(func.max(Payment.id))
+            .where(Payment.appointment_id == Appointment.id)
+            .correlate(Appointment)
+            .scalar_subquery()
+        )
         query = self.db.query(
             Appointment,
             User.name.label("client_name"),
@@ -116,7 +122,7 @@ class AdminService:
         ).outerjoin(User, Appointment.user_id == User.id).outerjoin(
             Professional, Appointment.professional_id == Professional.id
         ).outerjoin(Service, Appointment.service_id == Service.id).outerjoin(
-            Payment, Payment.appointment_id == Appointment.id
+            Payment, Payment.id == latest_payment_id
         )
 
         if date_from:
@@ -325,6 +331,12 @@ class AdminService:
         }
 
     def get_appointment_detail(self, appointment_id: int) -> dict | None:
+        latest_payment_id = (
+            select(func.max(Payment.id))
+            .where(Payment.appointment_id == Appointment.id)
+            .correlate(Appointment)
+            .scalar_subquery()
+        )
         row = self.db.query(
             Appointment,
             User.name.label("client_name"),
@@ -344,7 +356,7 @@ class AdminService:
         ).outerjoin(User, Appointment.user_id == User.id).outerjoin(
             Professional, Appointment.professional_id == Professional.id
         ).outerjoin(Service, Appointment.service_id == Service.id).outerjoin(
-            Payment, Payment.appointment_id == Appointment.id
+            Payment, Payment.id == latest_payment_id
         ).filter(Appointment.id == appointment_id).first()
 
         if not row:
