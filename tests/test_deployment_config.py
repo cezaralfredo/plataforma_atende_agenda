@@ -1,5 +1,15 @@
 from pathlib import Path
 
+import yaml
+
+
+def _yaml(path: str) -> dict:
+    return yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+
+
+def _step(job: dict, name: str) -> dict:
+    return next(step for step in job["steps"] if step.get("name") == name)
+
 
 def _env_example() -> dict[str, str]:
     values = {}
@@ -54,3 +64,37 @@ def test_readme_documents_authenticated_api_and_current_asaas_urls():
     assert "https://api-sandbox.asaas.com/v3" in readme
     assert "/ready" in readme
     assert "buscar_cliente_por_telefone" in readme
+
+
+def test_ci_uses_psycopg3_urls_for_migrations_and_tests():
+    jobs = _yaml(".github/workflows/ci-cd.yml")["jobs"]
+    migration = _step(jobs["test"], "Run Alembic migrations")
+    tests = _step(jobs["test"], "Run tests with coverage")
+    expected = "postgresql+psycopg://test:test@localhost:5432/test_db"
+    assert migration["env"]["DATABASE_URL"] == expected
+    assert tests["env"]["DATABASE_URL"] == expected
+    assert tests["env"]["TEST_DATABASE_URL"] == expected
+
+
+def test_pull_requests_build_both_images_without_publishing():
+    jobs = _yaml(".github/workflows/ci-cd.yml")["jobs"]
+    validation = jobs["validate-images"]
+    assert validation["needs"] == "test"
+    assert "pull_request" in validation["if"]
+    builds = [
+        step
+        for step in validation["steps"]
+        if step.get("uses", "").startswith("docker/build-push-action@")
+    ]
+    assert len(builds) == 2
+    assert {step["with"]["file"] for step in builds} == {
+        "./Dockerfile",
+        "./Dockerfile.backup",
+    }
+    assert all(step["with"]["push"] is False for step in builds)
+
+
+def test_ci_does_not_claim_an_automatic_production_deploy():
+    jobs = _yaml(".github/workflows/ci-cd.yml")["jobs"]
+    assert "deploy" not in jobs
+    assert jobs["build"]["needs"] == "test"
