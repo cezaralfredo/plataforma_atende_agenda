@@ -133,3 +133,22 @@ def test_portainer_neon_stack_uses_only_the_existing_proxy_network():
         "external": True,
         "name": "${NPM_NETWORK:-nginx-proxy_default}",
     }
+
+
+def test_shipped_compose_defaults_use_the_current_asaas_production_endpoint():
+    current_endpoint = "https://api.asaas.com/v3"
+    defaults = {}
+    for path in sorted(Path(".").glob("docker-compose*.yml")):
+        environment = _yaml(str(path)).get("services", {}).get("api", {}).get(
+            "environment", {}
+        )
+        if isinstance(environment, dict):
+            value = environment.get("ASAAS_BASE_URL")
+            if isinstance(value, str) and ":-" in value:
+                defaults[path.name] = value.removesuffix("}").split(":-", 1)[1]
+
+    assert defaults == {
+        "docker-compose.nginx.yml": current_endpoint,
+        "docker-compose.portainer-neon.yml": current_endpoint,
+        "docker-compose.portainer-npm.yml": current_endpoint,
+    }

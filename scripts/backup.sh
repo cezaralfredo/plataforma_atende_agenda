@@ -25,15 +25,19 @@ log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
 do_backup() {
     timestamp="$(date '+%Y%m%d_%H%M%S')"
     final_file="${BACKUP_DIR}/agenda_${PG_DATABASE}_${timestamp}.sql.gz"
+    dump_file="${final_file%.gz}.tmp"
     temp_file="${final_file}.tmp"
-    trap 'rm -f "$temp_file"' EXIT HUP INT TERM
+    trap 'rm -f "$dump_file" "$temp_file"' EXIT HUP INT TERM
 
     log "Iniciando backup do banco ${PG_DATABASE}..."
     pg_dump -h "$PG_HOST" -U "$PG_USER" -d "$PG_DATABASE" \
-        --no-owner --no-privileges --clean --if-exists | gzip > "$temp_file"
+        --no-owner --no-privileges --clean --if-exists > "$dump_file"
+    test -s "$dump_file"
+    gzip -c "$dump_file" > "$temp_file"
     test -s "$temp_file"
     gzip -t "$temp_file"
     mv "$temp_file" "$final_file"
+    rm -f "$dump_file"
     trap - EXIT HUP INT TERM
     log "Backup concluído: $final_file"
 

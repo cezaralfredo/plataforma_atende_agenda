@@ -106,7 +106,12 @@ class AsaasClient:
         try:
             async with self._get_client() as client:
                 response = await client.post(f"{self.base_url}{path}", json=payload)
-        except (httpx.TimeoutException, httpx.ConnectError) as exc:
+        except (
+            httpx.TimeoutException,
+            httpx.ConnectError,
+            httpx.ReadError,
+            httpx.RemoteProtocolError,
+        ) as exc:
             raise AsaasUncertainResultError(
                 "The Asaas operation has an uncertain result and must be reconciled"
             ) from exc
@@ -114,7 +119,9 @@ class AsaasClient:
         try:
             self._validate_response(response)
         except _AsaasRetryableError as exc:
-            raise AsaasIntegrationError(str(exc)) from exc
+            raise AsaasUncertainResultError(
+                "The Asaas operation has an uncertain result and must be reconciled"
+            ) from exc
 
         body = response.json()
         if not isinstance(body, dict):

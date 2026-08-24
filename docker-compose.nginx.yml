@@ -64,7 +64,7 @@ services:
       APP_NAME: ${APP_NAME:-Agenda Atende}
       DEBUG: "false"
       ASAAS_API_KEY_FILE: /run/secrets/asaas_api_key
-      ASAAS_BASE_URL: ${ASAAS_BASE_URL:-https://api.asaas.com/api/v3}
+      ASAAS_BASE_URL: ${ASAAS_BASE_URL:-https://api.asaas.com/v3}
       ASAAS_WEBHOOK_TOKEN_FILE: /run/secrets/asaas_webhook_token
       SEED_DATA: "false"
       VIRTUAL_HOST: ${DOMAIN}

@@ -14,7 +14,7 @@ API_KEY=chave-privada-para-mcp
 ADMIN_API_KEY=chave-privada-para-admin
 ASAAS_API_KEY=sua-chave-asaas
 ASAAS_WEBHOOK_TOKEN=seu-token-de-webhook-asaas
-ASAAS_BASE_URL=https://api.asaas.com/api/v3
+ASAAS_BASE_URL=https://api.asaas.com/v3
 APP_NAME=Agenda Atende
 REGISTRY=ghcr.io
 GITHUB_REPOSITORY=cezaralfredo/plataforma_atende_agenda
@@ -33,7 +33,7 @@ No Nginx Proxy Manager, crie um **Proxy Host**:
 - Forward Port: `8000`
 - SSL: solicite um novo certificado Let's Encrypt e force SSL.
 
-Em seguida, valide `https://api.seudominio.com/health`. O painel administrativo usa `https://api.seudominio.com/admin` e continua protegido por `X-Admin-Key`.
+Em seguida, valide `https://api.seudominio.com/health`. Para o navegador e o painel administrativo em `https://api.seudominio.com/admin`, a recomendação é autenticação HTTP Basic, usando `ADMIN_API_KEY` como senha. `X-Admin-Key` permanece somente como compatibilidade legada para clientes de máquina; não é a orientação para acesso pelo navegador.
 
 ## Limitações deliberadas
 

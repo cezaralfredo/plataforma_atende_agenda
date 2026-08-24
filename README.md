@@ -229,7 +229,7 @@ APP_NAME=Agenda Atende
 DEBUG=true
 
 ASAAS_API_KEY=sua-chave-asaas
-ASAAS_BASE_URL=https://sandbox.asaas.com/api/v3
+ASAAS_BASE_URL=https://api-sandbox.asaas.com/v3
 ASAAS_WEBHOOK_TOKEN=token-do-webhook-asaas
 ```
 

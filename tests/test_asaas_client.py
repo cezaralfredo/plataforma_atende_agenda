@@ -112,6 +112,57 @@ def test_mutating_timeout_is_not_retried(monkeypatch):
     assert calls == 1
 
 
+@pytest.mark.parametrize(
+    "error_type",
+    [httpx.ReadError, httpx.RemoteProtocolError],
+    ids=["read-error", "remote-protocol-error"],
+)
+def test_mutating_transport_failures_are_uncertain_and_not_retried(
+    monkeypatch, error_type
+):
+    calls = 0
+
+    def transport_failure(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        raise error_type("unknown result", request=request)
+
+    _install_transport(monkeypatch, transport_failure)
+
+    with pytest.raises(AsaasUncertainResultError):
+        asyncio.run(
+            AsaasClient().create_payment(
+                customer_id="cus_1",
+                value=50,
+                due_date="2026-08-25",
+                billing_type="PIX",
+                external_reference="appointment:12",
+            )
+        )
+
+    assert calls == 1
+
+
+def test_mutating_server_error_is_uncertain_and_not_retried(monkeypatch):
+    requests = _install_transport(
+        monkeypatch,
+        lambda _request: httpx.Response(503, json={"message": "unavailable"}),
+    )
+
+    with pytest.raises(AsaasUncertainResultError):
+        asyncio.run(
+            AsaasClient().create_payment(
+                customer_id="cus_1",
+                value=50,
+                due_date="2026-08-25",
+                billing_type="PIX",
+                external_reference="appointment:12",
+            )
+        )
+
+    assert len(requests) == 1
+
+
 def test_non_success_response_becomes_integration_error(monkeypatch):
     _install_transport(
         monkeypatch,
