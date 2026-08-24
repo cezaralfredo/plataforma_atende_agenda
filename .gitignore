@@ -28,6 +28,7 @@ test_agenda.db
 # IDE
 .vscode/
 .idea/
+.worktrees/
 *.swp
 *.swo
 
