@@ -1,5 +1,7 @@
+import hashlib
 import hmac
-from datetime import datetime
+import json
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.exc import IntegrityError
@@ -7,9 +9,9 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
-from app.models.appointment import Appointment
 from app.models.payment import Payment
 from app.models.webhook_event import WebhookEvent
+from app.services.payment_state_service import apply_payment_state
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
@@ -36,19 +38,13 @@ async def asaas_webhook(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid signature")
 
     body = await request.json()
-    event = body.get("event", "")
-    payment_data = body.get("payment", {})
-
-    if not payment_data:
-        return {"status": "ignored", "reason": "no_payment_data"}
-
-    asaas_payment_id = payment_data.get("id")
-    payment = db.query(Payment).filter(Payment.asaas_payment_id == asaas_payment_id).first()
-
-    if not payment:
-        return {"status": "ignored", "reason": "payment_not_found"}
-
-    event_id = f"{event}_{asaas_payment_id}"
+    canonical_body = json.dumps(
+        body,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode()
+    event_id = body.get("id") or hashlib.sha256(canonical_body).hexdigest()
     db.add(WebhookEvent(provider_event_id=event_id))
     try:
         db.flush()
@@ -56,15 +52,25 @@ async def asaas_webhook(request: Request, db: Session = Depends(get_db)):
         db.rollback()
         return {"status": "ignored", "reason": "duplicate"}
 
-    new_status = STATUS_MAP.get(event)
-    if new_status and new_status != payment.status:
-        payment.status = new_status
-        payment.updated_at = datetime.now()
-        if new_status in ("received", "confirmed"):
-            payment.received_at = datetime.now()
-            db.query(Appointment).filter(Appointment.id == payment.appointment_id).update(
-                {"status": "confirmed"}
-            )
+    event = body.get("event", "")
+    payment_data = body.get("payment") or {}
+    if not payment_data:
         db.commit()
+        return {"status": "ignored", "reason": "no_payment_data"}
+
+    asaas_payment_id = payment_data.get("id")
+    payment = (
+        db.query(Payment)
+        .filter(Payment.asaas_payment_id == asaas_payment_id)
+        .first()
+    )
+    if not payment:
+        db.commit()
+        return {"status": "ignored", "reason": "payment_not_found"}
+
+    new_status = STATUS_MAP.get(event)
+    if new_status:
+        apply_payment_state(payment, new_status, datetime.now(UTC))
+    db.commit()
 
     return {"status": "ok"}

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session, joinedload
 
@@ -12,6 +12,7 @@ from app.services.asaas_client import (
     AsaasIntegrationError,
     AsaasUncertainResultError,
 )
+from app.services.payment_state_service import apply_payment_state
 
 ASAAS_STATUS_MAP = {
     "PENDING": "pending",
@@ -197,11 +198,7 @@ class PaymentService:
         new_status = ASAAS_STATUS_MAP.get(asaas_status, payment.status)
 
         if new_status != payment.status:
-            payment.status = new_status
-            payment.updated_at = datetime.now()
-            if new_status in ("received", "confirmed"):
-                payment.received_at = datetime.now()
-                self.appointment_repo.update(payment.appointment_id, status="confirmed")
+            apply_payment_state(payment, new_status, datetime.now(UTC))
             self.db.commit()
 
         return new_status
