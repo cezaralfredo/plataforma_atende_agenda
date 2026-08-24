@@ -13,7 +13,7 @@ load_secret() {
   fi
 }
 
-for secret in POSTGRES_PASSWORD API_KEY ADMIN_API_KEY ASAAS_API_KEY ASAAS_WEBHOOK_TOKEN; do
+for secret in DATABASE_URL POSTGRES_PASSWORD API_KEY ADMIN_API_KEY ASAAS_API_KEY ASAAS_WEBHOOK_TOKEN; do
   load_secret "$secret"
 done
 
@@ -23,16 +23,9 @@ fi
 
 echo "🚀 Iniciando container da API..."
 
-# Aguardar PostgreSQL estar pronto
-echo "⏳ Aguardando PostgreSQL..."
-until pg_isready -h postgres -p 5432 -U agenda_user -d agenda_atende > /dev/null 2>&1; do
-  sleep 2
-done
-echo "✅ PostgreSQL pronto"
-
 # Rodar migrações Alembic
 echo "🔄 Executando migrações Alembic..."
-alembic upgrade head
+python /app/scripts/run_migrations.py
 echo "✅ Migrações aplicadas"
 
 # Iniciar aplicação

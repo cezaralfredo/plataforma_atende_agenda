@@ -41,6 +41,13 @@ def test_runtime_entrypoint_does_not_call_removed_test_seed():
     )
 
 
+def test_runtime_entrypoint_uses_configured_database_for_migrations():
+    entrypoint = Path("entrypoint.sh").read_text(encoding="utf-8")
+    assert "pg_isready -h postgres" not in entrypoint
+    assert "python /app/scripts/run_migrations.py" in entrypoint
+    assert "DATABASE_URL" in entrypoint.split("for secret in", 1)[1].split("; do", 1)[0]
+
+
 def test_readme_documents_authenticated_api_and_current_asaas_urls():
     readme = Path("README.md").read_text(encoding="utf-8")
     assert "Authorization: Bearer" in readme
