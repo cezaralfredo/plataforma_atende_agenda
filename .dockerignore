@@ -65,8 +65,10 @@ hermes/
 # Alembic versions (manter apenas se precisar rodar migrações na imagem)
 # alembic/versions/
 
-# Scripts
-scripts/
+# Scripts required by container images
+scripts/*
+!scripts/backup.sh
+!scripts/run_migrations.py
 
 # Nginx config (já montado como volume)
 nginx/

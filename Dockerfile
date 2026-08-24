@@ -56,6 +56,7 @@ COPY --from=deps /usr/local/bin /usr/local/bin
 
 # Copiar código da aplicação
 COPY --from=build --chown=appuser:appgroup /app .
+RUN test -f /app/scripts/run_migrations.py
 
 # Copiar entrypoint
 COPY --chown=appuser:appgroup entrypoint.sh /entrypoint.sh
