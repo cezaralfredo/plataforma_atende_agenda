@@ -109,6 +109,18 @@ class PaymentService:
             updated_at=datetime.now(),
         )
 
+    def _locked_appointment_query(self, appointment_id: int):
+        return (
+            self.db.query(Appointment)
+            .options(
+                joinedload(Appointment.service),
+                joinedload(Appointment.professional),
+                joinedload(Appointment.user),
+            )
+            .filter(Appointment.id == appointment_id)
+            .with_for_update(of=Appointment)
+        )
+
     async def create_charge(
         self,
         appointment_id: int,
@@ -117,17 +129,7 @@ class PaymentService:
     ) -> Payment:
         self.appointment_repo.expire_reservations(datetime.now(UTC))
         self.db.flush()
-        appointment = (
-            self.db.query(Appointment)
-            .options(
-                joinedload(Appointment.service),
-                joinedload(Appointment.professional),
-                joinedload(Appointment.user),
-            )
-            .filter(Appointment.id == appointment_id)
-            .with_for_update()
-            .first()
-        )
+        appointment = self._locked_appointment_query(appointment_id).first()
 
         if not appointment:
             raise ValueError("Agendamento não encontrado")
