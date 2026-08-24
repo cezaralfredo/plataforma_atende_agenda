@@ -131,7 +131,7 @@ services:
   # Backup Automático - pg_dump + Rclone (S3/Wasabi/GDrive)
   # -----------------------------------------------------------------------------
   backup:
-    image: postgres:16-alpine
+    image: ${REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY}-backup:latest
     container_name: agenda_atende_backup
     environment:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -144,9 +144,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data:ro
       - ./backups:/backups
-      - ./scripts/backup.sh:/backup.sh:ro
       - ./rclone:/config/rclone:ro
-    entrypoint: /backup.sh
     networks:
       - agenda_network
     restart: unless-stopped
