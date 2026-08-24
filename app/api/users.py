@@ -4,8 +4,13 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.repositories.user_repo import UserRepository
 from app.schemas.user import UserCreate, UserRead, UserUpdate
+from app.security import require_api_key
 
-router = APIRouter(prefix="/api/users", tags=["users"])
+router = APIRouter(
+    prefix="/api/users",
+    tags=["users"],
+    dependencies=[Depends(require_api_key)],
+)
 
 
 def _repo(db: Session) -> UserRepository:

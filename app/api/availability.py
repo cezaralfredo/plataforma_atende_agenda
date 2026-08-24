@@ -8,9 +8,14 @@ from app.schemas.availability import (
     AvailabilityUpdate,
     TimeSlot,
 )
+from app.security import require_api_key
 from app.services.availability_service import AvailabilityService
 
-router = APIRouter(prefix="/api/availability", tags=["availability"])
+router = APIRouter(
+    prefix="/api/availability",
+    tags=["availability"],
+    dependencies=[Depends(require_api_key)],
+)
 
 
 @router.post("", response_model=AvailabilityRead, status_code=201)

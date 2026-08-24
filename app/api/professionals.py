@@ -7,9 +7,14 @@ from app.schemas.professional import (
     ProfessionalRead,
     ProfessionalUpdate,
 )
+from app.security import require_api_key
 from app.services.professional_service import ProfessionalService
 
-router = APIRouter(prefix="/api/professionals", tags=["professionals"])
+router = APIRouter(
+    prefix="/api/professionals",
+    tags=["professionals"],
+    dependencies=[Depends(require_api_key)],
+)
 
 
 @router.post("", response_model=ProfessionalRead, status_code=201)

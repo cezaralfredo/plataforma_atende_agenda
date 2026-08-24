@@ -1,26 +1,21 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.admin.schemas import AppointmentAction, PaymentAction
 from app.admin.service import AdminService
-from app.config import settings
 from app.database import get_db
+from app.security import require_admin
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 templates = Jinja2Templates(directory="app/admin/templates")
 
 
-async def verify_admin_key(x_admin_key: str = Header(...)):
-    if x_admin_key != settings.admin_api_key:
-        raise HTTPException(status_code=403, detail="Admin access denied")
-
-
-@router.get("", response_class=HTMLResponse, dependencies=[Depends(verify_admin_key)])
+@router.get("", response_class=HTMLResponse, dependencies=[Depends(require_admin)])
 async def dashboard(request: Request, db: Session = Depends(get_db)):
     service = AdminService(db)
     kpis = service.get_kpis()
@@ -33,7 +28,7 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
     })
 
 
-@router.get("/appointments", response_class=HTMLResponse, dependencies=[Depends(verify_admin_key)])
+@router.get("/appointments", response_class=HTMLResponse, dependencies=[Depends(require_admin)])
 async def appointments_page(
     request: Request,
     date_from: date | None = None,
@@ -77,7 +72,7 @@ async def appointments_page(
     })
 
 
-@router.get("/appointments/{appointment_id}", response_class=HTMLResponse, dependencies=[Depends(verify_admin_key)])
+@router.get("/appointments/{appointment_id}", response_class=HTMLResponse, dependencies=[Depends(require_admin)])
 async def appointment_detail(
     request: Request,
     appointment_id: int,
@@ -95,7 +90,7 @@ async def appointment_detail(
     })
 
 
-@router.post("/appointments/{appointment_id}/action", dependencies=[Depends(verify_admin_key)])
+@router.post("/appointments/{appointment_id}/action", dependencies=[Depends(require_admin)])
 async def appointment_action(
     appointment_id: int,
     action: AppointmentAction,
@@ -112,7 +107,7 @@ async def appointment_action(
     return result
 
 
-@router.get("/payments", response_class=HTMLResponse, dependencies=[Depends(verify_admin_key)])
+@router.get("/payments", response_class=HTMLResponse, dependencies=[Depends(require_admin)])
 async def payments_page(
     request: Request,
     date_from: date | None = None,
@@ -156,7 +151,7 @@ async def payments_page(
     })
 
 
-@router.post("/payments/{payment_id}/action", dependencies=[Depends(verify_admin_key)])
+@router.post("/payments/{payment_id}/action", dependencies=[Depends(require_admin)])
 async def payment_action(
     payment_id: int,
     action: PaymentAction,
@@ -173,7 +168,7 @@ async def payment_action(
     return result
 
 
-@router.get("/professionals", response_class=HTMLResponse, dependencies=[Depends(verify_admin_key)])
+@router.get("/professionals", response_class=HTMLResponse, dependencies=[Depends(require_admin)])
 async def professionals_page(request: Request, db: Session = Depends(get_db)):
     service = AdminService(db)
     professionals = service.list_professionals()
@@ -186,13 +181,13 @@ async def professionals_page(request: Request, db: Session = Depends(get_db)):
 
 # --- API Endpoints para HTMX partials ---
 
-@router.get("/api/kpis", dependencies=[Depends(verify_admin_key)])
+@router.get("/api/kpis", dependencies=[Depends(require_admin)])
 async def api_kpis(db: Session = Depends(get_db)):
     service = AdminService(db)
     return service.get_kpis()
 
 
-@router.get("/api/appointments", dependencies=[Depends(verify_admin_key)])
+@router.get("/api/appointments", dependencies=[Depends(require_admin)])
 async def api_appointments(
     date_from: date | None = None,
     date_to: date | None = None,
@@ -223,7 +218,7 @@ async def api_appointments(
     }
 
 
-@router.get("/api/payments", dependencies=[Depends(verify_admin_key)])
+@router.get("/api/payments", dependencies=[Depends(require_admin)])
 async def api_payments(
     date_from: date | None = None,
     date_to: date | None = None,
@@ -254,7 +249,7 @@ async def api_payments(
     }
 
 
-@router.get("/api/professionals", dependencies=[Depends(verify_admin_key)])
+@router.get("/api/professionals", dependencies=[Depends(require_admin)])
 async def api_professionals(db: Session = Depends(get_db)):
     service = AdminService(db)
     return service.list_professionals()

@@ -3,9 +3,14 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.schemas.service import ServiceCreate, ServiceRead, ServiceUpdate
+from app.security import require_api_key
 from app.services.service_service import ServiceService
 
-router = APIRouter(prefix="/api/services", tags=["services"])
+router = APIRouter(
+    prefix="/api/services",
+    tags=["services"],
+    dependencies=[Depends(require_api_key)],
+)
 
 
 @router.post("", response_model=ServiceRead, status_code=201)

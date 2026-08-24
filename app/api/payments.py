@@ -4,9 +4,14 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.payment import Payment
 from app.schemas.payment import PaymentCreate, PaymentRead
+from app.security import require_api_key
 from app.services.payment_service import PaymentService
 
-router = APIRouter(prefix="/api/payments", tags=["payments"])
+router = APIRouter(
+    prefix="/api/payments",
+    tags=["payments"],
+    dependencies=[Depends(require_api_key)],
+)
 
 
 @router.post("", response_model=PaymentRead, status_code=201)

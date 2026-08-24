@@ -7,9 +7,14 @@ from app.schemas.appointment import (
     AppointmentRead,
     AppointmentUpdate,
 )
+from app.security import require_api_key
 from app.services.appointment_service import AppointmentService
 
-router = APIRouter(prefix="/api/appointments", tags=["appointments"])
+router = APIRouter(
+    prefix="/api/appointments",
+    tags=["appointments"],
+    dependencies=[Depends(require_api_key)],
+)
 
 
 @router.post("", response_model=AppointmentRead, status_code=201)

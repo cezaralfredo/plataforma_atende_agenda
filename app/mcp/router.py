@@ -1,24 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from fastapi import Request as FastAPIRequest
 from sqlalchemy.orm import Session
 
-from app.config import settings
 from app.database import get_db
 from app.mcp.tools import TOOL_DEFINITIONS, handle_tool_call
+from app.security import require_api_key
 
 router = APIRouter(prefix="/mcp", tags=["mcp"])
 
 
-def verify_auth(request: FastAPIRequest):
-    auth = request.headers.get("Authorization", "")
-    expected = f"Bearer {settings.api_key}"
-    if auth != expected:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-
-
 @router.post("")
 async def mcp_endpoint(request: FastAPIRequest, db: Session = Depends(get_db)):
-    verify_auth(request)
+    require_api_key(request)
 
     body = await request.json()
     method = body.get("method", "")
