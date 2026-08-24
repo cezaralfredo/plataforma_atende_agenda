@@ -223,7 +223,7 @@ POST   /mcp
 Crie um arquivo `.env` na raiz:
 
 ```env
-DATABASE_URL=postgresql://agenda_user:agenda_pass@localhost:5432/agenda_atende
+DATABASE_URL=postgresql+psycopg://agenda_user:agenda_pass@localhost:5432/agenda_atende
 API_KEY=sua-chave-secreta-aqui
 APP_NAME=Agenda Atende
 DEBUG=true

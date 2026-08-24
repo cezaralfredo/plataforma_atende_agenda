@@ -24,7 +24,7 @@ services:
     image: ${REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY:-cezaralfredo/plataforma_atende_agenda}:latest
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://agenda_user:__POSTGRES_PASSWORD__@postgres:5432/agenda_atende
+      DATABASE_URL: postgresql+psycopg://agenda_user:__POSTGRES_PASSWORD__@postgres:5432/agenda_atende
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no Portainer}
       API_KEY: ${API_KEY:?Defina API_KEY no Portainer}
       ADMIN_API_KEY: ${ADMIN_API_KEY:?Defina ADMIN_API_KEY no Portainer}
