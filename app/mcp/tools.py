@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 from sqlalchemy.orm import Session
@@ -9,6 +10,8 @@ from app.services.availability_service import AvailabilityService
 from app.services.payment_service import PaymentService
 from app.services.service_service import ServiceService
 from app.services.user_service import UserService
+
+logger = logging.getLogger(__name__)
 
 TOOL_DEFINITIONS = [
     {
@@ -316,10 +319,16 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
             "isError": True,
             "content": [{"type": "text", "text": str(e)}],
         }
-    except Exception as e:
+    except Exception:
+        logger.exception("MCP tool failed", extra={"tool_name": name})
         return {
             "isError": True,
-            "content": [{"type": "text", "text": f"Erro: {e!s}"}],
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Erro interno ao processar a solicitação.",
+                }
+            ],
         }
 
 

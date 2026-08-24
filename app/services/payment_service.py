@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session, joinedload
@@ -13,6 +14,8 @@ from app.services.asaas_client import (
     AsaasUncertainResultError,
 )
 from app.services.payment_state_service import apply_payment_state
+
+logger = logging.getLogger(__name__)
 
 ASAAS_STATUS_MAP = {
     "PENDING": "pending",
@@ -246,6 +249,11 @@ class PaymentService:
                 if payment.status != old_status:
                     updated.append(payment)
             except Exception:
+                logger.exception(
+                    "Recent payment verification failed payment_id=%s appointment_id=%s",
+                    payment.id,
+                    payment.appointment_id,
+                )
                 continue
 
         return updated
