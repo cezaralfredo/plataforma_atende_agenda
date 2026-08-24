@@ -201,9 +201,7 @@ function appointments() {
                     if (value) params.append(key, value);
                 });
 
-                const response = await fetch('/admin/api/appointments?' + params.toString(), {
-                    headers: { 'X-Admin-Key': '{{ request.headers.get("x-admin-key") }}' }
-                });
+                const response = await fetch('/admin/api/appointments?' + params.toString());
                 const data = await response.json();
                 this.appointments = data.data;
                 this.total = data.total;
@@ -218,9 +216,7 @@ function appointments() {
 
         async loadProfessionals() {
             try {
-                const response = await fetch('/admin/professionals', {
-                    headers: { 'X-Admin-Key': '{{ request.headers.get("x-admin-key") }}' }
-                });
+                const response = await fetch('/admin/professionals');
                 // Parse from HTML or use API - for now we'll skip
             } catch (error) {
                 console.error('Erro ao carregar profissionais:', error);
@@ -257,8 +253,7 @@ function appointments() {
                 const response = await fetch(`/admin/appointments/${id}/action`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'X-Admin-Key': '{{ request.headers.get("x-admin-key") }}'
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({ action, notes })
                 });

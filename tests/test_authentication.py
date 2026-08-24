@@ -33,6 +33,21 @@ def test_admin_basic_auth_works_without_exposing_secret(anonymous_client: TestCl
     assert settings.admin_api_key not in response.text
 
 
+@pytest.mark.parametrize(
+    "path",
+    ["/admin", "/admin/appointments", "/admin/payments", "/admin/professionals"],
+)
+def test_admin_pages_do_not_render_authentication_headers(
+    anonymous_client: TestClient,
+    path: str,
+):
+    response = anonymous_client.get(path, headers=_basic_admin_headers())
+
+    assert response.status_code == 200
+    assert settings.admin_api_key not in response.text
+    assert "X-Admin-Key" not in response.text
+
+
 def test_admin_keeps_legacy_header_for_machine_clients(anonymous_client: TestClient):
     response = anonymous_client.get(
         "/admin/api/kpis",
