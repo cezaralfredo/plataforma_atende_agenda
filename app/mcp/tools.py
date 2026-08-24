@@ -191,11 +191,9 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
 
         elif name == "atualizar_cliente":
             svc = UserService(db)
+            fields = {"name", "phone", "email", "whatsapp_number"}
             data = UserUpdate(
-                name=arguments.get("name"),
-                phone=arguments.get("phone"),
-                email=arguments.get("email"),
-                whatsapp_number=arguments.get("whatsapp_number"),
+                **{key: arguments[key] for key in fields if key in arguments}
             )
             user = svc.update(arguments["user_id"], data)
             if not user:

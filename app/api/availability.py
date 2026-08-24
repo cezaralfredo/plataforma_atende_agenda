@@ -42,7 +42,10 @@ def get_availability(availability_id: int, db: Session = Depends(get_db)):
 @router.put("/{availability_id}", response_model=AvailabilityRead)
 def update_availability(availability_id: int, data: AvailabilityUpdate, db: Session = Depends(get_db)):
     service = AvailabilityService(db)
-    av = service.update(availability_id, data)
+    try:
+        av = service.update(availability_id, data)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     if not av:
         raise HTTPException(status_code=404, detail="Disponibilidade não encontrada")
     return av

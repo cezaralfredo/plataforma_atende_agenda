@@ -5,6 +5,7 @@ from datetime import datetime, time, timedelta
 from sqlalchemy.orm import Session
 
 from app.business_time import as_business_time, business_datetime, utc_now
+from app.models.professional import Professional
 from app.repositories import (
     AppointmentRepository,
     AvailabilityRepository,
@@ -20,6 +21,8 @@ class AvailabilityService:
         self.service_repo = ServiceRepository(db)
 
     def create(self, data: AvailabilityCreate):
+        if not self.repo.db.get(Professional, data.professional_id):
+            raise ValueError("Profissional não encontrado")
         return self.repo.create(**data.model_dump())
 
     def get(self, availability_id: int):
@@ -31,7 +34,20 @@ class AvailabilityService:
         return self.repo.list()
 
     def update(self, availability_id: int, data: AvailabilityUpdate):
-        return self.repo.update(availability_id, **data.model_dump())
+        availability = self.repo.get(availability_id)
+        if not availability:
+            return None
+        values = data.model_dump(exclude_unset=True)
+        merged = {
+            "professional_id": availability.professional_id,
+            "day_of_week": availability.day_of_week,
+            "start_time": availability.start_time,
+            "end_time": availability.end_time,
+            "specific_date": availability.specific_date,
+            **values,
+        }
+        AvailabilityCreate(**merged)
+        return self.repo.update(availability_id, **values)
 
     def delete(self, availability_id: int):
         return self.repo.delete(availability_id)

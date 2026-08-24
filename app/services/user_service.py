@@ -1,7 +1,9 @@
 from sqlalchemy.orm import Session
 
+from app.models.appointment import Appointment
 from app.models.user import User
 from app.repositories import UserRepository
+from app.repositories.base import RelatedRecordsError
 from app.schemas.user import UserCreate, UserUpdate
 
 
@@ -30,3 +32,12 @@ class UserService:
 
     def link_whatsapp(self, user_id: int, whatsapp_number: str) -> User | None:
         return self.repo.update(user_id, whatsapp_number=whatsapp_number)
+
+    def delete(self, user_id: int) -> bool:
+        if self.repo.db.query(Appointment.id).filter(
+            Appointment.user_id == user_id
+        ).first():
+            raise RelatedRecordsError(
+                "Cliente possui agendamentos e não pode ser excluído"
+            )
+        return self.repo.delete(user_id)

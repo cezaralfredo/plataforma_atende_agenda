@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.repositories.base import RelatedRecordsError
 from app.schemas.professional import (
     ProfessionalCreate,
     ProfessionalRead,
@@ -50,5 +51,8 @@ def update_professional(professional_id: int, data: ProfessionalUpdate, db: Sess
 @router.delete("/{professional_id}", status_code=204)
 def delete_professional(professional_id: int, db: Session = Depends(get_db)):
     service = ProfessionalService(db)
-    if not service.delete(professional_id):
-        raise HTTPException(status_code=404, detail="Profissional não encontrado")
+    try:
+        if not service.delete(professional_id):
+            raise HTTPException(status_code=404, detail="Profissional não encontrado")
+    except RelatedRecordsError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
