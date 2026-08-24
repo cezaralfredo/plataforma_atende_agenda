@@ -53,7 +53,12 @@ def upgrade() -> None:
         "exclude_professional_overlapping_appointments",
         "appointments",
         ("professional_id", "="),
-        (sa.text("tstzrange(start_time, end_time, '[)')"), "&&"),
+        (
+            sa.func.tstzrange(
+                sa.column("start_time"), sa.column("end_time"), "[)"
+            ),
+            "&&",
+        ),
         where=sa.text(
             "status IN ('pending', 'awaiting_payment', 'confirmed', 'completed')"
         ),
