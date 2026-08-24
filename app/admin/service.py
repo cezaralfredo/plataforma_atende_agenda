@@ -324,23 +324,6 @@ class AdminService:
             "notes": apt.notes,
         }
 
-    def payment_action(self, payment_id: int, action: str) -> dict | None:
-        payment = self.db.query(Payment).filter(Payment.id == payment_id).first()
-        if not payment:
-            return None
-
-        if action == "refresh":
-            # TODO: Integrar com AsaasService para sincronizar status real
-            return {"message": "Use o endpoint /api/payments/{id}/refresh para sincronizar com Asaas"}
-        elif action == "refund":
-            if payment.status not in ["received", "confirmed"]:
-                return {"error": "Só é possível estornar pagamentos recebidos/confirmados"}
-            payment.status = "refunded"
-            self.db.commit()
-            return {"id": payment.id, "status": payment.status}
-        else:
-            return {"error": "Ação inválida"}
-
     def get_appointment_detail(self, appointment_id: int) -> dict | None:
         row = self.db.query(
             Appointment,

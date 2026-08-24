@@ -203,6 +203,31 @@ class PaymentService:
 
         return new_status
 
+    async def refresh(self, payment_id: int) -> Payment:
+        payment = self.db.query(Payment).filter(Payment.id == payment_id).first()
+        if not payment:
+            raise ValueError("Pagamento não encontrado")
+        await self.check_payment_status(payment)
+        self.db.refresh(payment)
+        return payment
+
+    async def refund(self, payment_id: int) -> Payment:
+        payment = self.db.query(Payment).filter(Payment.id == payment_id).first()
+        if not payment:
+            raise ValueError("Pagamento não encontrado")
+        if payment.status not in {"received", "confirmed"}:
+            raise ValueError(
+                "Só é possível estornar pagamentos recebidos/confirmados"
+            )
+        if not payment.asaas_payment_id:
+            raise ValueError("Pagamento sem identificador do Asaas")
+
+        await self.asaas.refund_payment(payment.asaas_payment_id)
+        apply_payment_state(payment, "refunded", datetime.now(UTC))
+        self.db.commit()
+        self.db.refresh(payment)
+        return payment
+
     async def verify_recent_payments(self) -> list[Payment]:
         pending_payments = (
             self.db.query(Payment)

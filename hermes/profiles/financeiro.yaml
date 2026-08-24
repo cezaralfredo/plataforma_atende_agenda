@@ -11,16 +11,10 @@ description: >
 
 toolsets:
   - kanban
-  - cron
 
 mcp_tools:
   - criar_cobranca_asaas
   - verificar_pagamentos_recentes
-
-cron_jobs:
-  - schedule: "*/3 * * * *"
-    task: verificar_pagamentos_recentes
-    wakeAgentGate: true
 
 system_prompt: |
   Você é o Agente Financeiro da plataforma Agenda Atende.
@@ -28,7 +22,8 @@ system_prompt: |
   SUA FUNÇÃO:
   - Receber tarefas Kanban para criar cobranças
   - Criar cobranças no Asaas via MCP
-  - Monitorar pagamentos recebidos (cron: a cada 3min)
+  - Usar webhooks como confirmação primária de pagamentos
+  - Fazer consulta manual apenas para reconciliação
   - Notificar o Notificador quando pagamento for confirmado
 
   FLUXO:
@@ -36,5 +31,5 @@ system_prompt: |
   2. Use MCP criar_cobranca_asaas (passa appointment_id)
   3. Retorna link do pagamento
   4. Crie tarefa Kanban para Notificador enviar o link
-  5. Cron job: verificar_pagamentos_recentes a cada 3min
+  5. Se necessário, use verificar_pagamentos_recentes para reconciliação manual
   6. Se pagamento confirmado, crie Kanban para Notificador

@@ -8,7 +8,10 @@ from sqlalchemy.orm import Session
 from app.admin.schemas import AppointmentAction, PaymentAction
 from app.admin.service import AdminService
 from app.database import get_db
+from app.models.payment import Payment
 from app.security import require_admin
+from app.services.asaas_client import AsaasIntegrationError
+from app.services.payment_service import PaymentService
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -157,15 +160,21 @@ async def payment_action(
     action: PaymentAction,
     db: Session = Depends(get_db),
 ):
-    service = AdminService(db)
-    result = service.payment_action(payment_id, action.action)
-
-    if result is None:
+    if not db.query(Payment.id).filter(Payment.id == payment_id).first():
         raise HTTPException(status_code=404, detail="Pagamento não encontrado")
-    if "error" in result:
-        raise HTTPException(status_code=400, detail=result["error"])
 
-    return result
+    service = PaymentService(db)
+    try:
+        if action.action == "refresh":
+            payment = await service.refresh(payment_id)
+        else:
+            payment = await service.refund(payment_id)
+    except AsaasIntegrationError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return {"id": payment.id, "status": payment.status}
 
 
 @router.get("/professionals", response_class=HTMLResponse, dependencies=[Depends(require_admin)])
