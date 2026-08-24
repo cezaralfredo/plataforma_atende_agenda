@@ -93,12 +93,17 @@ class PaymentService:
         payment_id = payload.get("id")
         if not payment_id:
             raise AsaasReconciliationError("Asaas payment has no id")
+        remote_status = payload.get("status")
         return Payment(
             appointment_id=appointment.id,
             asaas_payment_id=payment_id,
             amount_cents=appointment.service.price_cents,
             billing_type=billing_type,
-            status=ASAAS_STATUS_MAP.get(payload.get("status"), "pending"),
+            status=(
+                ASAAS_STATUS_MAP.get(remote_status, "pending")
+                if isinstance(remote_status, str)
+                else "pending"
+            ),
             invoice_url=payload.get("invoiceUrl"),
             created_at=datetime.now(),
             updated_at=datetime.now(),

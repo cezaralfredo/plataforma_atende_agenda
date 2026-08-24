@@ -43,20 +43,19 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install pytest-cov ruff
+          pip install pytest-cov ruff mypy==1.17.1
 
       - name: Run linting (ruff)
         run: ruff check app/ tests/
 
       - name: Run type checking (mypy)
-        run: |
-          pip install mypy
-          mypy app/ --ignore-missing-imports || true
+        run: mypy app/ --ignore-missing-imports
 
       - name: Run Alembic migrations
         run: alembic upgrade head
         env:
           DATABASE_URL: postgresql://test:test@localhost:5432/test_db
+          TEST_DATABASE_URL: postgresql+psycopg://test:test@localhost:5432/test_db
 
       - name: Run tests with coverage
         run: pytest tests/ -v --cov=app --cov-report=xml --cov-fail-under=60
@@ -64,7 +63,7 @@ jobs:
           DATABASE_URL: postgresql://test:test@localhost:5432/test_db
           API_KEY: test-api-key
           ASAAS_API_KEY: test
-          ASAAS_BASE_URL: https://sandbox.asaas.com/api/v3
+          ASAAS_BASE_URL: https://api-sandbox.asaas.com/v3
           ASAAS_WEBHOOK_TOKEN: test
 
       - name: Upload coverage
@@ -126,6 +125,25 @@ jobs:
           cache-to: type=gha,mode=max
           provenance: true
           sbom: true
+
+      - name: Extract backup metadata
+        id: backup_meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backup
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push backup image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.backup
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.backup_meta.outputs.tags }}
+          labels: ${{ steps.backup_meta.outputs.labels }}
 
       - name: Generate artifact attestation
         uses: actions/attest-build-provenance@v1

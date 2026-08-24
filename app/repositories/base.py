@@ -21,7 +21,7 @@ class BaseRepository:
         return obj
 
     def get(self, id: int):
-        return self.db.query(self.model).filter(self.model.id == id).first()
+        return self.db.query(self.model).filter_by(id=id).first()
 
     def list(self, skip: int = 0, limit: int = 100):
         return self.db.query(self.model).offset(skip).limit(limit).all()

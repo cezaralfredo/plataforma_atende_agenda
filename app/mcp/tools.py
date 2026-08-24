@@ -168,21 +168,21 @@ TOOL_DEFINITIONS = [
 async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
     try:
         if name == "buscar_cliente_por_telefone":
-            svc = UserService(db)
-            user = svc.find_by_phone(arguments["phone"])
+            user_service = UserService(db)
+            user = user_service.find_by_phone(arguments["phone"])
             if not user:
                 return {"content": [{"type": "text", "text": "Cliente não encontrado."}]}
             return {"content": [{"type": "text", "text": _format_cliente(user)}]}
 
         elif name == "cadastrar_cliente":
-            svc = UserService(db)
-            data = UserCreate(
+            user_service = UserService(db)
+            user_create = UserCreate(
                 name=arguments["name"],
                 phone=arguments["phone"],
                 email=arguments.get("email"),
                 whatsapp_number=arguments.get("whatsapp_number"),
             )
-            user = svc.create(data)
+            user = user_service.create(user_create)
             return {
                 "content": [
                     {
@@ -193,34 +193,34 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
             }
 
         elif name == "atualizar_cliente":
-            svc = UserService(db)
+            user_service = UserService(db)
             fields = {"name", "phone", "email", "whatsapp_number"}
-            data = UserUpdate(
+            user_update = UserUpdate(
                 **{key: arguments[key] for key in fields if key in arguments}
             )
-            user = svc.update(arguments["user_id"], data)
+            user = user_service.update(arguments["user_id"], user_update)
             if not user:
                 return {"content": [{"type": "text", "text": "Cliente não encontrado."}]}
             return {"content": [{"type": "text", "text": f"Cliente atualizado!\n{_format_cliente(user)}"}]}
 
         elif name == "vincular_whatsapp":
-            svc = UserService(db)
-            user = svc.link_whatsapp(arguments["user_id"], arguments["whatsapp_number"])
+            user_service = UserService(db)
+            user = user_service.link_whatsapp(arguments["user_id"], arguments["whatsapp_number"])
             if not user:
                 return {"content": [{"type": "text", "text": "Cliente não encontrado."}]}
             return {"content": [{"type": "text", "text": f"WhatsApp vinculado com sucesso!\n{_format_cliente(user)}"}]}
 
         elif name == "listar_servicos":
-            svc = ServiceService(db)
-            result = svc.list(
+            service_service = ServiceService(db)
+            services = service_service.list(
                 professional_id=arguments.get("professional_id"),
                 category=arguments.get("category"),
             )
-            return {"content": [{"type": "text", "text": _format_servicos(result)}]}
+            return {"content": [{"type": "text", "text": _format_servicos(services)}]}
 
         elif name == "verificar_disponibilidade":
-            svc = AvailabilityService(db)
-            slots = svc.check_availability(
+            availability_service = AvailabilityService(db)
+            slots = availability_service.check_availability(
                 professional_id=arguments["professional_id"],
                 date_str=arguments["date"],
             )
@@ -232,8 +232,8 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
             return {"content": [{"type": "text", "text": text}]}
 
         elif name == "criar_reserva":
-            svc = AppointmentService(db)
-            data = AppointmentCreate(
+            appointment_service = AppointmentService(db)
+            appointment_create = AppointmentCreate(
                 user_id=arguments["user_id"],
                 professional_id=arguments["professional_id"],
                 service_id=arguments["service_id"],
@@ -241,30 +241,30 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
                 end_time=arguments["end_time"],
                 notes=arguments.get("notes"),
             )
-            apt = svc.create(data)
+            appointment = appointment_service.create(appointment_create)
             return {
                 "content": [
                     {
                         "type": "text",
                         "text": (
-                            f"Reserva criada! ID: {apt.id}\n"
-                            f"Status: {apt.status}\n"
-                            f"Expira em: {apt.expires_at}"
+                            f"Reserva criada! ID: {appointment.id}\n"
+                            f"Status: {appointment.status}\n"
+                            f"Expira em: {appointment.expires_at}"
                         ),
                     }
                 ]
             }
 
         elif name == "cancelar_reserva":
-            svc = AppointmentService(db)
-            apt = svc.cancel(arguments["appointment_id"])
-            if not apt:
+            appointment_service = AppointmentService(db)
+            appointment = appointment_service.cancel(arguments["appointment_id"])
+            if not appointment:
                 return {"content": [{"type": "text", "text": "Reserva não encontrada."}]}
-            return {"content": [{"type": "text", "text": f"Reserva {apt.id} cancelada com sucesso."}]}
+            return {"content": [{"type": "text", "text": f"Reserva {appointment.id} cancelada com sucesso."}]}
 
         elif name == "criar_cobranca_asaas":
-            svc = PaymentService(db)
-            payment = await svc.create_charge(
+            payment_service = PaymentService(db)
+            payment = await payment_service.create_charge(
                 appointment_id=arguments["appointment_id"],
                 billing_type=arguments.get("billing_type", "UNDEFINED"),
             )
@@ -283,24 +283,24 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
             }
 
         elif name == "verificar_pagamentos_recentes":
-            svc = PaymentService(db)
-            updated = await svc.verify_recent_payments()
+            payment_service = PaymentService(db)
+            updated = await payment_service.verify_recent_payments()
             if not updated:
                 return {"content": [{"type": "text", "text": "Nenhum pagamento novo confirmado."}]}
             lines = [f"Pagamento {p.id}: reserva {p.appointment_id} - {p.status}" for p in updated]
             return {"content": [{"type": "text", "text": "Pagamentos atualizados:\n" + "\n".join(lines)}]}
 
         elif name == "marcar_notificado":
-            svc = AppointmentService(db)
-            data = AppointmentUpdate(notified_at=datetime.now().isoformat())
-            apt = svc.update(arguments["appointment_id"], data)
-            if not apt:
+            appointment_service = AppointmentService(db)
+            appointment_update = AppointmentUpdate(notified_at=datetime.now())
+            appointment = appointment_service.update(arguments["appointment_id"], appointment_update)
+            if not appointment:
                 return {"content": [{"type": "text", "text": "Agendamento não encontrado."}]}
-            return {"content": [{"type": "text", "text": f"Agendamento {apt.id} marcado como notificado."}]}
+            return {"content": [{"type": "text", "text": f"Agendamento {appointment.id} marcado como notificado."}]}
 
         elif name == "meus_agendamentos":
-            svc = AppointmentService(db)
-            appointments = svc.list(user_id=arguments["user_id"])
+            appointment_service = AppointmentService(db)
+            appointments = appointment_service.list(user_id=arguments["user_id"])
             if not appointments:
                 return {"content": [{"type": "text", "text": "Nenhum agendamento encontrado."}]}
             text = "Seus agendamentos:\n" + "\n".join(

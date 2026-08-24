@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 from datetime import datetime, time, timedelta
 
 from sqlalchemy.orm import Session
@@ -52,7 +53,7 @@ class AvailabilityService:
     def delete(self, availability_id: int):
         return self.repo.delete(availability_id)
 
-    def check_availability(self, professional_id: int, date_str: str) -> list[TimeSlot]:
+    def check_availability(self, professional_id: int, date_str: str) -> builtins.list[TimeSlot]:
         self.appointment_repo.expire_reservations(utc_now())
         self.appointment_repo.db.commit()
         try:
@@ -118,7 +119,7 @@ class AvailabilityService:
 
         return free_slots
 
-    def get_time_slots_for_service(self, professional_id: int, service_id: int, date_str: str) -> list[TimeSlot]:
+    def get_time_slots_for_service(self, professional_id: int, service_id: int, date_str: str) -> builtins.list[TimeSlot]:
         service = self.service_repo.get(service_id)
         if not service or service.professional_id != professional_id:
             return []

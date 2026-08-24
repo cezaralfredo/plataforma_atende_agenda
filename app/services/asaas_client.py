@@ -49,9 +49,10 @@ class AsaasClient:
             errors = body.get("errors")
             if isinstance(errors, list):
                 descriptions = [
-                    item.get("description")
+                    description
                     for item in errors
-                    if isinstance(item, dict) and item.get("description")
+                    if isinstance(item, dict)
+                    and isinstance((description := item.get("description")), str)
                 ]
                 if descriptions:
                     return "; ".join(descriptions)
