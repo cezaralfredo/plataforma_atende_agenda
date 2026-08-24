@@ -4,7 +4,7 @@ from datetime import datetime, time, timedelta
 
 from sqlalchemy.orm import Session
 
-from app.business_time import as_business_time, business_datetime
+from app.business_time import as_business_time, business_datetime, utc_now
 from app.repositories import (
     AppointmentRepository,
     AvailabilityRepository,
@@ -37,6 +37,8 @@ class AvailabilityService:
         return self.repo.delete(availability_id)
 
     def check_availability(self, professional_id: int, date_str: str) -> list[TimeSlot]:
+        self.appointment_repo.expire_reservations(utc_now())
+        self.appointment_repo.db.commit()
         try:
             date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
         except ValueError:

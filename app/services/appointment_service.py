@@ -17,7 +17,7 @@ class AppointmentService:
         self.availability_service = AvailabilityService(db)
 
     def _expire_pending(self) -> None:
-        self.repo.expire_pending(datetime.now(UTC))
+        self.repo.expire_reservations(datetime.now(UTC))
         self.repo.db.commit()
 
     def create(self, data: AppointmentCreate):
@@ -90,12 +90,21 @@ class AppointmentService:
         return self.repo.update(appointment_id, **values)
 
     def cancel(self, appointment_id: int):
+        appointment = self.get(appointment_id)
+        if not appointment:
+            return None
+        if appointment.status == "completed":
+            raise ValueError("Não é possível cancelar um agendamento concluído")
+        if appointment.status == "cancelled":
+            return appointment
         return self.repo.update(appointment_id, status="cancelled")
 
     def confirm(self, appointment_id: int):
         appointment = self.get(appointment_id)
         if not appointment:
             return None
+        if appointment.status == "confirmed":
+            return appointment
         if appointment.status in {"cancelled", "completed"}:
             raise ValueError("N\u00e3o \u00e9 poss\u00edvel confirmar este agendamento")
         if appointment.status == "pending" and appointment.expires_at and appointment.expires_at <= datetime.now(UTC):

@@ -107,6 +107,8 @@ class PaymentService:
         billing_type: str = "undefined",
         amount_cents: int | None = None,
     ) -> Payment:
+        self.appointment_repo.expire_reservations(datetime.now(UTC))
+        self.db.flush()
         appointment = (
             self.db.query(Appointment)
             .options(
