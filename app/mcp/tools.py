@@ -212,11 +212,22 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
 
         elif name == "listar_servicos":
             service_service = ServiceService(db)
+            professional_id = arguments.get("professional_id")
             services = service_service.list(
-                professional_id=arguments.get("professional_id"),
+                professional_id=professional_id,
                 category=arguments.get("category"),
             )
-            return {"content": [{"type": "text", "text": _format_servicos(services)}]}
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": _format_servicos(
+                            services,
+                            include_professional=professional_id is None,
+                        ),
+                    }
+                ]
+            }
 
         elif name == "verificar_disponibilidade":
             availability_service = AvailabilityService(db)
@@ -332,12 +343,32 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
         }
 
 
-def _format_servicos(services) -> str:
+def _format_servicos(services, include_professional: bool = True) -> str:
     if not services:
         return "Nenhum serviço encontrado."
+
     lines = ["Serviços disponíveis:"]
+    seen = set()
     for s in services:
-        lines.append(f"  #{s.id} {s.name} - R$ {s.price_cents / 100:.2f} ({s.duration_minutes}min)")
+        if include_professional:
+            duplicate_key = (
+                s.professional_id,
+                s.name,
+                s.description,
+                s.duration_minutes,
+                s.price_cents,
+                s.category,
+            )
+            if duplicate_key in seen:
+                continue
+            seen.add(duplicate_key)
+            line = (
+                f"  #{s.id} {s.name} - R$ {s.price_cents / 100:.2f} "
+                f"({s.duration_minutes}min) — {s.professional.name}"
+            )
+        else:
+            line = f"  #{s.id} {s.name} - R$ {s.price_cents / 100:.2f} ({s.duration_minutes}min)"
+        lines.append(line)
     return "\n".join(lines)
 
 
