@@ -5,7 +5,8 @@ from app.database import get_db
 from app.models.payment import Payment
 from app.schemas.payment import PaymentCreate, PaymentRead
 from app.security import require_api_key
-from app.services.payment_service import PaymentService
+from app.services.asaas_client import AsaasIntegrationError
+from app.services.payment_service import AsaasReconciliationError, PaymentService
 
 router = APIRouter(
     prefix="/api/payments",
@@ -20,8 +21,12 @@ async def create_payment(data: PaymentCreate, db: Session = Depends(get_db)):
     try:
         payment = await svc.create_charge(data.appointment_id, data.billing_type, data.amount_cents)
         return payment
+    except AsaasReconciliationError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    except AsaasIntegrationError as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.get("/{payment_id}", response_model=PaymentRead)

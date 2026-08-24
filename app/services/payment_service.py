@@ -7,7 +7,24 @@ from app.models.payment import Payment
 from app.repositories import UserRepository
 from app.repositories.appointment_repo import AppointmentRepository
 from app.repositories.payment_repo import PaymentRepository
-from app.services.asaas_client import AsaasClient
+from app.services.asaas_client import (
+    AsaasClient,
+    AsaasIntegrationError,
+    AsaasUncertainResultError,
+)
+
+ASAAS_STATUS_MAP = {
+    "PENDING": "pending",
+    "RECEIVED": "received",
+    "CONFIRMED": "confirmed",
+    "OVERDUE": "overdue",
+    "REFUNDED": "refunded",
+    "CANCELLED": "cancelled",
+}
+
+
+class AsaasReconciliationError(AsaasIntegrationError):
+    """Remote records cannot be mapped safely to one local entity."""
 
 
 class PaymentService:
@@ -26,22 +43,80 @@ class PaymentService:
         if user.asaas_customer_id:
             return user.asaas_customer_id
 
-        resp = await self.asaas.create_customer(
-            name=user.name,
-            phone=user.phone,
-            email=user.email,
-        )
-        customer_id = resp["id"]
-        self.user_repo.update(user_id, asaas_customer_id=customer_id)
+        external_reference = f"user:{user.id}"
+        matches = await self.asaas.list_customers(external_reference)
+        customer = self._single_remote_match(matches, external_reference)
+        if customer is None:
+            try:
+                customer = await self.asaas.create_customer(
+                    name=user.name,
+                    phone=user.phone,
+                    email=user.email,
+                    external_reference=external_reference,
+                )
+            except AsaasUncertainResultError:
+                matches = await self.asaas.list_customers(external_reference)
+                customer = self._single_remote_match(matches, external_reference)
+                if customer is None:
+                    raise
+
+        customer_id = customer.get("id")
+        if not customer_id:
+            raise AsaasReconciliationError(
+                f"Asaas customer {external_reference} has no id"
+            )
+        user.asaas_customer_id = customer_id
+        self.db.flush()
         return customer_id
 
-    async def create_charge(self, appointment_id: int, billing_type: str = "undefined", amount_cents: int | None = None) -> Payment:
-        # Eager load related objects
-        appointment = self.db.query(Appointment).options(
-            joinedload(Appointment.service),
-            joinedload(Appointment.professional),
-            joinedload(Appointment.user)
-        ).filter(Appointment.id == appointment_id).first()
+    @staticmethod
+    def _single_remote_match(
+        matches: list[dict],
+        external_reference: str,
+    ) -> dict | None:
+        if len(matches) > 1:
+            raise AsaasReconciliationError(
+                f"Asaas returned multiple records for {external_reference}"
+            )
+        return matches[0] if matches else None
+
+    @staticmethod
+    def _payment_from_asaas(
+        appointment: Appointment,
+        payload: dict,
+        billing_type: str,
+    ) -> Payment:
+        payment_id = payload.get("id")
+        if not payment_id:
+            raise AsaasReconciliationError("Asaas payment has no id")
+        return Payment(
+            appointment_id=appointment.id,
+            asaas_payment_id=payment_id,
+            amount_cents=appointment.service.price_cents,
+            billing_type=billing_type,
+            status=ASAAS_STATUS_MAP.get(payload.get("status"), "pending"),
+            invoice_url=payload.get("invoiceUrl"),
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+        )
+
+    async def create_charge(
+        self,
+        appointment_id: int,
+        billing_type: str = "undefined",
+        amount_cents: int | None = None,
+    ) -> Payment:
+        appointment = (
+            self.db.query(Appointment)
+            .options(
+                joinedload(Appointment.service),
+                joinedload(Appointment.professional),
+                joinedload(Appointment.user),
+            )
+            .filter(Appointment.id == appointment_id)
+            .with_for_update()
+            .first()
+        )
 
         if not appointment:
             raise ValueError("Agendamento não encontrado")
@@ -62,38 +137,54 @@ class PaymentService:
         if active_payment:
             return active_payment
 
-        customer_id = await self.ensure_asaas_customer(appointment.user_id)
-        due_date = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
-        value_cents = 0
-
-        if appointment.service:
-            value_cents = appointment.service.price_cents
+        if not appointment.service:
+            raise ValueError("Agendamento sem serviço")
+        value_cents = appointment.service.price_cents
         if amount_cents is not None and amount_cents != value_cents:
             raise ValueError("Charge amount must match the service price")
 
-        resp = await self.asaas.create_payment(
-            customer_id=customer_id,
-            value=value_cents / 100.0,
-            due_date=due_date,
-            description=f"{appointment.service.name} - {appointment.professional.name}" if appointment.service else "Agendamento",
-            billing_type=asaas_billing_type,
+        external_reference = f"appointment:{appointment.id}"
+        matches = await self.asaas.list_payments(
+            external_reference=external_reference
         )
+        remote_payment = self._single_remote_match(matches, external_reference)
+        if remote_payment is None:
+            customer_id = await self.ensure_asaas_customer(appointment.user_id)
+            due_date = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+            try:
+                remote_payment = await self.asaas.create_payment(
+                    customer_id=customer_id,
+                    value=value_cents / 100.0,
+                    due_date=due_date,
+                    description=(
+                        f"{appointment.service.name} - {appointment.professional.name}"
+                    ),
+                    billing_type=asaas_billing_type,
+                    external_reference=external_reference,
+                )
+            except AsaasUncertainResultError:
+                matches = await self.asaas.list_payments(
+                    external_reference=external_reference
+                )
+                remote_payment = self._single_remote_match(
+                    matches, external_reference
+                )
+                if remote_payment is None:
+                    raise
 
-        payment = Payment(
-            appointment_id=appointment_id,
-            asaas_payment_id=resp["id"],
-            amount_cents=value_cents,
-            billing_type=billing_type,
-            status="pending",
-            invoice_url=resp.get("invoiceUrl", ""),
-            created_at=datetime.now(),
-            updated_at=datetime.now(),
+        payment = self._payment_from_asaas(
+            appointment,
+            remote_payment,
+            billing_type,
         )
         self.db.add(payment)
+        appointment.status = (
+            "confirmed"
+            if payment.status in {"received", "confirmed"}
+            else "awaiting_payment"
+        )
         self.db.commit()
         self.db.refresh(payment)
-
-        self.appointment_repo.update(appointment_id, status="awaiting_payment")
         return payment
 
     async def check_payment_status(self, payment: Payment) -> str:
@@ -103,15 +194,7 @@ class PaymentService:
         resp = await self.asaas.get_payment(payment.asaas_payment_id)
         asaas_status = resp.get("status", "")
 
-        status_map = {
-            "PENDING": "pending",
-            "RECEIVED": "received",
-            "CONFIRMED": "confirmed",
-            "OVERDUE": "overdue",
-            "REFUNDED": "refunded",
-            "CANCELLED": "cancelled",
-        }
-        new_status = status_map.get(asaas_status, payment.status)
+        new_status = ASAAS_STATUS_MAP.get(asaas_status, payment.status)
 
         if new_status != payment.status:
             payment.status = new_status
