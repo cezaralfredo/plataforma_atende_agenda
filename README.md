@@ -337,6 +337,11 @@ Appointment → Payment (1:1)
 
 As ferramentas MCP disponíveis são: `buscar_cliente_por_telefone`, `cadastrar_cliente`, `atualizar_cliente`, `vincular_whatsapp`, `listar_servicos`, `verificar_disponibilidade`, `criar_reserva`, `cancelar_reserva`, `criar_cobranca_asaas`, `verificar_pagamentos_recentes`, `marcar_notificado` e `meus_agendamentos`.
 
+## Deploy com Portainer
+
+- Para a variante com PostgreSQL local e Nginx Proxy Manager, siga [DEPLOY_PORTAINER_NPM.md](DEPLOY_PORTAINER_NPM.md).
+- Para a topologia com PostgreSQL externo no Neon, siga [DEPLOY_PORTAINER_NEON.md](DEPLOY_PORTAINER_NEON.md).
+
 ## Licença
 
 Projeto privado — Plataforma Atende Agenda.
