@@ -35,13 +35,6 @@ echo "🔄 Executando migrações Alembic..."
 alembic upgrade head
 echo "✅ Migrações aplicadas"
 
-# Verificar se há seed de dados (opcional)
-if [ "$SEED_DATA" = "true" ]; then
-  echo "🌱 Executando seed de dados..."
-  python -m tests.seed
-  echo "✅ Seed concluído"
-fi
-
 # Iniciar aplicação
 echo "🌐 Iniciando Uvicorn..."
 exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4

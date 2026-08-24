@@ -84,7 +84,6 @@ services:
       - ASAAS_API_KEY=${ASAAS_API_KEY}
       - ASAAS_BASE_URL=${ASAAS_BASE_URL}
       - ASAAS_WEBHOOK_TOKEN=${ASAAS_WEBHOOK_TOKEN}
-      - SEED_DATA=${SEED_DATA:-false}
     env_file:
       - .env.prod
     depends_on:

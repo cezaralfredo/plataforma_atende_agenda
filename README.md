@@ -327,6 +327,16 @@ Appointment → Payment (1:1)
 
 ---
 
+## Operação segura
+
+- Clientes da API devem enviar `Authorization: Bearer <API_KEY>`; o painel `/admin` usa autenticação HTTP Basic, com `ADMIN_API_KEY` como senha.
+- Em produção, a documentação interativa é desativada e `/metrics` também exige Bearer. `/health` indica vida do processo e `/ready` confirma acesso ao PostgreSQL.
+- O sandbox atual do Asaas é `https://api-sandbox.asaas.com/v3` e a produção usa `https://api.asaas.com/v3`. Clientes e cobranças usam referências externas estáveis para reconciliação.
+- Horários sem offset são interpretados em `APP_TIMEZONE=America/Sao_Paulo`; reservas não pagas vencidas liberam automaticamente o slot.
+- A CI executa testes no PostgreSQL, migrações, Ruff e MyPy antes de publicar as imagens principal e `-backup`. A migração aborta se já existirem agendamentos ativos sobrepostos.
+
+As ferramentas MCP disponíveis são: `buscar_cliente_por_telefone`, `cadastrar_cliente`, `atualizar_cliente`, `vincular_whatsapp`, `listar_servicos`, `verificar_disponibilidade`, `criar_reserva`, `cancelar_reserva`, `criar_cobranca_asaas`, `verificar_pagamentos_recentes`, `marcar_notificado` e `meus_agendamentos`.
+
 ## Licença
 
 Projeto privado — Plataforma Atende Agenda.

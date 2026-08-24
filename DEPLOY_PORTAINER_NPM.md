@@ -1,5 +1,7 @@
 # Deploy no Portainer Community Edition com Nginx Proxy Manager
 
+> Operação endurecida: aplique migrações antes do tráfego, configure `APP_TIMEZONE`, valide `/ready` e implante também a imagem `-backup`. API e métricas usam Bearer; o painel usa Basic.
+
 Use `docker-compose.portainer-npm.yml` para criar uma nova Stack. Esta versão foi feita para um Docker comum (sem Swarm) e para o Nginx Proxy Manager já instalado no ambiente.
 
 ## Variáveis da Stack

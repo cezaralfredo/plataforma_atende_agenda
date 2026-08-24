@@ -1,5 +1,7 @@
 # Deploy no Portainer - Guia Completo
 
+> Operação endurecida: aplique migrações antes do tráfego, configure `APP_TIMEZONE`, valide `/ready` e implante também a imagem `-backup`. API e métricas usam Bearer; o painel usa Basic.
+
 > **Arquitetura**: Traefik (SSL auto) + PostgreSQL + API (FastAPI) + Backup + Watchtower
 > **Registry**: GHCR (GitHub Container Registry) via GitHub Actions
 

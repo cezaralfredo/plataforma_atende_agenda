@@ -76,7 +76,6 @@ services:
       - ASAAS_API_KEY_FILE=/run/secrets/asaas_api_key
       - ASAAS_BASE_URL=${ASAAS_BASE_URL}
       - ASAAS_WEBHOOK_TOKEN_FILE=/run/secrets/asaas_webhook_token
-      - SEED_DATA=false
     secrets:
       - postgres_password
       - api_key
