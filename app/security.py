@@ -1,17 +1,33 @@
 import base64
 import binascii
+import hashlib
 import hmac
+import logging
 from typing import Annotated
 
 from fastapi import Header, HTTPException, Request
 
 from app.config import settings
 
+logger = logging.getLogger(__name__)
+
 
 def require_api_key(request: Request) -> None:
     supplied = request.headers.get("Authorization", "")
     expected = f"Bearer {settings.api_key}"
     if not hmac.compare_digest(supplied, expected):
+        reason = "missing" if not supplied else "invalid"
+        # This digest supports correlation of repeated invalid credentials
+        # without writing the credential itself to logs.
+        credential_id = "-" if not supplied else hashlib.sha256(supplied.encode()).hexdigest()[:12]
+        logger.warning(
+            "API authorization rejected path=%s reason=%s credential_id=%s client=%s user_agent=%s",
+            request.url.path,
+            reason,
+            credential_id,
+            request.client.host if request.client else "unknown",
+            request.headers.get("user-agent", "unknown"),
+        )
         raise HTTPException(
             status_code=401,
             detail="Unauthorized",
