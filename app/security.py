@@ -9,7 +9,9 @@ from fastapi import Header, HTTPException, Request
 
 from app.config import settings
 
-logger = logging.getLogger(__name__)
+# The production container exposes Uvicorn's error channel.  Use the same
+# logger so rejection diagnostics are visible in the operational log stream.
+logger = logging.getLogger("uvicorn.error")
 
 
 def require_api_key(request: Request) -> None:
