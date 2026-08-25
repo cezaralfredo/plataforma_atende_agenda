@@ -270,15 +270,11 @@ function dashboard() {
 
         async loadKPIs() {
             try {
-                const response = await fetch('/admin/api/kpis', {
-                    headers: { 'X-Admin-Key': '{{ request.headers.get("x-admin-key") }}' }
-                });
+                const response = await fetch('/admin/api/kpis');
                 this.kpis = await response.json();
 
                 // Load professionals for overview
-                const profsResponse = await fetch('/admin/professionals', {
-                    headers: { 'X-Admin-Key': '{{ request.headers.get("x-admin-key") }}' }
-                });
+                const profsResponse = await fetch('/admin/professionals');
                 // We'll parse from the HTML or use a separate endpoint
                 // For now, use a simple approach
             } catch (error) {

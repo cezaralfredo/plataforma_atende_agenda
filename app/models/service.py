@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -8,6 +8,10 @@ from app.database import Base
 
 class Service(Base):
     __tablename__ = "services"
+    __table_args__ = (
+        CheckConstraint("duration_minutes > 0", name="check_service_duration"),
+        CheckConstraint("price_cents >= 0", name="check_service_price"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     professional_id: Mapped[int] = mapped_column(

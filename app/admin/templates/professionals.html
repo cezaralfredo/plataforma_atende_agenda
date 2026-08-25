@@ -149,15 +149,11 @@ function professionals() {
         async loadProfessionals() {
             this.loading = true;
             try {
-                const response = await fetch('/admin/professionals', {
-                    headers: { 'X-Admin-Key': '{{ request.headers.get("x-admin-key") }}' }
-                });
+                const response = await fetch('/admin/professionals');
                 const html = await response.text();
                 // Parse HTML to extract data - simpler: use a separate API endpoint
                 // For now, we'll fetch from the API directly
-                const apiResponse = await fetch('/admin/api/professionals', {
-                    headers: { 'X-Admin-Key': '{{ request.headers.get("x-admin-key") }}' }
-                });
+                const apiResponse = await fetch('/admin/api/professionals');
                 this.professionals = await apiResponse.json();
             } catch (error) {
                 console.error('Erro ao carregar profissionais:', error);

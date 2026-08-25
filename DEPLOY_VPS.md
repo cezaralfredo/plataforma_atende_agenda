@@ -1,5 +1,7 @@
 # Deploy em VPS com Docker Compose (Sem Portainer)
 
+> Contrato atual: configure `APP_TIMEZONE`, use a URL Asaas `/v3`, publique as imagens principal e `-backup`, aplique a migração antes de iniciar e valide o serviço por `/ready`. O painel usa Basic; API e métricas usam Bearer.
+
 > **Arquitetura**: Traefik (SSL auto) + PostgreSQL + API (FastAPI) + Backup + Watchtower
 > **Registry**: GHCR (GitHub Container Registry) via GitHub Actions ou build local
 

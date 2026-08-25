@@ -22,6 +22,10 @@ class Availability(Base):
             "(day_of_week IS NOT NULL AND specific_date IS NULL) OR (day_of_week IS NULL AND specific_date IS NOT NULL)",
             name="check_availability_type",
         ),
+        CheckConstraint(
+            "start_time IS NOT NULL AND end_time IS NOT NULL AND end_time > start_time",
+            name="check_availability_interval",
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)

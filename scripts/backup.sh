@@ -1,63 +1,64 @@
-#!/bin/bash
-# Backup automático do PostgreSQL com upload para storage remoto via rclone
+#!/bin/sh
+set -eu
 
-set -e
-
-# Configurações
-BACKUP_DIR="/backups"
+BACKUP_DIR="${BACKUP_DIR:-/backups}"
 RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-30}"
 RCLONE_DEST="${RCLONE_DESTINATION:-}"
-PG_DATABASE="agenda_atende"
-PG_USER="agenda_user"
-PG_HOST="postgres"
+PG_DATABASE="${POSTGRES_DB:-agenda_atende}"
+PG_USER="${POSTGRES_USER:-agenda_user}"
+PG_HOST="${POSTGRES_HOST:-postgres}"
 
-# Criar diretório de backup se não existir
+case "$RETENTION_DAYS" in
+    ''|*[!0-9]*) echo "BACKUP_RETENTION_DAYS must be numeric" >&2; exit 2 ;;
+esac
+
+if [ -n "${POSTGRES_PASSWORD_FILE:-}" ]; then
+    PGPASSWORD="$(tr -d '\r\n' < "$POSTGRES_PASSWORD_FILE")"
+else
+    PGPASSWORD="${POSTGRES_PASSWORD:?POSTGRES_PASSWORD or POSTGRES_PASSWORD_FILE is required}"
+fi
+export PGPASSWORD
 mkdir -p "$BACKUP_DIR"
 
-# Função de log
-log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
-}
+log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
 
-# Função para fazer backup
 do_backup() {
-    local timestamp=$(date '+%Y%m%d_%H%M%S')
-    local backup_file="${BACKUP_DIR}/agenda_${PG_DATABASE}_${timestamp}.sql.gz"
+    timestamp="$(date '+%Y%m%d_%H%M%S')"
+    final_file="${BACKUP_DIR}/agenda_${PG_DATABASE}_${timestamp}.sql.gz"
+    dump_file="${final_file%.gz}.tmp"
+    temp_file="${final_file}.tmp"
+    trap 'rm -f "$dump_file" "$temp_file"' EXIT HUP INT TERM
 
     log "Iniciando backup do banco ${PG_DATABASE}..."
-    
-    # Fazer dump comprimido
-    PGPASSWORD="$(cat /run/secrets/postgres_password)" \
     pg_dump -h "$PG_HOST" -U "$PG_USER" -d "$PG_DATABASE" \
-        --no-owner --no-privileges --clean --if-exists | gzip > "$backup_file"
+        --no-owner --no-privileges --clean --if-exists > "$dump_file"
+    test -s "$dump_file"
+    gzip -c "$dump_file" > "$temp_file"
+    test -s "$temp_file"
+    gzip -t "$temp_file"
+    mv "$temp_file" "$final_file"
+    rm -f "$dump_file"
+    trap - EXIT HUP INT TERM
+    log "Backup concluído: $final_file"
 
-    local size=$(du -h "$backup_file" | cut -f1)
-    log "Backup concluído: $backup_file ($size)"
-
-    # Upload para storage remoto se configurado
-    if [ -n "$RCLONE_DEST" ] && [ -f /config/rclone/rclone.conf ]; then
-        log "Enviando para storage remoto: $RCLONE_DEST"
-        rclone --config /config/rclone/rclone.conf copy "$backup_file" "$RCLONE_DEST" --progress
-        log "Upload concluído"
-    else
-        log "Storage remoto não configurado - backup mantido apenas localmente"
+    if [ -n "$RCLONE_DEST" ]; then
+        rclone_args=""
+        if [ -n "${RCLONE_CONFIG_FILE:-}" ]; then
+            rclone_args="--config ${RCLONE_CONFIG_FILE}"
+        fi
+        # shellcheck disable=SC2086
+        rclone $rclone_args copy "$final_file" "$RCLONE_DEST"
     fi
 
-    # Limpeza de backups antigos locais
-    log "Removendo backups locais com mais de ${RETENTION_DAYS} dias..."
-    find "$BACKUP_DIR" -name "agenda_${PG_DATABASE}_*.sql.gz" -mtime +${RETENTION_DAYS} -delete
-    log "Limpeza concluída"
+    find "$BACKUP_DIR" -name "agenda_${PG_DATABASE}_*.sql.gz" \
+        -mtime "+${RETENTION_DAYS}" -delete
 }
 
-# Se BACKUP_SCHEDULE estiver definido, rodar como cron
-if [ -n "$BACKUP_SCHEDULE" ]; then
+if [ -n "${BACKUP_SCHEDULE:-}" ]; then
     log "Modo agendado ativado: $BACKUP_SCHEDULE"
     echo "$BACKUP_SCHEDULE /backup.sh" > /etc/crontabs/root
-    # Executar backup inicial
     do_backup
-    # Iniciar cron em foreground
     exec crond -f -l 2
 else
-    # Modo one-shot (para execução manual)
     do_backup
 fi

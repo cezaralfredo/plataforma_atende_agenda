@@ -1,6 +1,8 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+
+from app.business_time import as_business_time
 
 
 class AppointmentCreate(BaseModel):
@@ -10,6 +12,11 @@ class AppointmentCreate(BaseModel):
     start_time: datetime
     end_time: datetime
     notes: str | None = None
+
+    @field_validator("start_time", "end_time")
+    @classmethod
+    def normalize_datetime(cls, value: datetime) -> datetime:
+        return as_business_time(value)
 
     @model_validator(mode="after")
     def validate_interval(self):
@@ -39,3 +46,15 @@ class AppointmentRead(BaseModel):
     notified_at: datetime | None = None
     notes: str | None = None
     created_at: datetime | None = None
+
+    @field_validator(
+        "start_time",
+        "end_time",
+        "expires_at",
+        "notified_at",
+        "created_at",
+        mode="before",
+    )
+    @classmethod
+    def normalize_response_datetime(cls, value: datetime | None):
+        return as_business_time(value) if value is not None else None

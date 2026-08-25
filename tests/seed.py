@@ -1,4 +1,4 @@
-from datetime import date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -96,7 +96,7 @@ def seed_appointment(db: Session, entities: dict) -> Appointment:
         end_time=datetime(2026, 7, 30, 10, 0, 0),
         status="awaiting_payment",
         created_at=datetime(2026, 7, 29, 10, 0, 0),
-        expires_at=datetime(2026, 7, 29, 10, 30, 0),
+        expires_at=datetime.now(UTC) + timedelta(minutes=30),
     )
     db.add(apt)
     db.commit()

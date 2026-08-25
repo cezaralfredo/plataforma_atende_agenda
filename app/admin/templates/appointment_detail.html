@@ -284,8 +284,7 @@ function appointmentDetail() {
                 const response = await fetch(`/admin/appointments/{{ detail.appointment.id }}/action`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'X-Admin-Key': '{{ request.headers.get("x-admin-key") }}'
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({ action, notes })
                 });
@@ -305,8 +304,7 @@ function appointmentDetail() {
                 const response = await fetch(`/admin/payments/${paymentId}/action`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'X-Admin-Key': '{{ request.headers.get("x-admin-key") }}'
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({ action: 'refresh' })
                 });
@@ -323,8 +321,7 @@ function appointmentDetail() {
                 const response = await fetch(`/admin/payments/${paymentId}/action`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'X-Admin-Key': '{{ request.headers.get("x-admin-key") }}'
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({ action: 'refund' })
                 });

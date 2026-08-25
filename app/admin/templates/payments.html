@@ -209,9 +209,7 @@ function payments() {
                     if (value) params.append(key, value);
                 });
 
-                const response = await fetch('/admin/api/payments?' + params.toString(), {
-                    headers: { 'X-Admin-Key': '{{ request.headers.get("x-admin-key") }}' }
-                });
+                const response = await fetch('/admin/api/payments?' + params.toString());
                 const data = await response.json();
                 this.payments = data.data;
                 this.total = data.total;
@@ -247,8 +245,7 @@ function payments() {
                 const response = await fetch(`/admin/payments/${id}/action`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'X-Admin-Key': '{{ request.headers.get("x-admin-key") }}'
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({ action: 'refresh' })
                 });
@@ -269,8 +266,7 @@ function payments() {
                 const response = await fetch(`/admin/payments/${id}/action`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'X-Admin-Key': '{{ request.headers.get("x-admin-key") }}'
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({ action: 'refund' })
                 });

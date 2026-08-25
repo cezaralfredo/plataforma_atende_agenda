@@ -76,7 +76,7 @@ services:
     image: ${REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY:-agenda-atende}:latest
     container_name: agenda_atende_api
     environment:
-      - DATABASE_URL=postgresql://agenda_user:${POSTGRES_PASSWORD}@postgres:5432/agenda_atende
+      - DATABASE_URL=postgresql+psycopg://agenda_user:${POSTGRES_PASSWORD}@postgres:5432/agenda_atende
       - API_KEY=${API_KEY}
       - ADMIN_API_KEY=${ADMIN_API_KEY}
       - APP_NAME=${APP_NAME}
@@ -84,7 +84,6 @@ services:
       - ASAAS_API_KEY=${ASAAS_API_KEY}
       - ASAAS_BASE_URL=${ASAAS_BASE_URL}
       - ASAAS_WEBHOOK_TOKEN=${ASAAS_WEBHOOK_TOKEN}
-      - SEED_DATA=${SEED_DATA:-false}
     env_file:
       - .env.prod
     depends_on:
@@ -131,7 +130,7 @@ services:
   # Backup Automático - pg_dump + Rclone (S3/Wasabi/GDrive)
   # -----------------------------------------------------------------------------
   backup:
-    image: postgres:16-alpine
+    image: ${REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY}-backup:latest
     container_name: agenda_atende_backup
     environment:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -144,9 +143,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data:ro
       - ./backups:/backups
-      - ./scripts/backup.sh:/backup.sh:ro
       - ./rclone:/config/rclone:ro
-    entrypoint: /backup.sh
     networks:
       - agenda_network
     restart: unless-stopped
