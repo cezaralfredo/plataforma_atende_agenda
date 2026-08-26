@@ -9,10 +9,10 @@ API REST completa para gestão de agendamentos, profissionais, serviços e pagam
 ### Gestão de Usuários
 - CRUD completo de usuários (clientes)
 - Busca por telefone com validação de duplicidade
+- Vinculação de número WhatsApp
 
 ### Gestão de Profissionais
 - CRUD de profissionais (prestadores de serviço)
-- Associação a usuários do sistema
 - Filtro por profissionais ativos/inativos
 
 ### Gestão de Serviços
@@ -48,10 +48,18 @@ API REST completa para gestão de agendamentos, profissionais, serviços e pagam
 ### MCP (Model Context Protocol)
 - Endpoint `/mcp` para integração com agentes de IA
 - Ferramentas disponíveis:
-  - `listar_servicos`
-  - `verificar_disponibilidade`
-  - `criar_reserva`
-  - `cancelar_reserva`
+  - `buscar_cliente_por_telefone` — busca cliente por telefone/WhatsApp
+  - `cadastrar_cliente` — cadastra novo cliente
+  - `atualizar_cliente` — atualiza dados do cliente
+  - `vincular_whatsapp` — vincula número WhatsApp ao cliente
+  - `listar_servicos` — lista serviços com filtros opcionais
+  - `verificar_disponibilidade` — verifica horários livres de um profissional em uma data
+  - `criar_reserva` — cria agendamento (valida disponibilidade)
+  - `cancelar_reserva` — cancela agendamento existente
+  - `criar_cobranca_asaas` — cria cobrança no Asaas (PIX, Boleto, Cartão)
+  - `verificar_pagamentos_recentes` — verifica pagamentos pendentes no Asaas
+  - `marcar_notificado` — marca agendamento como notificado
+  - `meus_agendamentos` — lista agendamentos de um cliente
 - Autenticação via Bearer Token (`API_KEY`)
 
 ### Hermes (Agentes de IA)
@@ -107,11 +115,13 @@ plataforma_atende_agenda/
 │   │   ├── payment.py
 │   │   ├── professional.py
 │   │   ├── service.py
-│   │   └── user.py
+│   │   ├── user.py
+│   │   └── webhook_event.py
 │   ├── repositories/     # Camada de acesso a dados
 │   │   ├── appointment_repo.py
 │   │   ├── availability_repo.py
 │   │   ├── base.py
+│   │   ├── payment_repo.py
 │   │   ├── professional_repo.py
 │   │   ├── service_repo.py
 │   │   └── user_repo.py
@@ -127,8 +137,10 @@ plataforma_atende_agenda/
 │       ├── asaas_client.py
 │       ├── availability_service.py
 │       ├── payment_service.py
+│       ├── payment_state_service.py
 │       ├── professional_service.py
-│       └── service_service.py
+│       ├── service_service.py
+│       └── user_service.py
 ├── alembic/              # Migrações de banco
 ├── hermes/               # Configuração agentes IA
 │   ├── config.yaml
@@ -293,49 +305,85 @@ pytest tests/ -v
 ### Ferramentas Disponíveis
 | Ferramenta | Descrição |
 |------------|-----------|
+| `buscar_cliente_por_telefone` | Busca cliente por telefone/WhatsApp |
+| `cadastrar_cliente` | Cadastra novo cliente |
+| `atualizar_cliente` | Atualiza dados do cliente |
+| `vincular_whatsapp` | Vincula número WhatsApp ao cliente |
 | `listar_servicos` | Lista serviços com filtros opcionais |
 | `verificar_disponibilidade` | Verifica horários livres de um profissional em uma data |
 | `criar_reserva` | Cria agendamento (valida disponibilidade) |
 | `cancelar_reserva` | Cancela agendamento existente |
+| `criar_cobranca_asaas` | Cria cobrança no Asaas (PIX, Boleto, Cartão) |
+| `verificar_pagamentos_recentes` | Verifica pagamentos pendentes no Asaas |
+| `marcar_notificado` | Marca agendamento como notificado |
+| `meus_agendamentos` | Lista agendamentos de um cliente |
 
 ### Hermes (Orquestração de Agentes)
+
+**Arquitetura com MCP Gateway (Recomendado para Produção):**
+
+```
+Hermes (host/VM) ──► MCP Gateway (Docker) ──► API (Docker)
+     │                    │                      │
+     │ gateway toolset    │ FastAPI proxy        │ /mcp endpoint
+     │                    │ injeta API_KEY       │
+     ▼                    ▼                      ▼
+  Profis YAML         http://mcp-gateway:8080  PostgreSQL
+```
+
+O **MCP Gateway** isola o Hermes do ambiente interno da API:
+- Hermes usa apenas o toolset `gateway` (HTTP nativo)
+- Gateway injeta `Authorization: Bearer <API_KEY>` automaticamente
+- Gateway valida `X-Gateway-Key` para autenticação Hermes→Gateway
+- Elimina conflitos de namespace, auth e estado entre Hermes e API
+
 ```bash
-# Instalar Hermes (se disponível)
-# Configurar ~/.hermes/config.yaml baseado em hermes/config.yaml
-# Executar agente
+# 1. Configure ~/.hermes/config.yaml (baseado em hermes/config.yaml.example)
+# 2. Defina MCP_GATEWAY_KEY no Portainer (variável da stack)
+# 3. No NPM, crie Proxy Host para mcp-gateway:8080
+# 4. Execute agente
 hermes run --profile agendador
 ```
 
-Perfis disponíveis em `hermes/profiles/`:
+Perfis disponíveis em `hermes/profiles/` (usam `gateway` toolset):
 - `agendador.yaml`
 - `financeiro.yaml`
 - `notificador.yaml`
 - `orquestrador.yaml`
+
+Configuração do Gateway em `hermes/config.yaml.example`:
+```yaml
+gateway:
+  base_url: "https://api.seudominio.com/mcp-gateway"
+  timeout: 30
+  headers:
+    X-Gateway-Key: "${MCP_GATEWAY_KEY}"
+```
 
 ---
 
 ## Modelo de Dados (Resumo)
 
 ```
-User ←→ Professional (1:1)
+User → Appointment (1:N)
 Professional → Service (1:N)
 Professional → Availability (1:N)
+Professional → Appointment (1:N)
 Service → Appointment (1:N)
-User → Appointment (1:N)
 Appointment → Payment (1:1)
+WebhookEvent (tabela de idempotência para webhooks)
 ```
 
 ---
 
 ## Operação segura
 
-- Clientes da API devem enviar `Authorization: Bearer <API_KEY>`; o painel `/admin` usa autenticação HTTP Basic, com `ADMIN_API_KEY` como senha.
+- Clientes da API devem enviar `Authorization: Bearer <API_KEY>`
+- Painel `/admin` aceita **duas formas**: header `X-Admin-Key: <ADMIN_API_KEY>` **ou** HTTP Basic (username ignorado, senha = `ADMIN_API_KEY`)
 - Em produção, a documentação interativa é desativada e `/metrics` também exige Bearer. `/health` indica vida do processo e `/ready` confirma acesso ao PostgreSQL.
 - O sandbox atual do Asaas é `https://api-sandbox.asaas.com/v3` e a produção usa `https://api.asaas.com/v3`. Clientes e cobranças usam referências externas estáveis para reconciliação.
 - Horários sem offset são interpretados em `APP_TIMEZONE=America/Sao_Paulo`; reservas não pagas vencidas liberam automaticamente o slot.
 - A CI executa testes no PostgreSQL, migrações, Ruff e MyPy antes de publicar as imagens principal e `-backup`. A migração aborta se já existirem agendamentos ativos sobrepostos.
-
-As ferramentas MCP disponíveis são: `buscar_cliente_por_telefone`, `cadastrar_cliente`, `atualizar_cliente`, `vincular_whatsapp`, `listar_servicos`, `verificar_disponibilidade`, `criar_reserva`, `cancelar_reserva`, `criar_cobranca_asaas`, `verificar_pagamentos_recentes`, `marcar_notificado` e `meus_agendamentos`.
 
 ## Deploy com Portainer
 

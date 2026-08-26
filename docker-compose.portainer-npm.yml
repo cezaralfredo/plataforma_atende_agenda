@@ -2,6 +2,25 @@
 # Não publique portas: no NPM, crie um Proxy Host para agenda-api:8000.
 # Defina as variáveis abaixo na tela Environment variables da Stack.
 services:
+  mcp-gateway:
+    build:
+      context: .
+      dockerfile: mcp_gateway/Dockerfile
+    restart: unless-stopped
+    environment:
+      API_BASE_URL: http://api:8000
+      API_KEY: ${API_KEY:?Defina API_KEY no Portainer}
+      GATEWAY_KEY: ${MCP_GATEWAY_KEY:?Defina MCP_GATEWAY_KEY no Portainer}
+    expose:
+      - "8080"
+    networks:
+      agenda_internal:
+      npm:
+        aliases:
+          - mcp-gateway
+    depends_on:
+      - api
+
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped

@@ -19,21 +19,50 @@ APP_NAME=Agenda Atende
 REGISTRY=ghcr.io
 GITHUB_REPOSITORY=cezaralfredo/plataforma_atende_agenda
 NPM_NETWORK=nginx-proxy_default
+
+# MCP Gateway (para Hermes externo)
+MCP_GATEWAY_KEY=chave-forte-para-gateway-hermes
 ```
 
 `NPM_NETWORK` já usa como padrão a rede encontrada nesta VPS. Só a altere se a rede do Nginx Proxy Manager mudar.
 
 ## Após o deploy
 
-No Nginx Proxy Manager, crie um **Proxy Host**:
+No Nginx Proxy Manager, crie **dois Proxy Hosts**:
 
+### 1. API Principal
 - Domain Names: `api.seudominio.com`
 - Scheme: `http`
 - Forward Hostname / IP: `agenda-api`
 - Forward Port: `8000`
 - SSL: solicite um novo certificado Let's Encrypt e force SSL.
 
-Em seguida, valide `https://api.seudominio.com/health`. Para o navegador e o painel administrativo em `https://api.seudominio.com/admin`, a recomendação é autenticação HTTP Basic, usando `ADMIN_API_KEY` como senha. `X-Admin-Key` permanece somente como compatibilidade legada para clientes de máquina; não é a orientação para acesso pelo navegador.
+### 2. MCP Gateway (para Hermes)
+- Domain Names: `mcp.seudominio.com` (ou subdomínio dedicado)
+- Scheme: `http`
+- Forward Hostname / IP: `mcp-gateway`
+- Forward Port: `8080`
+- SSL: solicite certificado Let's Encrypt e force SSL.
+
+Em seguida, valide:
+- `https://api.seudominio.com/health` — API principal
+- `https://mcp.seudominio.com/health` — MCP Gateway
+
+Para o painel administrativo em `https://api.seudominio.com/admin`, use autenticação HTTP Basic com `ADMIN_API_KEY` como senha.
+
+## Hermes + MCP Gateway
+
+1. Configure `~/.hermes/config.yaml` baseado em `hermes/config.yaml.example`:
+   ```yaml
+   gateway:
+     base_url: "https://mcp.seudominio.com"
+     headers:
+       X-Gateway-Key: "mesmo-valor-do-MCP_GATEWAY_KEY"
+   ```
+
+2. Perfis Hermes em `hermes/profiles/` já usam toolset `gateway` (não `mcp_tools`).
+
+3. Execute: `hermes run --profile orquestrador`
 
 ## Limitações deliberadas
 

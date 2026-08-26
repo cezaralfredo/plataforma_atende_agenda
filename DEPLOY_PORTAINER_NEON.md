@@ -19,6 +19,9 @@ Cadastre os valores obrigatórios: `IMAGE_TAG`, `DATABASE_URL`, `API_KEY`, `ADMI
 
 Quando necessário, ajuste os valores opcionais: `REGISTRY`, `GITHUB_REPOSITORY`, `APP_NAME`, `APP_TIMEZONE`, `ASAAS_BASE_URL` e `NPM_NETWORK`.
 
+**MCP Gateway (para Hermes externo):**
+- `MCP_GATEWAY_KEY=chave-forte-para-gateway-hermes`
+
 O Docker Standalone não protege variáveis de ambiente como Docker secrets: seus valores permanecem visíveis para administradores do Portainer e por inspeção do container. Controle o acesso administrativo e faça a rotação de credenciais após a mudança.
 
 ## Deploy e validação
@@ -26,7 +29,30 @@ O Docker Standalone não protege variáveis de ambiente como Docker secrets: seu
 1. Crie ou atualize a Stack usando `docker-compose.portainer-neon.yml` e as variáveis já cadastradas.
 2. Confirme a conclusão das migrações no log inicial do container.
 3. No Nginx Proxy Manager, mantenha o Proxy Host apontando para `agenda-api` na porta `8000` pela rede externa `npm`.
-4. Valide `/ready`, autenticação da API, MCP, pagamentos e webhooks antes de encerrar a mudança.
+4. **Adicione segundo Proxy Host para MCP Gateway:**
+   - Domain Names: `mcp.seudominio.com`
+   - Scheme: `http`
+   - Forward Hostname / IP: `mcp-gateway`
+   - Forward Port: `8080`
+   - SSL: solicite certificado Let's Encrypt e force SSL.
+5. Valide:
+   - `https://api.seudominio.com/ready` — API principal
+   - `https://mcp.seudominio.com/health` — MCP Gateway
+   - Autenticação da API, MCP, pagamentos e webhooks antes de encerrar a mudança.
+
+## Hermes + MCP Gateway
+
+1. Configure `~/.hermes/config.yaml` baseado em `hermes/config.yaml.example`:
+   ```yaml
+   gateway:
+     base_url: "https://mcp.seudominio.com"
+     headers:
+       X-Gateway-Key: "mesmo-valor-do-MCP_GATEWAY_KEY"
+   ```
+
+2. Perfis Hermes em `hermes/profiles/` já usam toolset `gateway` (não `mcp_tools`).
+
+3. Execute: `hermes run --profile orquestrador`
 
 ## Rollback
 

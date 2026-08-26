@@ -102,7 +102,7 @@ def test_ci_does_not_claim_an_automatic_production_deploy():
 
 def test_portainer_neon_stack_has_only_the_external_database_api():
     compose = _yaml("docker-compose.portainer-neon.yml")
-    assert set(compose["services"]) == {"api"}
+    assert set(compose["services"]) == {"api", "mcp-gateway"}
     assert "volumes" not in compose
 
 
