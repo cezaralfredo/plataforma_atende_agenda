@@ -3,6 +3,7 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
+from app.repositories.professional_repo import ProfessionalRepository
 from app.schemas.appointment import AppointmentCreate, AppointmentUpdate
 from app.schemas.user import UserCreate, UserUpdate
 from app.services.appointment_service import AppointmentService
@@ -162,6 +163,14 @@ TOOL_DEFINITIONS = [
             "required": ["user_id"],
         },
     },
+    {
+        "name": "listar_profissionais",
+        "description": "Lista os profissionais ativos e a jornada de atendimento de cada um (dias da semana e horários). Útil para saber quais profissionais existem e quando atendem.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+        },
+    },
 ]
 
 
@@ -228,6 +237,38 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
                     }
                 ]
             }
+
+        elif name == "listar_profissionais":
+            professional_repo = ProfessionalRepository(db)
+            availability_service = AvailabilityService(db)
+            dias = {
+                0: "segunda", 1: "terça", 2: "quarta", 3: "quinta",
+                4: "sexta", 5: "sábado", 6: "domingo",
+            }
+            professionals = professional_repo.list_active()
+            if not professionals:
+                return {"content": [{"type": "text", "text": "Nenhum profissional encontrado."}]}
+            lines = ["Profissionais e jornada de atendimento:"]
+            for p in professionals:
+                schedule_rows = availability_service.list(p.id)
+                por_dia: dict[str, list[str]] = {}
+                for a in schedule_rows:
+                    label = None
+                    if a.day_of_week is not None:
+                        label = dias.get(a.day_of_week, f"dia {a.day_of_week}")
+                    elif a.specific_date is not None:
+                        label = str(a.specific_date)
+                    if label and a.start_time and a.end_time:
+                        por_dia.setdefault(label, []).append(
+                            f"{a.start_time.strftime('%H:%M')}-{a.end_time.strftime('%H:%M')}"
+                        )
+                jornada = (
+                    "; ".join(f"{d}: {', '.join(ts)}" for d, ts in por_dia.items())
+                    if por_dia
+                    else "sem agenda cadastrada"
+                )
+                lines.append(f"  #{p.id} {p.name}: {jornada}")
+            return {"content": [{"type": "text", "text": "\n".join(lines)}]}
 
         elif name == "verificar_disponibilidade":
             availability_service = AvailabilityService(db)
