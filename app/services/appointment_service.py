@@ -44,14 +44,14 @@ class AppointmentService:
             data.professional_id, start_time, end_time
         )
         if not available:
-            raise ValueError("O hor\u00e1rio solicitado est\u00e1 fora da disponibilidade do profissional")
+            raise ValueError("O horário solicitado está fora da disponibilidade do profissional. Consulte verificar_disponibilidade/listar_profissionais e ofereça um horário livre.")
 
         # Check for conflicts
         conflicts = self.repo.find_conflicting(
             data.professional_id, start_time, end_time
         )
         if conflicts:
-            raise ValueError("Já existe uma reserva neste horário")
+            raise ValueError("Já existe uma reserva neste horário. Verifique outro horário livre (verificar_disponibilidade) e não repita este mesmo horário.")
 
         expires_at = now + timedelta(minutes=30)
         try:

@@ -277,7 +277,7 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
                 date_str=arguments["date"],
             )
             if not slots:
-                return {"content": [{"type": "text", "text": "Nenhum horário disponível nesta data."}]}
+                return {"content": [{"type": "text", "text": "Nenhum horário disponível nesta data. Consulte \u201clistar_profissionais\u201d para ver os dias e horários em que o profissional atende e proponha ao cliente outra data em que ele trabalhe."}]}
             text = "Horários disponíveis:\n" + "\n".join(
                 f"  {s.start} - {s.end}" for s in slots
             )
