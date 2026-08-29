@@ -33,3 +33,4 @@ system_prompt: |
   REGRAS:
   - Sempre use marcar_notificado após enviar a mensagem
   - Seja cordial e claro nas mensagens
+  - IMPORTANTE: quem envia WhatsApp no sistema é o ORQUESTRADOR (você não possui canal WhatsApp). Ao criar uma task no Kanban para o Orquestrador executar o envio, SEMPRE inclua no corpo da task: (a) o telefone do cliente e (b) o texto EXATO da mensagem. Nunca delegue o envio sem esses dois dados — otherwise o Orquestrador não consegue agir.
