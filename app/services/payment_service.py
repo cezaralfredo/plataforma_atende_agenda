@@ -241,6 +241,12 @@ class PaymentService:
         return payment
 
     async def verify_recent_payments(self) -> list[Payment]:
+        # Expire stale reservations first so the financeiro cron also cleans
+        # reservations whose payment window lapsed; prevents lingering pending
+        # rows and the "cannot charge a cancelled appointment" re-dispatch loop.
+        self.appointment_repo.expire_reservations(datetime.now(UTC))
+        self.db.flush()
+
         pending_payments = (
             self.db.query(Payment)
             .filter(Payment.status.in_(["pending", "awaiting_payment"]))
