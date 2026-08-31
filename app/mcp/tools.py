@@ -36,6 +36,7 @@ TOOL_DEFINITIONS = [
                 "phone": {"type": "string", "description": "Número de telefone no formato 55XXXXXXXXXXX"},
                 "email": {"type": "string", "description": "Email do cliente (opcional)"},
                 "whatsapp_number": {"type": "string", "description": "Número do WhatsApp no formato 55XXXXXXXXXXX (opcional)"},
+                "cpf_cnpj": {"type": "string", "description": "CPF ou CNPJ do cliente (apenas números) - obrigatório para gerar cobrança/pagamento no Asaas"},
             },
             "required": ["name", "phone"],
         },
@@ -51,6 +52,7 @@ TOOL_DEFINITIONS = [
                 "phone": {"type": "string", "description": "Telefone (opcional)"},
                 "email": {"type": "string", "description": "Email (opcional)"},
                 "whatsapp_number": {"type": "string", "description": "WhatsApp (opcional)"},
+                "cpf_cnpj": {"type": "string", "description": "CPF ou CNPJ (apenas números) - obrigatório para gerar cobrança/pagamento no Asaas (opcional)"},
             },
             "required": ["user_id"],
         },
@@ -190,6 +192,7 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
                 phone=arguments["phone"],
                 email=arguments.get("email"),
                 whatsapp_number=arguments.get("whatsapp_number"),
+                cpf_cnpj=arguments.get("cpf_cnpj"),
             )
             user = user_service.create(user_create)
             return {
@@ -203,7 +206,7 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
 
         elif name == "atualizar_cliente":
             user_service = UserService(db)
-            fields = {"name", "phone", "email", "whatsapp_number"}
+            fields = {"name", "phone", "email", "whatsapp_number", "cpf_cnpj"}
             user_update = UserUpdate(
                 **{key: arguments[key] for key in fields if key in arguments}
             )
@@ -415,10 +418,12 @@ def _format_servicos(services, include_professional: bool = True) -> str:
 
 def _format_cliente(user) -> str:
     whatsapp = user.whatsapp_number or "-"
+    cpf = user.cpf_cnpj or "-"
     return (
         f"  ID: {user.id}\n"
         f"  Nome: {user.name}\n"
         f"  Telefone: {user.phone}\n"
         f"  Email: {user.email or '-'}\n"
-        f"  WhatsApp: {whatsapp}"
+        f"  WhatsApp: {whatsapp}\n"
+        f"  CPF/CNPJ: {cpf}"
     )

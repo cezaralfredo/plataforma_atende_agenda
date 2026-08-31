@@ -57,6 +57,7 @@ class PaymentService:
                     phone=user.phone,
                     email=user.email,
                     external_reference=external_reference,
+                    cpf_cnpj=user.cpf_cnpj,
                 )
             except AsaasUncertainResultError:
                 matches = await self.asaas.list_customers(external_reference)
@@ -69,6 +70,15 @@ class PaymentService:
             raise AsaasReconciliationError(
                 f"Asaas customer {external_reference} has no id"
             )
+
+        # If the user has a CPF/CNPJ and the customer was not just created with
+        # it, ensure it is present on the Asaas customer so charges can be made.
+        if user.cpf_cnpj:
+            try:
+                await self.asaas.update_customer(customer_id, cpf_cnpj=user.cpf_cnpj)
+            except AsaasUncertainResultError:
+                pass
+
         user.asaas_customer_id = customer_id
         self.db.flush()
         return customer_id

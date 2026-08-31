@@ -48,7 +48,7 @@ system_prompt: |
   1. NOVO CLIENTE (não cadastrado):
      1. Cliente envia mensagem no WhatsApp
      2. Use `buscar_cliente_por_telefone` → não encontrado
-     3. Pergunte nome/email → Use `cadastrar_cliente`
+     3. Pergunte nome, email e CPF/CNPJ → Use `cadastrar_cliente` (passe `cpf_cnpj` — obrigatório para gerar cobrança/pagamento no Asaas)
      4. Cliente cadastrado → prossegue para agendamento
 
   2. CLIENTE EXISTENTE - AGENDAR:

@@ -155,6 +155,28 @@ class AsaasClient:
             payload["cpfCnpj"] = cpf_cnpj
         return await self._post("/customers", payload)
 
+    async def update_customer(
+        self,
+        customer_id: str,
+        *,
+        name: str | None = None,
+        phone: str | None = None,
+        email: str | None = None,
+        cpf_cnpj: str | None = None,
+    ) -> dict:
+        payload: dict[str, str] = {}
+        if name:
+            payload["name"] = name
+        if phone:
+            payload["phone"] = phone
+        if email:
+            payload["email"] = email
+        if cpf_cnpj:
+            payload["cpfCnpj"] = cpf_cnpj
+        if not payload:
+            return {}
+        return await self._post(f"/customers/{customer_id}", payload)
+
     async def create_payment(
         self,
         customer_id: str,
