@@ -1,3 +1,4 @@
+from app.models.admin_user import AdminUser
 from app.models.appointment import Appointment
 from app.models.availability import Availability
 from app.models.notification_log import NotificationLog
@@ -8,6 +9,7 @@ from app.models.user import User
 from app.models.webhook_event import WebhookEvent
 
 __all__ = [
+    "AdminUser",
     "Appointment",
     "Availability",
     "NotificationLog",

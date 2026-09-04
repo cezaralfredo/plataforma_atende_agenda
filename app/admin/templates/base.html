@@ -61,16 +61,42 @@
                         <i class="fas fa-credit-card w-5 text-center mr-3"></i>
                         Pagamentos
                     </a>
+                    <a href="/admin/users"
+                       class="flex items-center px-3 py-2 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors {% if request.url.path.startswith('/admin/users') %}bg-gray-100 font-medium{% endif %}">
+                        <i class="fas fa-user-friends w-5 text-center mr-3"></i>
+                        Clientes
+                    </a>
                     <a href="/admin/professionals"
                        class="flex items-center px-3 py-2 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors {% if request.url.path.startswith('/admin/professionals') %}bg-gray-100 font-medium{% endif %}">
                         <i class="fas fa-users w-5 text-center mr-3"></i>
                         Profissionais
                     </a>
+                    <a href="/admin/services"
+                       class="flex items-center px-3 py-2 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors {% if request.url.path.startswith('/admin/services') %}bg-gray-100 font-medium{% endif %}">
+                        <i class="fas fa-concierge-bell w-5 text-center mr-3"></i>
+                        Serviços & Preços
+                    </a>
+                    <a href="/admin/availability"
+                       class="flex items-center px-3 py-2 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors {% if request.url.path.startswith('/admin/availability') %}bg-gray-100 font-medium{% endif %}">
+                        <i class="fas fa-clock w-5 text-center mr-3"></i>
+                        Horários
+                    </a>
+                    <a href="/admin/admins"
+                       class="flex items-center px-3 py-2 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors {% if request.url.path.startswith('/admin/admins') %}bg-gray-100 font-medium{% endif %}">
+                        <i class="fas fa-user-shield w-5 text-center mr-3"></i>
+                        Administradores
+                    </a>
                 </nav>
                 <div class="p-4 border-t border-gray-200">
+                    <form method="post" action="/admin/logout" class="mb-3">
+                        <button type="submit"
+                                class="w-full flex items-center px-3 py-2 text-sm text-red-600 rounded-lg hover:bg-red-50 transition-colors">
+                            <i class="fas fa-sign-out-alt w-5 text-center mr-3"></i>
+                            Sair
+                        </button>
+                    </form>
                     <div class="text-sm text-gray-500">
                         <p>Versão: 1.0.0</p>
-                        <p class="mt-1">API: <code class="text-xs bg-gray-100 px-1 rounded">{{ request.url_for('health') if 'health' in request.app.routes else 'N/A' }}</code></p>
                     </div>
                 </div>
             </div>

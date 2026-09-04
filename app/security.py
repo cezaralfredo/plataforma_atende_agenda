@@ -56,11 +56,21 @@ def require_admin(
     request: Request,
     x_admin_key: Annotated[str | None, Header()] = None,
 ) -> None:
+    # 1) Sessão de navegador (cookie assinado) — login real do painel.
+    try:
+        from app.admin import auth as admin_auth
+        if admin_auth.read_session(request.cookies.get(admin_auth.session_cookie_name())) is not None:
+            return
+    except Exception:
+        logger.debug("Admin session cookie ignored (invalid)", exc_info=True)
+
+    # 2) X-Admin-Key header (máquinas / MCP / scripts)
     if x_admin_key is not None:
         if hmac.compare_digest(x_admin_key, settings.admin_api_key):
             return
         raise HTTPException(status_code=403, detail="Admin access denied")
 
+    # 3) Basic Auth (legacy)
     username, password = _decode_basic_credentials(request)
     if username and hmac.compare_digest(password, settings.admin_api_key):
         return
