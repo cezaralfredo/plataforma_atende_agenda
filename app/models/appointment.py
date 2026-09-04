@@ -7,7 +7,9 @@ from sqlalchemy import (
     String,
     Text,
     func,
+    text,
 )
+from sqlalchemy.dialects.postgresql import ExcludeConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -20,6 +22,16 @@ class Appointment(Base):
             "status IN ('pending', 'confirmed', 'cancelled', 'completed', 'awaiting_payment')",
             name="check_appointment_status",
         ),
+        CheckConstraint("end_time > start_time", name="check_appointment_interval"),
+        ExcludeConstraint(
+            ("professional_id", "="),
+            (text("tstzrange(start_time, end_time, '[)')"), "&&"),
+            where=text(
+                "status IN ('pending', 'awaiting_payment', 'confirmed', 'completed')"
+            ),
+            using="gist",
+            name="exclude_professional_overlapping_appointments",
+        ).ddl_if(dialect="postgresql"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)

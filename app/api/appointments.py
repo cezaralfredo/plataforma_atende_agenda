@@ -7,9 +7,14 @@ from app.schemas.appointment import (
     AppointmentRead,
     AppointmentUpdate,
 )
+from app.security import require_api_key
 from app.services.appointment_service import AppointmentService
 
-router = APIRouter(prefix="/api/appointments", tags=["appointments"])
+router = APIRouter(
+    prefix="/api/appointments",
+    tags=["appointments"],
+    dependencies=[Depends(require_api_key)],
+)
 
 
 @router.post("", response_model=AppointmentRead, status_code=201)
@@ -58,7 +63,10 @@ def update_appointment(appointment_id: int, data: AppointmentUpdate, db: Session
 @router.post("/{appointment_id}/cancel", response_model=AppointmentRead)
 def cancel_appointment(appointment_id: int, db: Session = Depends(get_db)):
     service = AppointmentService(db)
-    apt = service.cancel(appointment_id)
+    try:
+        apt = service.cancel(appointment_id)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     if not apt:
         raise HTTPException(status_code=404, detail="Agendamento não encontrado")
     return apt

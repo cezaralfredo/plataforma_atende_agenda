@@ -1,6 +1,8 @@
 from datetime import date, datetime, time
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+
+from app.business_time import as_business_time
 
 
 class AvailabilityCreate(BaseModel):
@@ -43,3 +45,8 @@ class AvailabilityRead(BaseModel):
 class TimeSlot(BaseModel):
     start: datetime
     end: datetime
+
+    @field_validator("start", "end")
+    @classmethod
+    def normalize_datetime(cls, value: datetime) -> datetime:
+        return as_business_time(value)

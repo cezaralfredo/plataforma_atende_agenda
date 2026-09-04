@@ -180,6 +180,8 @@ class TestFluxoCompleto:
         entities = seed_data(db_session)
         appointment = seed_appointment(db_session, entities)
         service = PaymentService(db_session)
+        service.asaas.list_customers = AsyncMock(return_value=[])
+        service.asaas.list_payments = AsyncMock(return_value=[])
         service.asaas.create_customer = AsyncMock(return_value={"id": "cus_123"})
         service.asaas.create_payment = AsyncMock(return_value={
             "id": "pay_123", "invoiceUrl": "https://asaas.test/pay_123"

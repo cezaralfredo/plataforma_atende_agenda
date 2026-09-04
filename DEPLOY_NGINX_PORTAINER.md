@@ -1,5 +1,7 @@
 # Deploy com Nginx no Portainer
 
+> Operação endurecida: aplique migrações antes do tráfego, configure `APP_TIMEZONE`, valide `/ready` e implante também a imagem `-backup`. API e métricas usam Bearer; o painel usa Basic.
+
 Use `docker-compose.nginx.yml` como uma Stack independente no Portainer. Ela substitui o Traefik por Nginx e emite/renova certificados Let's Encrypt automaticamente.
 
 ## Antes de criar a Stack

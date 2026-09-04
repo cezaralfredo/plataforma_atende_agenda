@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from enum import Enum
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -115,4 +116,4 @@ class AppointmentAction(BaseModel):
 
 
 class PaymentAction(BaseModel):
-    action: str  # refresh, refund
+    action: Literal["refresh", "refund"]

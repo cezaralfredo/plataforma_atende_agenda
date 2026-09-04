@@ -8,6 +8,7 @@ class UserCreate(BaseModel):
     phone: str
     email: str | None = None
     whatsapp_number: str | None = None
+    cpf_cnpj: str | None = None
 
 
 class UserUpdate(BaseModel):
@@ -15,6 +16,7 @@ class UserUpdate(BaseModel):
     phone: str | None = None
     email: str | None = None
     whatsapp_number: str | None = None
+    cpf_cnpj: str | None = None
     asaas_customer_id: str | None = None
 
 
@@ -26,5 +28,6 @@ class UserRead(BaseModel):
     phone: str
     email: str | None = None
     whatsapp_number: str | None = None
+    cpf_cnpj: str | None = None
     asaas_customer_id: str | None = None
     created_at: datetime | None = None

@@ -1,13 +1,18 @@
+import logging
+from datetime import datetime
 
 from sqlalchemy.orm import Session
 
-from app.schemas.appointment import AppointmentCreate
+from app.repositories.professional_repo import ProfessionalRepository
+from app.schemas.appointment import AppointmentCreate, AppointmentUpdate
 from app.schemas.user import UserCreate, UserUpdate
 from app.services.appointment_service import AppointmentService
 from app.services.availability_service import AvailabilityService
 from app.services.payment_service import PaymentService
 from app.services.service_service import ServiceService
 from app.services.user_service import UserService
+
+logger = logging.getLogger(__name__)
 
 TOOL_DEFINITIONS = [
     {
@@ -31,6 +36,7 @@ TOOL_DEFINITIONS = [
                 "phone": {"type": "string", "description": "Número de telefone no formato 55XXXXXXXXXXX"},
                 "email": {"type": "string", "description": "Email do cliente (opcional)"},
                 "whatsapp_number": {"type": "string", "description": "Número do WhatsApp no formato 55XXXXXXXXXXX (opcional)"},
+                "cpf_cnpj": {"type": "string", "description": "CPF ou CNPJ do cliente (apenas números) - obrigatório para gerar cobrança/pagamento no Asaas"},
             },
             "required": ["name", "phone"],
         },
@@ -46,6 +52,7 @@ TOOL_DEFINITIONS = [
                 "phone": {"type": "string", "description": "Telefone (opcional)"},
                 "email": {"type": "string", "description": "Email (opcional)"},
                 "whatsapp_number": {"type": "string", "description": "WhatsApp (opcional)"},
+                "cpf_cnpj": {"type": "string", "description": "CPF ou CNPJ (apenas números) - obrigatório para gerar cobrança/pagamento no Asaas (opcional)"},
             },
             "required": ["user_id"],
         },
@@ -83,58 +90,6 @@ TOOL_DEFINITIONS = [
                 "date": {"type": "string", "description": "Data no formato YYYY-MM-DD"},
             },
             "required": ["professional_id", "date"],
-        },
-    },
-    {
-        "name": "buscar_cliente_por_telefone",
-        "description": "Busca um cliente pelo número de telefone/WhatsApp",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "phone": {"type": "string", "description": "Número de telefone no formato 55XXXXXXXXXXX"},
-            },
-            "required": ["phone"],
-        },
-    },
-    {
-        "name": "cadastrar_cliente",
-        "description": "Cadastra um novo cliente",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "name": {"type": "string", "description": "Nome completo do cliente"},
-                "phone": {"type": "string", "description": "Número de telefone no formato 55XXXXXXXXXXX"},
-                "email": {"type": "string", "description": "Email do cliente (opcional)"},
-                "whatsapp_number": {"type": "string", "description": "Número do WhatsApp no formato 55XXXXXXXXXXX (opcional)"},
-            },
-            "required": ["name", "phone"],
-        },
-    },
-    {
-        "name": "atualizar_cliente",
-        "description": "Atualiza dados de um cliente existente",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "user_id": {"type": "integer", "description": "ID do cliente"},
-                "name": {"type": "string", "description": "Nome completo (opcional)"},
-                "phone": {"type": "string", "description": "Telefone (opcional)"},
-                "email": {"type": "string", "description": "Email (opcional)"},
-                "whatsapp_number": {"type": "string", "description": "WhatsApp (opcional)"},
-            },
-            "required": ["user_id"],
-        },
-    },
-    {
-        "name": "vincular_whatsapp",
-        "description": "Vincula um número de WhatsApp a um cliente existente",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "user_id": {"type": "integer", "description": "ID do cliente"},
-                "whatsapp_number": {"type": "string", "description": "Número do WhatsApp no formato 55XXXXXXXXXXX"},
-            },
-            "required": ["user_id", "whatsapp_number"],
         },
     },
     {
@@ -210,27 +165,36 @@ TOOL_DEFINITIONS = [
             "required": ["user_id"],
         },
     },
+    {
+        "name": "listar_profissionais",
+        "description": "Lista os profissionais ativos e a jornada de atendimento de cada um (dias da semana e horários). Útil para saber quais profissionais existem e quando atendem.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+        },
+    },
 ]
 
 
 async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
     try:
         if name == "buscar_cliente_por_telefone":
-            svc = UserService(db)
-            user = svc.find_by_phone(arguments["phone"])
+            user_service = UserService(db)
+            user = user_service.find_by_phone(arguments["phone"])
             if not user:
                 return {"content": [{"type": "text", "text": "Cliente não encontrado."}]}
             return {"content": [{"type": "text", "text": _format_cliente(user)}]}
 
         elif name == "cadastrar_cliente":
-            svc = UserService(db)
+            user_service = UserService(db)
             user_create = UserCreate(
                 name=arguments["name"],
                 phone=arguments["phone"],
                 email=arguments.get("email"),
                 whatsapp_number=arguments.get("whatsapp_number"),
+                cpf_cnpj=arguments.get("cpf_cnpj"),
             )
-            user = svc.create(user_create)
+            user = user_service.create(user_create)
             return {
                 "content": [
                     {
@@ -241,52 +205,90 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
             }
 
         elif name == "atualizar_cliente":
-            svc = UserService(db)
-            data = UserUpdate(
-                name=arguments.get("name"),
-                phone=arguments.get("phone"),
-                email=arguments.get("email"),
-                whatsapp_number=arguments.get("whatsapp_number"),
+            user_service = UserService(db)
+            fields = {"name", "phone", "email", "whatsapp_number", "cpf_cnpj"}
+            user_update = UserUpdate(
+                **{key: arguments[key] for key in fields if key in arguments}
             )
-            user = svc.update(arguments["user_id"], data)
+            user = user_service.update(arguments["user_id"], user_update)
             if not user:
                 return {"content": [{"type": "text", "text": "Cliente não encontrado."}]}
             return {"content": [{"type": "text", "text": f"Cliente atualizado!\n{_format_cliente(user)}"}]}
 
         elif name == "vincular_whatsapp":
-            svc = UserService(db)
-            user = svc.link_whatsapp(arguments["user_id"], arguments["whatsapp_number"])
+            user_service = UserService(db)
+            user = user_service.link_whatsapp(arguments["user_id"], arguments["whatsapp_number"])
             if not user:
                 return {"content": [{"type": "text", "text": "Cliente não encontrado."}]}
             return {"content": [{"type": "text", "text": f"WhatsApp vinculado com sucesso!\n{_format_cliente(user)}"}]}
 
         elif name == "listar_servicos":
-            svc = ServiceService(db)
+            service_service = ServiceService(db)
             professional_id = arguments.get("professional_id")
-            result = svc.list(
+            services = service_service.list(
                 professional_id=professional_id,
                 category=arguments.get("category"),
             )
-            # Se filtrado por profissional, não precisa incluir nome nem deduplicar
-            include_prof = professional_id is None
-            return {"content": [{"type": "text", "text": _format_servicos(result, include_professional=include_prof)}]}
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": _format_servicos(
+                            services,
+                            include_professional=professional_id is None,
+                        ),
+                    }
+                ]
+            }
+
+        elif name == "listar_profissionais":
+            professional_repo = ProfessionalRepository(db)
+            availability_service = AvailabilityService(db)
+            dias = {
+                0: "segunda", 1: "terça", 2: "quarta", 3: "quinta",
+                4: "sexta", 5: "sábado", 6: "domingo",
+            }
+            professionals = professional_repo.list_active()
+            if not professionals:
+                return {"content": [{"type": "text", "text": "Nenhum profissional encontrado."}]}
+            lines = ["Profissionais e jornada de atendimento:"]
+            for p in professionals:
+                schedule_rows = availability_service.list(p.id)
+                por_dia: dict[str, list[str]] = {}
+                for a in schedule_rows:
+                    label = None
+                    if a.day_of_week is not None:
+                        label = dias.get(a.day_of_week, f"dia {a.day_of_week}")
+                    elif a.specific_date is not None:
+                        label = str(a.specific_date)
+                    if label and a.start_time and a.end_time:
+                        por_dia.setdefault(label, []).append(
+                            f"{a.start_time.strftime('%H:%M')}-{a.end_time.strftime('%H:%M')}"
+                        )
+                jornada = (
+                    "; ".join(f"{d}: {', '.join(ts)}" for d, ts in por_dia.items())
+                    if por_dia
+                    else "sem agenda cadastrada"
+                )
+                lines.append(f"  #{p.id} {p.name}: {jornada}")
+            return {"content": [{"type": "text", "text": "\n".join(lines)}]}
 
         elif name == "verificar_disponibilidade":
-            svc = AvailabilityService(db)
-            slots = svc.check_availability(
+            availability_service = AvailabilityService(db)
+            slots = availability_service.check_availability(
                 professional_id=arguments["professional_id"],
                 date_str=arguments["date"],
             )
             if not slots:
-                return {"content": [{"type": "text", "text": "Nenhum horário disponível nesta data."}]}
+                return {"content": [{"type": "text", "text": "Nenhum horário disponível nesta data. Consulte \u201clistar_profissionais\u201d para ver os dias e horários em que o profissional atende e proponha ao cliente outra data em que ele trabalhe."}]}
             text = "Horários disponíveis:\n" + "\n".join(
                 f"  {s.start} - {s.end}" for s in slots
             )
             return {"content": [{"type": "text", "text": text}]}
 
         elif name == "criar_reserva":
-            svc = AppointmentService(db)
-            data = AppointmentCreate(
+            appointment_service = AppointmentService(db)
+            appointment_create = AppointmentCreate(
                 user_id=arguments["user_id"],
                 professional_id=arguments["professional_id"],
                 service_id=arguments["service_id"],
@@ -294,52 +296,72 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
                 end_time=arguments["end_time"],
                 notes=arguments.get("notes"),
             )
-            apt = svc.create(data)
+            appointment = appointment_service.create(appointment_create)
             return {
                 "content": [
                     {
                         "type": "text",
                         "text": (
-                            f"Reserva criada! ID: {apt.id}\n"
-                            f"Status: {apt.status}\n"
-                            f"Expira em: {apt.expires_at}"
+                            f"Reserva criada! ID: {appointment.id}\n"
+                            f"Status: {appointment.status}\n"
+                            f"Expira em: {appointment.expires_at}"
                         ),
                     }
                 ]
             }
 
         elif name == "cancelar_reserva":
-            svc = AppointmentService(db)
-            svc.delete(arguments["appointment_id"])
-            return {"content": [{"type": "text", "text": "Reserva cancelada com sucesso."}]}
+            appointment_service = AppointmentService(db)
+            appointment = appointment_service.cancel(arguments["appointment_id"])
+            if not appointment:
+                return {"content": [{"type": "text", "text": "Reserva não encontrada."}]}
+            return {"content": [{"type": "text", "text": f"Reserva {appointment.id} cancelada com sucesso."}]}
 
         elif name == "criar_cobranca_asaas":
-            svc = PaymentService(db)
-            link = svc.create_payment_link(
+            payment_service = PaymentService(db)
+            payment = await payment_service.create_charge(
                 appointment_id=arguments["appointment_id"],
                 billing_type=arguments.get("billing_type", "UNDEFINED"),
             )
-            return {"content": [{"type": "text", "text": f"Link de pagamento: {link}"}]}
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": (
+                            f"Cobrança criada!\n"
+                            f"ID Asaas: {payment.asaas_payment_id}\n"
+                            f"Valor: R$ {payment.amount_cents / 100:.2f}\n"
+                            f"Link: {payment.invoice_url}"
+                        ),
+                    }
+                ]
+            }
 
         elif name == "verificar_pagamentos_recentes":
-            svc = PaymentService(db)
-            svc.sync_pending_payments()
-            return {"content": [{"type": "text", "text": "Verificação de pagamentos concluída."}]}
+            payment_service = PaymentService(db)
+            updated = await payment_service.verify_recent_payments()
+            if not updated:
+                return {"content": [{"type": "text", "text": "Nenhum pagamento novo confirmado."}]}
+            lines = [f"Pagamento {p.id}: reserva {p.appointment_id} - {p.status}" for p in updated]
+            return {"content": [{"type": "text", "text": "Pagamentos atualizados:\n" + "\n".join(lines)}]}
 
         elif name == "marcar_notificado":
-            svc = AppointmentService(db)
-            svc.mark_notified(arguments["appointment_id"])
-            return {"content": [{"type": "text", "text": "Agendamento marcado como notificado."}]}
+            appointment_service = AppointmentService(db)
+            appointment_update = AppointmentUpdate(notified_at=datetime.now())
+            appointment = appointment_service.update(arguments["appointment_id"], appointment_update)
+            if not appointment:
+                return {"content": [{"type": "text", "text": "Agendamento não encontrado."}]}
+            return {"content": [{"type": "text", "text": f"Agendamento {appointment.id} marcado como notificado."}]}
 
         elif name == "meus_agendamentos":
-            svc = AppointmentService(db)
-            appointments = svc.list_by_user(arguments["user_id"])
+            appointment_service = AppointmentService(db)
+            appointments = appointment_service.list(user_id=arguments["user_id"])
             if not appointments:
                 return {"content": [{"type": "text", "text": "Nenhum agendamento encontrado."}]}
-            lines = ["Seus agendamentos:"]
-            for a in appointments:
-                lines.append(f"  #{a.id} - {a.start_time} a {a.end_time} - Status: {a.status}")
-            return {"content": [{"type": "text", "text": "\n".join(lines)}]}
+            text = "Seus agendamentos:\n" + "\n".join(
+                f"  #{a.id} - {a.start_time} ({a.status})" for a in appointments
+            )
+            return {"content": [{"type": "text", "text": text}]}
 
         else:
             return {
@@ -352,54 +374,56 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
             "isError": True,
             "content": [{"type": "text", "text": str(e)}],
         }
-    except Exception as e:
+    except Exception:
+        logger.exception("MCP tool failed", extra={"tool_name": name})
         return {
             "isError": True,
-            "content": [{"type": "text", "text": f"Erro: {e!s}"}],
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Erro interno ao processar a solicitação.",
+                }
+            ],
         }
 
 
 def _format_servicos(services, include_professional: bool = True) -> str:
     if not services:
         return "Nenhum serviço encontrado."
-    
+
     lines = ["Serviços disponíveis:"]
-    seen = set()  # Para deduplicação quando não filtrado por profissional
-    
+    seen = set()
     for s in services:
-        # Chave única para deduplicação
-        # Se include_professional=True e tem professional carregado, inclui professional_id
-        # Se include_professional=False, dedup por (nome, preço, duração, categoria)
-        if include_professional and s.professional:
-            dedup_key = (s.name, s.price_cents, s.duration_minutes, s.category, s.professional_id)
+        if include_professional:
+            duplicate_key = (
+                s.professional_id,
+                s.name,
+                s.description,
+                s.duration_minutes,
+                s.price_cents,
+                s.category,
+            )
+            if duplicate_key in seen:
+                continue
+            seen.add(duplicate_key)
+            line = (
+                f"  #{s.id} {s.name} - R$ {s.price_cents / 100:.2f} "
+                f"({s.duration_minutes}min) — {s.professional.name}"
+            )
         else:
-            dedup_key = (s.name, s.price_cents, s.duration_minutes, s.category)
-        
-        if include_professional and s.professional_id and not hasattr(s, 'professional'):
-            # Se não tem relationship carregada, não deduplica
-            pass
-        elif include_professional and s.professional:
-            # Inclui nome do profissional
-            professional_name = s.professional.name if s.professional else "Profissional não identificado"
-            service_line = f"  #{s.id} {s.name} - R$ {s.price_cents / 100:.2f} ({s.duration_minutes}min) — {professional_name}"
-        else:
-            service_line = f"  #{s.id} {s.name} - R$ {s.price_cents / 100:.2f} ({s.duration_minutes}min)"
-        
-        # Deduplicação: sempre aplica, mas com chaves diferentes
-        if dedup_key in seen:
-            continue
-        seen.add(dedup_key)
-        lines.append(service_line)
-    
+            line = f"  #{s.id} {s.name} - R$ {s.price_cents / 100:.2f} ({s.duration_minutes}min)"
+        lines.append(line)
     return "\n".join(lines)
 
 
 def _format_cliente(user) -> str:
     whatsapp = user.whatsapp_number or "-"
+    cpf = user.cpf_cnpj or "-"
     return (
         f"  ID: {user.id}\n"
         f"  Nome: {user.name}\n"
         f"  Telefone: {user.phone}\n"
         f"  Email: {user.email or '-'}\n"
-        f"  WhatsApp: {whatsapp}"
+        f"  WhatsApp: {whatsapp}\n"
+        f"  CPF/CNPJ: {cpf}"
     )

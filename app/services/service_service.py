@@ -1,6 +1,9 @@
 from sqlalchemy.orm import Session
 
+from app.models.appointment import Appointment
+from app.models.professional import Professional
 from app.repositories import ServiceRepository
+from app.repositories.base import RelatedRecordsError
 from app.schemas.service import ServiceCreate, ServiceUpdate
 
 
@@ -9,6 +12,8 @@ class ServiceService:
         self.repo = ServiceRepository(db)
 
     def create(self, data: ServiceCreate):
+        if not self.repo.db.get(Professional, data.professional_id):
+            raise ValueError("Profissional não encontrado")
         return self.repo.create(**data.model_dump())
 
     def get(self, service_id: int):
@@ -23,7 +28,13 @@ class ServiceService:
         return self.repo.list_with_professional(skip=skip, limit=limit)
 
     def update(self, service_id: int, data: ServiceUpdate):
-        return self.repo.update(service_id, **data.model_dump())
+        return self.repo.update(service_id, **data.model_dump(exclude_unset=True))
 
     def delete(self, service_id: int):
+        if self.repo.db.query(Appointment.id).filter(
+            Appointment.service_id == service_id
+        ).first():
+            raise RelatedRecordsError(
+                "Serviço possui agendamentos e não pode ser excluído"
+            )
         return self.repo.delete(service_id)

@@ -1,6 +1,11 @@
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import Base
+
+
+class RelatedRecordsError(ValueError):
+    pass
 
 
 class BaseRepository:
@@ -16,7 +21,7 @@ class BaseRepository:
         return obj
 
     def get(self, id: int):
-        return self.db.query(self.model).filter(self.model.id == id).first()
+        return self.db.query(self.model).filter_by(id=id).first()
 
     def list(self, skip: int = 0, limit: int = 100):
         return self.db.query(self.model).offset(skip).limit(limit).all()
@@ -26,8 +31,7 @@ class BaseRepository:
         if not obj:
             return None
         for key, value in kwargs.items():
-            if value is not None:
-                setattr(obj, key, value)
+            setattr(obj, key, value)
         self.db.commit()
         self.db.refresh(obj)
         return obj
@@ -37,5 +41,9 @@ class BaseRepository:
         if not obj:
             return False
         self.db.delete(obj)
-        self.db.commit()
+        try:
+            self.db.commit()
+        except IntegrityError as exc:
+            self.db.rollback()
+            raise RelatedRecordsError("O registro possui histórico relacionado") from exc
         return True
