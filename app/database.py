@@ -1,5 +1,5 @@
 
-from psycopg2 import OperationalError
+from psycopg import OperationalError
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 from sqlalchemy.pool import QueuePool
