@@ -1,11 +1,9 @@
-import os
-from contextlib import contextmanager
 
+from psycopg2 import OperationalError
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 from sqlalchemy.pool import QueuePool
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
-from psycopg2 import OperationalError
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from app.config import settings
 
