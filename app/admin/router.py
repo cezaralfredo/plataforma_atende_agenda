@@ -321,13 +321,13 @@ async def login_submit(
             })
         return _redirect_after_login(request, admin)
 
-    admin = svc.authenticate(username, password)
-    if not admin:
+    authed = svc.authenticate(username, password)
+    if not authed:
         return templates.TemplateResponse("login.html", {
             "request": request, "first_run": False,
             "error": "Usuário ou senha inválidos.", "prefill_username": username,
         })
-    return _redirect_after_login(request, admin)
+    return _redirect_after_login(request, authed)
 
 
 @router.post("/logout")
