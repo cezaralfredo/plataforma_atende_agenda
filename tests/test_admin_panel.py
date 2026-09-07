@@ -62,6 +62,23 @@ def test_users_page_requires_auth(anonymous_client):
     assert r.status_code == 401
 
 
+def test_browser_without_session_redirects_to_login(anonymous_client):
+    """Navegador (Accept text/html) sem sessão deve redirecionar p/ /admin/login."""
+    r = anonymous_client.get(
+        "/admin",
+        headers={"Accept": "text/html,application/xhtml+xml"},
+        follow_redirects=False,
+    )
+    assert r.status_code == 302
+    assert r.headers.get("location") == "/admin/login"
+
+
+def test_machine_without_auth_gets_401(anonymous_client):
+    """Máquina (Accept JSON) sem credencial deve receber 401, não redirect."""
+    r = anonymous_client.get("/admin", headers={"Accept": "application/json"})
+    assert r.status_code == 401
+
+
 def test_admin_legacy_header_still_works(anonymous_client):
     # Compat: X-Admin-Key continua funcionando para máquinas
     from app.config import settings
