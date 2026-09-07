@@ -5,7 +5,8 @@ import hmac
 import logging
 from typing import Annotated
 
-from fastapi import Header, HTTPException, Request
+from fastapi import Header, HTTPException, Request, Response
+from fastapi.responses import RedirectResponse
 
 from app.config import settings
 
@@ -52,28 +53,45 @@ def _decode_basic_credentials(request: Request) -> tuple[str, str]:
     return username, password
 
 
+def _is_browser_request(request: Request) -> bool:
+    """Navegadores enviam Accept contendo text/html; requests de maquina (API/MCP)
+    na maioria das vezes enviam application/json ou nenhum Accept especifico."""
+    accept = request.headers.get("accept", "")
+    if "text/html" in accept:
+        return True
+    # Sem header Accept = navegador (curls modernos enviam */*; navegadores enviam text/html).
+    # Chamadas MCP/HTTP Request do n8n costumam trazer application/json explicito.
+    return not accept
+
+
 def require_admin(
     request: Request,
     x_admin_key: Annotated[str | None, Header()] = None,
-) -> None:
+) -> Response | None:
     # 1) Sessão de navegador (cookie assinado) — login real do painel.
     try:
         from app.admin import auth as admin_auth
         if admin_auth.read_session(request.cookies.get(admin_auth.session_cookie_name())) is not None:
-            return
+            return None
     except Exception:
         logger.debug("Admin session cookie ignored (invalid)", exc_info=True)
 
     # 2) X-Admin-Key header (máquinas / MCP / scripts)
     if x_admin_key is not None:
         if hmac.compare_digest(x_admin_key, settings.admin_api_key):
-            return
+            return None
         raise HTTPException(status_code=403, detail="Admin access denied")
 
     # 3) Basic Auth (legacy)
     username, password = _decode_basic_credentials(request)
     if username and hmac.compare_digest(password, settings.admin_api_key):
-        return
+        return None
+
+    # 4) Navegador sem sessão -> redirecionar para a tela de login (não mostrar popup Basic).
+    if _is_browser_request(request):
+        return RedirectResponse(url="/admin/login", status_code=302)
+
+    # 5) Máquina não autorizada -> 401 (desafio Basic, sem redirecionamento).
     raise HTTPException(
         status_code=401,
         detail="Admin authentication required",
