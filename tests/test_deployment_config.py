@@ -170,3 +170,18 @@ def test_shipped_compose_defaults_use_the_current_asaas_production_endpoint():
         "docker-compose.portainer-neon.yml": current_endpoint,
         "docker-compose.portainer-npm.yml": current_endpoint,
     }
+
+
+def test_hermes_example_uses_only_the_internal_mcp_url():
+    example = Path(".env.hermes.example").read_text(encoding="utf-8")
+
+    assert "MCP_ATENDE_AGENDA_URL=http://agenda-api:8000/mcp" in example
+    assert "MCP_ATENDE_AGENDA_API_KEY=" in example
+    assert "agenda.anauedesign.com.br/mcp" not in example
+
+
+def test_mcp_resolution_document_uses_only_a_credential_placeholder():
+    document = Path("docs/DOC-RESOLUCAO-MCP-AUTH.md").read_text(encoding="utf-8")
+
+    assert "Nova chave (definitiva)" not in document
+    assert "Authorization: Bearer <API_KEY>" in document
