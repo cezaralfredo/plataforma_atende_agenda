@@ -123,15 +123,33 @@ def test_portainer_neon_stack_requires_traceable_image_and_database_config():
     assert ":latest" not in api["image"]
 
 
-def test_portainer_neon_stack_uses_only_the_existing_proxy_network():
+def test_portainer_neon_stack_uses_proxy_and_private_mcp_networks():
     compose = _yaml("docker-compose.portainer-neon.yml")
     api = compose["services"]["api"]
-    assert set(api["networks"]) == {"npm"}
+    assert set(api["networks"]) == {"npm", "mcp_internal"}
     assert api["networks"]["npm"]["aliases"] == ["agenda-api"]
     assert "ports" not in api
     assert compose["networks"]["npm"] == {
         "external": True,
         "name": "${NPM_NETWORK:-nginx-proxy_default}",
+    }
+    assert compose["networks"]["mcp_internal"] == {
+        "external": True,
+        "name": "${AGENDA_MCP_NETWORK:-agenda_mcp_internal}",
+    }
+
+
+def test_portainer_npm_stack_requires_traceable_image_and_private_mcp_network():
+    compose = _yaml("docker-compose.portainer-npm.yml")
+    api = compose["services"]["api"]
+
+    assert "${IMAGE_TAG:?Defina IMAGE_TAG no Portainer}" in api["image"]
+    assert ":latest" not in api["image"]
+    assert set(api["networks"]) == {"agenda_internal", "npm", "mcp_internal"}
+    assert api["networks"]["npm"]["aliases"] == ["agenda-api"]
+    assert compose["networks"]["mcp_internal"] == {
+        "external": True,
+        "name": "${AGENDA_MCP_NETWORK:-agenda_mcp_internal}",
     }
 
 
@@ -152,3 +170,18 @@ def test_shipped_compose_defaults_use_the_current_asaas_production_endpoint():
         "docker-compose.portainer-neon.yml": current_endpoint,
         "docker-compose.portainer-npm.yml": current_endpoint,
     }
+
+
+def test_hermes_example_uses_only_the_internal_mcp_url():
+    example = Path(".env.hermes.example").read_text(encoding="utf-8")
+
+    assert "MCP_ATENDE_AGENDA_URL=http://agenda-api:8000/mcp" in example
+    assert "MCP_ATENDE_AGENDA_API_KEY=" in example
+    assert "agenda.anauedesign.com.br/mcp" not in example
+
+
+def test_mcp_resolution_document_uses_only_a_credential_placeholder():
+    document = Path("docs/DOC-RESOLUCAO-MCP-AUTH.md").read_text(encoding="utf-8")
+
+    assert "Nova chave (definitiva)" not in document
+    assert "Authorization: Bearer <API_KEY>" in document
