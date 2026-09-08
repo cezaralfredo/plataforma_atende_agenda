@@ -28,7 +28,7 @@ listar `agenda_mcp_internal` em `docker inspect`.
 No ambiente ativo do Hermes, configure somente os nomes de variáveis abaixo:
 
 ```dotenv
-MCP_ATENDE_AGENDA_URL=http://agenda-api:8000/mcp
+MCP_ATENDE_AGENDA_URL=http://api:8000/mcp
 MCP_ATENDE_AGENDA_API_KEY=<API_KEY>
 ```
 
