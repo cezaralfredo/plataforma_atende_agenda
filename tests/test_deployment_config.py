@@ -175,9 +175,16 @@ def test_shipped_compose_defaults_use_the_current_asaas_production_endpoint():
 def test_hermes_example_uses_only_the_internal_mcp_url():
     example = Path(".env.hermes.example").read_text(encoding="utf-8")
 
-    assert "MCP_ATENDE_AGENDA_URL=http://agenda-api:8000/mcp" in example
+    assert "MCP_ATENDE_AGENDA_URL=http://api:8000/mcp" in example
     assert "MCP_ATENDE_AGENDA_API_KEY=" in example
     assert "agenda.anauedesign.com.br/mcp" not in example
+
+
+def test_image_healthcheck_allows_database_warmup():
+    dockerfile = Path("Dockerfile").read_text(encoding="utf-8")
+
+    assert "--timeout=10s --start-period=60s --retries=3" in dockerfile
+    assert "httpx.get('http://localhost:8000/ready', timeout=8)" in dockerfile
 
 
 def test_mcp_resolution_document_uses_only_a_credential_placeholder():

@@ -12,7 +12,7 @@ API executassem na mesma VPS.
 
 ## Regra atual
 
-- O Hermes usa `http://agenda-api:8000/mcp` pela rede Docker privada
+- O Hermes usa `http://api:8000/mcp` pela rede Docker privada
   `agenda_mcp_internal`.
 - A API exige `Authorization: Bearer <API_KEY>`.
 - O valor de `MCP_ATENDE_AGENDA_API_KEY` no Hermes deve ser igual a `API_KEY` na
