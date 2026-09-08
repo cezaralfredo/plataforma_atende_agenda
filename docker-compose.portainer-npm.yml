@@ -21,7 +21,7 @@ services:
       - agenda_internal
 
   api:
-    image: ${REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY:-cezaralfredo/plataforma_atende_agenda}:latest
+    image: "${REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY:-cezaralfredo/plataforma_atende_agenda}:${IMAGE_TAG:?Defina IMAGE_TAG no Portainer}"
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+psycopg://agenda_user:__POSTGRES_PASSWORD__@postgres:5432/agenda_atende
@@ -44,6 +44,7 @@ services:
       npm:
         aliases:
           - agenda-api
+      mcp_internal:
 
 volumes:
   agenda_pgdata:
@@ -54,3 +55,6 @@ networks:
   npm:
     external: true
     name: ${NPM_NETWORK:-nginx-proxy_default}
+  mcp_internal:
+    external: true
+    name: "${AGENDA_MCP_NETWORK:-agenda_mcp_internal}"

@@ -20,8 +20,12 @@ services:
       npm:
         aliases:
           - agenda-api
+      mcp_internal:
 
 networks:
   npm:
     external: true
     name: "${NPM_NETWORK:-nginx-proxy_default}"
+  mcp_internal:
+    external: true
+    name: "${AGENDA_MCP_NETWORK:-agenda_mcp_internal}"
