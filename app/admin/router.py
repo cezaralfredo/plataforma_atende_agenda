@@ -259,6 +259,10 @@ async def api_payments(
 
 
 @router.get("/api/professionals", dependencies=[Depends(require_admin)])
-async def api_professionals(db: Session = Depends(get_db)):
+async def api_professionals(
+    limit: int | None = Query(None, ge=1, le=5),
+    db: Session = Depends(get_db),
+):
     service = AdminService(db)
-    return service.list_professionals()
+    professionals = service.list_professionals()
+    return professionals[:limit] if limit is not None else professionals
