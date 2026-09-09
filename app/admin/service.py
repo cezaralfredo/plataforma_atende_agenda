@@ -4,13 +4,17 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.appointment import Appointment
+from app.models.availability import Availability
 from app.models.payment import Payment
 from app.models.professional import Professional
+from app.models.professional_service import ProfessionalService
 from app.models.service import Service
 from app.models.user import User
 from app.schemas.appointment import AppointmentCreate, AppointmentUpdate
 from app.schemas.user import UserCreate
 from app.services.appointment_service import AppointmentService
+from app.services.professional_service import ProfessionalManagementService
+from app.services.professional_service_offering_service import ProfessionalOfferingService
 from app.services.user_service import UserService
 
 
@@ -265,8 +269,9 @@ class AdminService:
 
         result = []
         for prof in professionals:
-            services_count = self.db.query(func.count(Service.id)).filter(
-                Service.professional_id == prof.id
+            services_count = self.db.query(func.count(ProfessionalService.id)).filter(
+                ProfessionalService.professional_id == prof.id,
+                ProfessionalService.active.is_(True),
             ).scalar() or 0
 
             appointments_today = self.db.query(func.count(Appointment.id)).filter(
@@ -308,6 +313,71 @@ class AdminService:
             })
 
         return result
+
+    @staticmethod
+    def _offering_response(offering: ProfessionalService) -> dict:
+        return {
+            "id": offering.id,
+            "professional_id": offering.professional_id,
+            "service_id": offering.service_id,
+            "price_cents": offering.price_cents,
+            "duration_minutes": offering.duration_minutes,
+            "commission_percent": f"{offering.commission_percent:.2f}",
+            "active": offering.active,
+            "service_name": offering.service.name if offering.service else None,
+            "service_description": (
+                offering.service.description if offering.service else None
+            ),
+        }
+
+    def get_professional_management(self, professional_id: int) -> dict | None:
+        professional = self.db.get(Professional, professional_id)
+        if not professional:
+            return None
+        offerings = (
+            self.db.query(ProfessionalService)
+            .filter(ProfessionalService.professional_id == professional_id)
+            .order_by(ProfessionalService.id)
+            .all()
+        )
+        availability = (
+            self.db.query(Availability)
+            .filter(Availability.professional_id == professional_id)
+            .order_by(Availability.day_of_week, Availability.start_time)
+            .all()
+        )
+        catalog = (
+            self.db.query(Service)
+            .filter(Service.active.is_(True))
+            .order_by(Service.name)
+            .all()
+        )
+        return {
+            "professional": professional,
+            "offerings": [self._offering_response(offering) for offering in offerings],
+            "availability": availability,
+            "catalog": catalog,
+        }
+
+    def save_professional_offering(self, professional_id: int, data) -> dict:
+        offering = ProfessionalOfferingService(self.db).create_or_update(
+            professional_id=professional_id,
+            service_id=data.service_id,
+            price_cents=data.price_cents,
+            duration_minutes=data.duration_minutes,
+            commission_percent=data.commission_percent,
+        )
+        return self._offering_response(offering)
+
+    def remove_professional_offering(
+        self, professional_id: int, service_id: int
+    ) -> str | None:
+        return ProfessionalOfferingService(self.db).archive_or_delete(
+            professional_id, service_id
+        )
+
+    def archive_or_delete_professional(self, professional_id: int) -> str | None:
+        return ProfessionalManagementService(self.db).archive_or_delete(professional_id)
 
     def _appointment_response(self, appointment: Appointment) -> dict:
         client = self.db.get(User, appointment.user_id)

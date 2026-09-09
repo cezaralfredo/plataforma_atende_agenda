@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 from app.admin.schemas import (
     AdminAppointmentCreate,
     AdminAppointmentUpdate,
+    AdminAvailabilityInput,
+    AdminProfessionalOfferingUpsert,
     AppointmentAction,
     PaymentAction,
 )
@@ -16,9 +18,13 @@ from app.database import get_db
 from app.models.payment import Payment
 from app.models.service import Service
 from app.models.user import User
+from app.schemas.availability import AvailabilityCreate, AvailabilityUpdate
+from app.schemas.professional import ProfessionalCreate, ProfessionalUpdate
 from app.security import require_admin
 from app.services.asaas_client import AsaasIntegrationError
+from app.services.availability_service import AvailabilityService
 from app.services.payment_service import PaymentService
+from app.services.professional_service import ProfessionalService
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -214,7 +220,167 @@ async def professionals_page(request: Request, db: Session = Depends(get_db)):
     })
 
 
+@router.get(
+    "/professionals/new",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_admin)],
+)
+async def new_professional_page(request: Request, db: Session = Depends(get_db)):
+    catalog = (
+        db.query(Service).filter(Service.active.is_(True)).order_by(Service.name).all()
+    )
+    return templates.TemplateResponse(
+        "professional_detail.html",
+        {
+            "request": request,
+            "management": None,
+            "catalog": catalog,
+        },
+    )
+
+
+@router.get(
+    "/professionals/{professional_id}/edit",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_admin)],
+)
+async def edit_professional_page(
+    request: Request, professional_id: int, db: Session = Depends(get_db)
+):
+    management = AdminService(db).get_professional_management(professional_id)
+    if not management:
+        raise HTTPException(status_code=404, detail="Profissional não encontrado")
+    return templates.TemplateResponse(
+        "professional_detail.html",
+        {
+            "request": request,
+            "management": management,
+            "catalog": management["catalog"],
+        },
+    )
+
+
 # --- API Endpoints para HTMX partials ---
+
+@router.post(
+    "/api/professionals",
+    status_code=201,
+    dependencies=[Depends(require_admin)],
+)
+async def create_admin_professional(
+    data: ProfessionalCreate, db: Session = Depends(get_db)
+):
+    return ProfessionalService(db).create(data)
+
+
+@router.put("/api/professionals/{professional_id}", dependencies=[Depends(require_admin)])
+async def update_admin_professional(
+    professional_id: int,
+    data: ProfessionalUpdate,
+    db: Session = Depends(get_db),
+):
+    professional = ProfessionalService(db).update(professional_id, data)
+    if not professional:
+        raise HTTPException(status_code=404, detail="Profissional não encontrado")
+    return professional
+
+
+@router.delete(
+    "/api/professionals/{professional_id}",
+    dependencies=[Depends(require_admin)],
+)
+async def delete_admin_professional(
+    professional_id: int, db: Session = Depends(get_db)
+):
+    outcome = AdminService(db).archive_or_delete_professional(professional_id)
+    if not outcome:
+        raise HTTPException(status_code=404, detail="Profissional não encontrado")
+    return {"outcome": outcome}
+
+
+@router.post(
+    "/api/professionals/{professional_id}/services",
+    status_code=201,
+    dependencies=[Depends(require_admin)],
+)
+async def save_admin_professional_offering(
+    professional_id: int,
+    data: AdminProfessionalOfferingUpsert,
+    db: Session = Depends(get_db),
+):
+    try:
+        return AdminService(db).save_professional_offering(professional_id, data)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.delete(
+    "/api/professionals/{professional_id}/services/{service_id}",
+    dependencies=[Depends(require_admin)],
+)
+async def remove_admin_professional_offering(
+    professional_id: int, service_id: int, db: Session = Depends(get_db)
+):
+    outcome = AdminService(db).remove_professional_offering(professional_id, service_id)
+    if not outcome:
+        raise HTTPException(status_code=404, detail="Serviço oferecido não encontrado")
+    return {"outcome": outcome}
+
+
+@router.post(
+    "/api/professionals/{professional_id}/availability",
+    status_code=201,
+    dependencies=[Depends(require_admin)],
+)
+async def create_admin_availability(
+    professional_id: int,
+    data: AdminAvailabilityInput,
+    db: Session = Depends(get_db),
+):
+    try:
+        return AvailabilityService(db).create(
+            AvailabilityCreate(professional_id=professional_id, **data.model_dump())
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.put(
+    "/api/professionals/{professional_id}/availability/{availability_id}",
+    dependencies=[Depends(require_admin)],
+)
+async def update_admin_availability(
+    professional_id: int,
+    availability_id: int,
+    data: AdminAvailabilityInput,
+    db: Session = Depends(get_db),
+):
+    service = AvailabilityService(db)
+    availability = service.get(availability_id)
+    if not availability or availability.professional_id != professional_id:
+        raise HTTPException(status_code=404, detail="Horário não encontrado")
+    try:
+        updated = service.update(
+            availability_id, AvailabilityUpdate(**data.model_dump(exclude_unset=True))
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return updated
+
+
+@router.delete(
+    "/api/professionals/{professional_id}/availability/{availability_id}",
+    status_code=204,
+    dependencies=[Depends(require_admin)],
+)
+async def delete_admin_availability(
+    professional_id: int, availability_id: int, db: Session = Depends(get_db)
+):
+    service = AvailabilityService(db)
+    availability = service.get(availability_id)
+    if not availability or availability.professional_id != professional_id:
+        raise HTTPException(status_code=404, detail="Horário não encontrado")
+    service.delete(availability_id)
 
 @router.post(
     "/api/appointments",

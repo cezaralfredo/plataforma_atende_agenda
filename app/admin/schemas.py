@@ -1,4 +1,5 @@
-from datetime import date, datetime
+from datetime import date, datetime, time
+from decimal import Decimal
 from enum import Enum
 from typing import Literal
 
@@ -140,6 +141,20 @@ class AdminAppointmentUpdate(BaseModel):
     start_time: datetime | None = None
     end_time: datetime | None = None
     notes: str | None = None
+
+
+class AdminProfessionalOfferingUpsert(BaseModel):
+    service_id: int
+    price_cents: int
+    duration_minutes: int
+    commission_percent: Decimal = Decimal("10.00")
+
+
+class AdminAvailabilityInput(BaseModel):
+    day_of_week: int | None = None
+    start_time: time | None = None
+    end_time: time | None = None
+    specific_date: date | None = None
 
 
 class AppointmentAction(BaseModel):
