@@ -1,3 +1,4 @@
+import re
 from base64 import b64encode
 
 from fastapi.testclient import TestClient
@@ -10,6 +11,20 @@ from app.models.professional import Professional
 def _admin_headers() -> dict[str, str]:
     credentials = b64encode(f"admin:{settings.admin_api_key}".encode()).decode()
     return {"Authorization": f"Basic {credentials}"}
+
+
+def test_admin_layout_keeps_sidebar_visible_on_desktop(
+    anonymous_client: TestClient,
+):
+    response = anonymous_client.get("/admin", headers=_admin_headers())
+
+    assert response.status_code == 200
+    sidebar = re.search(r"<aside\b(?P<attributes>[^>]*)>", response.text, flags=re.DOTALL)
+    assert sidebar is not None
+    attributes = sidebar.group("attributes")
+    assert "sidebar" in attributes
+    assert "x-show" not in attributes
+    assert "lg:translate-x-0" in attributes
 
 
 def test_professionals_overview_api_limits_rows_without_changing_row_contract(
