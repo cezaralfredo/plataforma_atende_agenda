@@ -21,5 +21,10 @@ class Professional(Base):
     )
 
     services = relationship("Service", back_populates="professional")
+    service_offerings = relationship(
+        "ProfessionalService",
+        back_populates="professional",
+        cascade="all, delete-orphan",
+    )
     availability = relationship("Availability", back_populates="professional")
     appointments = relationship("Appointment", back_populates="professional")

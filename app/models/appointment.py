@@ -1,9 +1,12 @@
 from datetime import datetime
+from decimal import Decimal
 
 from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Integer,
+    Numeric,
     String,
     Text,
     func,
@@ -56,6 +59,11 @@ class Appointment(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     notified_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     notes: Mapped[str] = mapped_column(Text, nullable=True)
+    service_price_cents: Mapped[int] = mapped_column(Integer, nullable=True)
+    service_duration_minutes: Mapped[int] = mapped_column(Integer, nullable=True)
+    professional_commission_percent: Mapped[Decimal] = mapped_column(
+        Numeric(5, 2), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
