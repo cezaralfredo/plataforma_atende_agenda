@@ -10,6 +10,8 @@ from app.admin.schemas import (
     AdminAppointmentUpdate,
     AdminAvailabilityInput,
     AdminProfessionalOfferingUpsert,
+    AdminServiceCatalogCreate,
+    AdminServiceCatalogUpdate,
     AppointmentAction,
     PaymentAction,
 )
@@ -220,6 +222,15 @@ async def professionals_page(request: Request, db: Session = Depends(get_db)):
     })
 
 
+@router.get("/services", response_class=HTMLResponse, dependencies=[Depends(require_admin)])
+async def services_page(request: Request, db: Session = Depends(get_db)):
+    services = AdminService(db).list_catalog_services()
+    return templates.TemplateResponse("services.html", {
+        "request": request,
+        "services": services,
+    })
+
+
 @router.get(
     "/professionals/new",
     response_class=HTMLResponse,
@@ -261,6 +272,43 @@ async def edit_professional_page(
 
 
 # --- API Endpoints para HTMX partials ---
+
+@router.get("/api/services", dependencies=[Depends(require_admin)])
+async def api_catalog_services(db: Session = Depends(get_db)):
+    return AdminService(db).list_catalog_services()
+
+
+@router.post("/api/services", status_code=201, dependencies=[Depends(require_admin)])
+async def create_catalog_service(
+    data: AdminServiceCatalogCreate, db: Session = Depends(get_db)
+):
+    return AdminService(db).create_catalog_service(data)
+
+
+@router.put("/api/services/{service_id}", dependencies=[Depends(require_admin)])
+async def update_catalog_service(
+    service_id: int, data: AdminServiceCatalogUpdate, db: Session = Depends(get_db)
+):
+    service = AdminService(db).update_catalog_service(service_id, data)
+    if not service:
+        raise HTTPException(status_code=404, detail="Serviço não encontrado")
+    return service
+
+
+@router.delete("/api/services/{service_id}", dependencies=[Depends(require_admin)])
+async def delete_catalog_service(service_id: int, db: Session = Depends(get_db)):
+    outcome = AdminService(db).archive_or_delete_catalog_service(service_id)
+    if not outcome:
+        raise HTTPException(status_code=404, detail="Serviço não encontrado")
+    return {"outcome": outcome}
+
+
+@router.post("/api/services/{service_id}/reactivate", dependencies=[Depends(require_admin)])
+async def reactivate_catalog_service(service_id: int, db: Session = Depends(get_db)):
+    service = AdminService(db).reactivate_catalog_service(service_id)
+    if not service:
+        raise HTTPException(status_code=404, detail="Serviço não encontrado")
+    return service
 
 @router.post(
     "/api/professionals",

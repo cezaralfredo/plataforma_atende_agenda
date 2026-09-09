@@ -15,6 +15,7 @@ from app.schemas.user import UserCreate
 from app.services.appointment_service import AppointmentService
 from app.services.professional_service import ProfessionalManagementService
 from app.services.professional_service_offering_service import ProfessionalOfferingService
+from app.services.service_service import ServiceCatalogService
 from app.services.user_service import UserService
 
 
@@ -313,6 +314,44 @@ class AdminService:
             })
 
         return result
+
+    def _catalog_service_response(self, service: Service) -> dict:
+        active_offerings_count = self.db.query(func.count(ProfessionalService.id)).filter(
+            ProfessionalService.service_id == service.id,
+            ProfessionalService.active.is_(True),
+        ).scalar() or 0
+        return {
+            "id": service.id,
+            "name": service.name,
+            "description": service.description,
+            "category": service.category,
+            "active": service.active,
+            "active_offerings_count": active_offerings_count,
+        }
+
+    def list_catalog_services(self) -> list[dict]:
+        services = self.db.query(Service).order_by(Service.active.desc(), Service.name).all()
+        return [self._catalog_service_response(service) for service in services]
+
+    def create_catalog_service(self, data) -> dict:
+        service = ServiceCatalogService(self.db).create(
+            name=data.name,
+            description=data.description,
+            category=data.category,
+        )
+        return self._catalog_service_response(service)
+
+    def update_catalog_service(self, service_id: int, data) -> dict | None:
+        values = data.model_dump(exclude_unset=True)
+        service = ServiceCatalogService(self.db).update(service_id, **values)
+        return self._catalog_service_response(service) if service else None
+
+    def archive_or_delete_catalog_service(self, service_id: int) -> str | None:
+        return ServiceCatalogService(self.db).archive_or_delete(service_id)
+
+    def reactivate_catalog_service(self, service_id: int) -> dict | None:
+        service = ServiceCatalogService(self.db).reactivate(service_id)
+        return self._catalog_service_response(service) if service else None
 
     @staticmethod
     def _offering_response(offering: ProfessionalService) -> dict:

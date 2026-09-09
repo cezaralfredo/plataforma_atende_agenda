@@ -27,6 +27,13 @@ def test_admin_layout_keeps_sidebar_visible_on_desktop(
     assert "lg:translate-x-0" in attributes
 
 
+def test_dashboard_does_not_render_actions_card(anonymous_client: TestClient):
+    response = anonymous_client.get("/admin", headers=_admin_headers())
+
+    assert response.status_code == 200
+    assert "Ações Rápidas" not in response.text
+
+
 def test_professionals_overview_api_limits_rows_without_changing_row_contract(
     anonymous_client: TestClient,
     db_session: Session,

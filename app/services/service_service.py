@@ -49,6 +49,43 @@ class ServiceCatalogService:
     def __init__(self, db: Session):
         self.db = db
 
+    def create(self, *, name: str, description: str | None, category: str | None) -> Service:
+        service = Service(name=name, description=description, category=category)
+        self.db.add(service)
+        self.db.commit()
+        self.db.refresh(service)
+        return service
+
+    def update(
+        self,
+        service_id: int,
+        *,
+        name: str | None = None,
+        description: str | None = None,
+        category: str | None = None,
+    ) -> Service | None:
+        service = self.db.get(Service, service_id)
+        if not service:
+            return None
+        if name is not None:
+            service.name = name
+        if description is not None:
+            service.description = description
+        if category is not None:
+            service.category = category
+        self.db.commit()
+        self.db.refresh(service)
+        return service
+
+    def reactivate(self, service_id: int) -> Service | None:
+        service = self.db.get(Service, service_id)
+        if not service:
+            return None
+        service.active = True
+        self.db.commit()
+        self.db.refresh(service)
+        return service
+
     def archive_or_delete(self, service_id: int) -> str | None:
         service = self.db.get(Service, service_id)
         if not service:

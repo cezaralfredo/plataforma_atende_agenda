@@ -3,7 +3,7 @@ from decimal import Decimal
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class AppointmentStatus(str, Enum):
@@ -155,6 +155,18 @@ class AdminAvailabilityInput(BaseModel):
     start_time: time | None = None
     end_time: time | None = None
     specific_date: date | None = None
+
+
+class AdminServiceCatalogCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    description: str | None = None
+    category: str | None = Field(default=None, max_length=100)
+
+
+class AdminServiceCatalogUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    description: str | None = None
+    category: str | None = Field(default=None, max_length=100)
 
 
 class AppointmentAction(BaseModel):
