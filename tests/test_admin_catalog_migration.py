@@ -4,6 +4,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.models.appointment import Appointment
+from app.models.professional import Professional
 from app.models.professional_service import ProfessionalService
 from tests.seed import seed_data
 
@@ -13,9 +14,12 @@ def test_professional_service_defaults_commission_to_ten_percent(
 ):
     """Detects a missing safe default when an admin associates a service."""
     entities = seed_data(db_session)
+    another_professional = Professional(name="Outra profissional", active=True)
+    db_session.add(another_professional)
+    db_session.flush()
 
     offering = ProfessionalService(
-        professional_id=entities["professional"].id,
+        professional_id=another_professional.id,
         service_id=entities["service"].id,
         price_cents=12500,
         duration_minutes=60,
@@ -31,15 +35,18 @@ def test_appointment_keeps_commercial_snapshot_after_offering_changes(
 ):
     """Detects historical financial data being changed by later catalog edits."""
     entities = seed_data(db_session)
-    offering = ProfessionalService(
-        professional_id=entities["professional"].id,
-        service_id=entities["service"].id,
-        price_cents=12500,
-        duration_minutes=60,
-        commission_percent=Decimal("10.00"),
+    offering = (
+        db_session.query(ProfessionalService)
+        .filter_by(
+            professional_id=entities["professional"].id,
+            service_id=entities["service"].id,
+        )
+        .one()
     )
-    db_session.add(offering)
-    db_session.flush()
+    offering.price_cents = 12500
+    offering.duration_minutes = 60
+    offering.commission_percent = Decimal("10.00")
+    db_session.commit()
 
     appointment = Appointment(
         user_id=entities["user"].id,

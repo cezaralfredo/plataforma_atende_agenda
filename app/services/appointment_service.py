@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.business_time import as_business_time
 from app.models.professional import Professional
+from app.models.professional_service import ProfessionalService
 from app.models.service import Service
 from app.models.user import User
 from app.repositories import AppointmentRepository
@@ -31,12 +32,23 @@ class AppointmentService:
         if not professional or not professional.active:
             raise ValueError("Profissional n\u00e3o encontrado ou inativo")
         service = self.repo.db.get(Service, data.service_id)
-        if not service or service.professional_id != data.professional_id:
-            raise ValueError("Servi\u00e7o n\u00e3o pertence ao profissional informado")
+        if not service or not service.active:
+            raise ValueError("Serviço indisponível")
+        offering = (
+            self.repo.db.query(ProfessionalService)
+            .filter(
+                ProfessionalService.professional_id == data.professional_id,
+                ProfessionalService.service_id == data.service_id,
+                ProfessionalService.active.is_(True),
+            )
+            .first()
+        )
+        if not offering:
+            raise ValueError("Serviço indisponível para o profissional informado")
 
         start_time = as_business_time(data.start_time)
         end_time = as_business_time(data.end_time)
-        expected_end = start_time + timedelta(minutes=service.duration_minutes)
+        expected_end = start_time + timedelta(minutes=offering.duration_minutes)
         if end_time != expected_end:
             raise ValueError("A dura\u00e7\u00e3o da reserva deve corresponder \u00e0 dura\u00e7\u00e3o do servi\u00e7o")
 
@@ -62,6 +74,9 @@ class AppointmentService:
                 status="pending",
                 expires_at=expires_at,
                 created_at=now,
+                service_price_cents=offering.price_cents,
+                service_duration_minutes=offering.duration_minutes,
+                professional_commission_percent=offering.commission_percent,
             )
         except IntegrityError as exc:
             self.repo.db.rollback()
