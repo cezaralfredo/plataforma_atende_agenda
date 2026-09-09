@@ -5,10 +5,17 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from app.admin.schemas import AppointmentAction, PaymentAction
+from app.admin.schemas import (
+    AdminAppointmentCreate,
+    AdminAppointmentUpdate,
+    AppointmentAction,
+    PaymentAction,
+)
 from app.admin.service import AdminService
 from app.database import get_db
 from app.models.payment import Payment
+from app.models.service import Service
+from app.models.user import User
 from app.security import require_admin
 from app.services.asaas_client import AsaasIntegrationError
 from app.services.payment_service import PaymentService
@@ -54,6 +61,24 @@ async def appointments_page(
         page_size=page_size,
     )
     professionals = service.list_professionals()
+    appointment_options = {
+        "professionals": [
+            {"id": professional["id"], "name": professional["name"]}
+            for professional in professionals
+            if professional["active"]
+        ],
+        "services": [
+            {"id": service.id, "name": service.name}
+            for service in db.query(Service)
+            .filter(Service.active.is_(True))
+            .order_by(Service.name)
+            .all()
+        ],
+        "clients": [
+            {"id": client.id, "name": client.name, "phone": client.phone}
+            for client in db.query(User).order_by(User.name).all()
+        ],
+    }
 
     total_pages = (total + page_size - 1) // page_size
 
@@ -72,6 +97,7 @@ async def appointments_page(
             "status": status,
             "search": search,
         },
+        "appointment_options": appointment_options,
     })
 
 
@@ -189,6 +215,51 @@ async def professionals_page(request: Request, db: Session = Depends(get_db)):
 
 
 # --- API Endpoints para HTMX partials ---
+
+@router.post(
+    "/api/appointments",
+    status_code=201,
+    dependencies=[Depends(require_admin)],
+)
+async def create_admin_appointment(
+    data: AdminAppointmentCreate, db: Session = Depends(get_db)
+):
+    try:
+        return AdminService(db).create_appointment(data)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.put("/api/appointments/{appointment_id}", dependencies=[Depends(require_admin)])
+async def update_admin_appointment(
+    appointment_id: int,
+    data: AdminAppointmentUpdate,
+    db: Session = Depends(get_db),
+):
+    try:
+        appointment = AdminService(db).update_appointment(appointment_id, data)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if not appointment:
+        raise HTTPException(status_code=404, detail="Agendamento não encontrado")
+    return appointment
+
+
+@router.delete(
+    "/api/appointments/{appointment_id}",
+    status_code=204,
+    dependencies=[Depends(require_admin)],
+)
+async def delete_admin_appointment(
+    appointment_id: int, db: Session = Depends(get_db)
+):
+    try:
+        deleted = AdminService(db).delete_appointment(appointment_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Agendamento não encontrado")
+
 
 @router.get("/api/kpis", dependencies=[Depends(require_admin)])
 async def api_kpis(db: Session = Depends(get_db)):

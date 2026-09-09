@@ -2,7 +2,7 @@ from datetime import date, datetime
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 
 class AppointmentStatus(str, Enum):
@@ -110,8 +110,40 @@ class AdminFilters(BaseModel):
     page_size: int = 20
 
 
+class AdminClientCreate(BaseModel):
+    name: str
+    phone: str
+    email: str | None = None
+    whatsapp_number: str | None = None
+
+
+class AdminAppointmentCreate(BaseModel):
+    user_id: int | None = None
+    new_client: AdminClientCreate | None = None
+    professional_id: int
+    service_id: int
+    start_time: datetime
+    end_time: datetime
+    notes: str | None = None
+
+    @model_validator(mode="after")
+    def validate_client_source(self):
+        if (self.user_id is None) == (self.new_client is None):
+            raise ValueError("Informe um cliente existente ou cadastre um novo cliente")
+        return self
+
+
+class AdminAppointmentUpdate(BaseModel):
+    user_id: int | None = None
+    professional_id: int | None = None
+    service_id: int | None = None
+    start_time: datetime | None = None
+    end_time: datetime | None = None
+    notes: str | None = None
+
+
 class AppointmentAction(BaseModel):
-    action: str  # cancel, confirm
+    action: Literal["cancel", "confirm", "complete"]
     notes: str | None = None
 
 

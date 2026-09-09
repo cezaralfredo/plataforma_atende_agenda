@@ -8,6 +8,10 @@ from app.models.payment import Payment
 from app.models.professional import Professional
 from app.models.service import Service
 from app.models.user import User
+from app.schemas.appointment import AppointmentCreate, AppointmentUpdate
+from app.schemas.user import UserCreate
+from app.services.appointment_service import AppointmentService
+from app.services.user_service import UserService
 
 
 class AdminService:
@@ -169,7 +173,11 @@ class AdminService:
                 "client_phone": client_phone,
                 "professional_name": prof_name,
                 "service_name": svc_name,
-                "service_price_cents": svc_price,
+                "service_price_cents": (
+                    apt.service_price_cents
+                    if apt.service_price_cents is not None
+                    else svc_price
+                ),
                 "payment_status": pay_status,
                 "payment_id": pay_id,
             })
@@ -301,33 +309,92 @@ class AdminService:
 
         return result
 
-    def appointment_action(self, appointment_id: int, action: str, notes: str | None = None) -> dict | None:
-        apt = self.db.query(Appointment).filter(Appointment.id == appointment_id).first()
-        if not apt:
-            return None
-
-        if action == "cancel":
-            if apt.status in ["cancelled", "completed"]:
-                return {"error": "Não é possível cancelar agendamento neste status"}
-            apt.status = "cancelled"
-            if notes:
-                apt.notes = (apt.notes or "") + f"\n[Admin] Cancelado: {notes}"
-        elif action == "confirm":
-            if apt.status != "pending":
-                return {"error": "Só é possível confirmar agendamentos pendentes"}
-            apt.status = "confirmed"
-            if notes:
-                apt.notes = (apt.notes or "") + f"\n[Admin] Confirmado: {notes}"
-        else:
-            return {"error": "Ação inválida"}
-
-        self.db.commit()
-        self.db.refresh(apt)
-
+    def _appointment_response(self, appointment: Appointment) -> dict:
+        client = self.db.get(User, appointment.user_id)
         return {
-            "id": apt.id,
-            "status": apt.status,
-            "notes": apt.notes,
+            "id": appointment.id,
+            "user_id": appointment.user_id,
+            "professional_id": appointment.professional_id,
+            "service_id": appointment.service_id,
+            "start_time": appointment.start_time,
+            "end_time": appointment.end_time,
+            "status": appointment.status,
+            "notes": appointment.notes,
+            "service_price_cents": appointment.service_price_cents,
+            "client_name": client.name if client else None,
+            "client_phone": client.phone if client else None,
+        }
+
+    def create_appointment(self, data) -> dict:
+        user_id = data.user_id
+        if data.new_client:
+            client = UserService(self.db).create(
+                UserCreate(**data.new_client.model_dump())
+            )
+            user_id = client.id
+        appointment = AppointmentService(self.db).create(
+            AppointmentCreate(
+                user_id=user_id,
+                professional_id=data.professional_id,
+                service_id=data.service_id,
+                start_time=data.start_time,
+                end_time=data.end_time,
+                notes=data.notes,
+            )
+        )
+        return self._appointment_response(appointment)
+
+    def update_appointment(self, appointment_id: int, data) -> dict | None:
+        appointment = self.db.get(Appointment, appointment_id)
+        if not appointment:
+            return None
+        values = data.model_dump(exclude_unset=True)
+        booking_fields = {
+            "user_id",
+            "professional_id",
+            "service_id",
+            "start_time",
+            "end_time",
+        }
+        appointment_service = AppointmentService(self.db)
+        if booking_fields.intersection(values):
+            appointment = appointment_service.update_booking(
+                appointment_id,
+                AppointmentCreate(
+                    user_id=values.get("user_id", appointment.user_id),
+                    professional_id=values.get(
+                        "professional_id", appointment.professional_id
+                    ),
+                    service_id=values.get("service_id", appointment.service_id),
+                    start_time=values.get("start_time", appointment.start_time),
+                    end_time=values.get("end_time", appointment.end_time),
+                    notes=values.get("notes", appointment.notes),
+                ),
+            )
+        elif "notes" in values:
+            appointment = appointment_service.update(
+                appointment_id, AppointmentUpdate(notes=values["notes"])
+            )
+        return self._appointment_response(appointment)
+
+    def delete_appointment(self, appointment_id: int) -> bool:
+        return AppointmentService(self.db).delete(appointment_id)
+
+    def appointment_action(
+        self, appointment_id: int, action: str, notes: str | None = None
+    ) -> dict | None:
+        try:
+            appointment = AppointmentService(self.db).transition(
+                appointment_id, action, notes
+            )
+        except ValueError as exc:
+            return {"error": str(exc)}
+        if not appointment:
+            return None
+        return {
+            "id": appointment.id,
+            "status": appointment.status,
+            "notes": appointment.notes,
         }
 
     def get_appointment_detail(self, appointment_id: int) -> dict | None:
@@ -388,8 +455,16 @@ class AdminService:
             "service": {
                 "id": apt.service_id,
                 "name": svc_name,
-                "duration_minutes": svc_duration,
-                "price_cents": svc_price,
+                "duration_minutes": (
+                    apt.service_duration_minutes
+                    if apt.service_duration_minutes is not None
+                    else svc_duration
+                ),
+                "price_cents": (
+                    apt.service_price_cents
+                    if apt.service_price_cents is not None
+                    else svc_price
+                ),
             },
             "payment": {
                 "id": pay_id,
