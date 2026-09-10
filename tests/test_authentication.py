@@ -81,6 +81,8 @@ def test_production_disables_interactive_docs():
         api_key="a" * 32,
         admin_api_key="b" * 32,
         asaas_webhook_token="c" * 32,
+        admin_session_secret="d" * 32,
+        admin_recovery_key="e" * 32,
     )
 
     production_app = main_module.create_app(production_settings)

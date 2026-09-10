@@ -7,9 +7,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.config import settings
+from app.config import Settings, settings
 from app.database import Base, get_db
-from app.main import app
+from app.main import create_app
 
 TEST_DATABASE_URL = os.getenv(
     "TEST_DATABASE_URL",
@@ -44,10 +44,17 @@ def _test_client(db_session: Session) -> Generator[TestClient, None, None]:
         finally:
             pass
 
-    app.dependency_overrides[get_db] = _get_test_db
-    with TestClient(app) as c:
+    test_app = create_app(
+        Settings(
+            admin_username="admin-fixture",
+            admin_bootstrap_password="fixture-password-only-123",  # noqa: S106
+        ),
+        session_factory=TestingSessionLocal,
+    )
+    test_app.dependency_overrides[get_db] = _get_test_db
+    with TestClient(test_app) as c:
         yield c
-    app.dependency_overrides.clear()
+    test_app.dependency_overrides.clear()
 
 
 @pytest.fixture(scope="function")

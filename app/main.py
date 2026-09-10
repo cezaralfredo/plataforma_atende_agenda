@@ -1,6 +1,9 @@
+from collections.abc import Callable
+
 from fastapi import Depends, FastAPI, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from prometheus_fastapi_instrumentator import Instrumentator
+from sqlalchemy.orm import Session
 
 from app.admin.auth_service import bootstrap_admin_account
 from app.admin.router import router as admin_router
@@ -18,7 +21,10 @@ from app.mcp.router import router as mcp_router
 from app.security import require_api_key
 
 
-def create_app(app_settings: Settings = settings) -> FastAPI:
+def create_app(
+    app_settings: Settings = settings,
+    session_factory: Callable[[], Session] = SessionLocal,
+) -> FastAPI:
     docs_url = "/docs" if app_settings.debug else None
     redoc_url = "/redoc" if app_settings.debug else None
     openapi_url = "/openapi.json" if app_settings.debug else None
@@ -45,7 +51,7 @@ def create_app(app_settings: Settings = settings) -> FastAPI:
 
     @application.on_event("startup")
     def bootstrap_admin() -> None:
-        db = SessionLocal()
+        db = session_factory()
         try:
             bootstrap_admin_account(db, app_settings)
         finally:

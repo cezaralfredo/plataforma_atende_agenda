@@ -34,6 +34,8 @@ class Settings(BaseSettings):
             "dev-admin-recovery-key-change-in-production",
             "SUA_CHAVE_DE_SESSAO_ADMIN_64_CHARS",
             "SUA_CHAVE_DE_RECUPERACAO_ADMIN_64_CHARS",
+            "admin-bootstrap-password-change-me",
+            "SUA_SENHA_DE_BOOTSTRAP_ADMIN",
         }
         secrets = {
             "API_KEY": self.api_key,
@@ -53,7 +55,10 @@ class Settings(BaseSettings):
             raise ValueError("Production requires a non-empty ADMIN_USERNAME")
         if (
             self.admin_bootstrap_password
-            and len(self.admin_bootstrap_password) < 12
+            and (
+                len(self.admin_bootstrap_password) < 12
+                or self.admin_bootstrap_password in invalid_values
+            )
         ):
             raise ValueError(
                 "Production requires ADMIN_BOOTSTRAP_PASSWORD to be at least 12 characters"
@@ -74,7 +79,11 @@ class Settings(BaseSettings):
             )
         return self
 
-    model_config = {"env_file": ".env", "extra": "ignore"}
+    model_config = {
+        "env_file": ".env",
+        "extra": "ignore",
+        "hide_input_in_errors": True,
+    }
 
 
 settings = Settings()

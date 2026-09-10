@@ -6,6 +6,7 @@ import os
 from datetime import datetime, timedelta
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import Settings
@@ -69,7 +70,9 @@ def verify_password(password: str, encoded_hash: str) -> bool:
 
 
 def bootstrap_admin_account(db: Session, settings: Settings) -> AdminAccount:
-    account = db.scalar(select(AdminAccount).where(AdminAccount.id == 1))
+    account = db.scalar(
+        select(AdminAccount).where(AdminAccount.id == 1).with_for_update()
+    )
     if account is not None:
         return account
     if not settings.admin_bootstrap_password:
@@ -81,7 +84,17 @@ def bootstrap_admin_account(db: Session, settings: Settings) -> AdminAccount:
         username=settings.admin_username,
         password_hash=hash_password(settings.admin_bootstrap_password),
     )
-    db.add(account)
+    try:
+        with db.begin_nested():
+            db.add(account)
+            db.flush()
+    except IntegrityError:
+        account = db.scalar(
+            select(AdminAccount).where(AdminAccount.id == 1).with_for_update()
+        )
+        if account is not None:
+            return account
+        raise
     db.commit()
     db.refresh(account)
     return account
@@ -96,7 +109,12 @@ def record_failed_login(account: AdminAccount, now: datetime) -> None:
 def authenticate_admin(
     db: Session, username: str, password: str, now: datetime
 ) -> AdminAccount | None:
-    account = db.scalar(select(AdminAccount).where(AdminAccount.username == username))
+    account = db.scalar(
+        select(AdminAccount)
+        .where(AdminAccount.username == username)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     if account is None:
         return None
     if account.locked_until is not None:
@@ -119,6 +137,7 @@ def authenticate_admin(
 
 
 def change_admin_password(db: Session, account: AdminAccount, new_password: str) -> None:
+    db.refresh(account, with_for_update=True)
     account.password_hash = hash_password(new_password)
     account.auth_version += 1
     account.failed_login_count = 0
