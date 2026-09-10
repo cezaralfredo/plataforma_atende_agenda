@@ -22,6 +22,7 @@ NPM_NETWORK=nginx-proxy_default
 
 # MCP Gateway (para Hermes externo)
 MCP_GATEWAY_KEY=chave-forte-para-gateway-hermes
+MCP_GATEWAY_IMAGE_TAG=sha-da-mesma-publicacao-da-api
 ```
 
 `NPM_NETWORK` já usa como padrão a rede encontrada nesta VPS. Só a altere se a rede do Nginx Proxy Manager mudar.
@@ -45,8 +46,9 @@ No Nginx Proxy Manager, crie **dois Proxy Hosts**:
 - SSL: solicite certificado Let's Encrypt e force SSL.
 
 Em seguida, valide:
-- `https://api.seudominio.com/health` — API principal
-- `https://mcp.seudominio.com/health` — MCP Gateway
+- `https://api.seudominio.com/ready` — API e banco prontos
+- `https://mcp.seudominio.com/ready` — gateway e API interna prontos
+- Uma chamada JSON-RPC `tools/list` pelo domínio MCP, com `X-Gateway-Key`.
 
 Para o painel administrativo em `https://api.seudominio.com/admin`, use autenticação HTTP Basic com `ADMIN_API_KEY` como senha.
 
@@ -67,3 +69,11 @@ Para o painel administrativo em `https://api.seudominio.com/admin`, use autentic
 ## Limitações deliberadas
 
 Esta Stack não publica as portas 80 e 443, pois elas já pertencem ao Nginx Proxy Manager. Ela também usa variáveis de ambiente em vez de Docker secrets, porque o ambiente atual não opera em Docker Swarm.
+
+## Backup e restauração
+
+Mantenha um backup diário fora da VPS, com retenção definida. Antes de qualquer
+atualização relevante, confirme a existência de um backup recente. Pelo menos
+uma vez por trimestre, restaure um backup em banco isolado e valide a abertura
+da aplicação; um arquivo de backup sem teste de restauração não é garantia de
+recuperação.

@@ -16,10 +16,9 @@ API REST completa para gestão de agendamentos, profissionais, serviços e pagam
 - Filtro por profissionais ativos/inativos
 
 ### Gestão de Serviços
-- CRUD de serviços oferecidos
-- Categorização de serviços
-- Vinculação a profissionais
-- Duração e preço configuráveis
+- Catálogo único de serviços, com nome, descrição e categoria
+- Oferta por profissional com preço, duração e comissão configuráveis
+- Listagens comerciais retornam somente ofertas ativas
 
 ### Disponibilidade e Agenda
 - Definição de horários de trabalho por profissional (dias da semana, intervalos)
@@ -288,7 +287,7 @@ pytest tests/ -v
 
 ## MCP + Agentes IA
 
-### Configuração do Cliente MCP
+### Configuração local do Cliente MCP
 ```json
 {
   "mcpServers": {
@@ -354,7 +353,7 @@ Perfis disponíveis em `hermes/profiles/` (usam `gateway` toolset):
 Configuração do Gateway em `hermes/config.yaml.example`:
 ```yaml
 gateway:
-  base_url: "https://api.seudominio.com/mcp-gateway"
+  base_url: "https://mcp.seudominio.com"
   timeout: 30
   headers:
     X-Gateway-Key: "${MCP_GATEWAY_KEY}"
@@ -366,7 +365,7 @@ gateway:
 
 ```
 User → Appointment (1:N)
-Professional → Service (1:N)
+Service → ProfessionalService ← Professional
 Professional → Availability (1:N)
 Professional → Appointment (1:N)
 Service → Appointment (1:N)
@@ -383,7 +382,9 @@ WebhookEvent (tabela de idempotência para webhooks)
 - Em produção, a documentação interativa é desativada e `/metrics` também exige Bearer. `/health` indica vida do processo e `/ready` confirma acesso ao PostgreSQL.
 - O sandbox atual do Asaas é `https://api-sandbox.asaas.com/v3` e a produção usa `https://api.asaas.com/v3`. Clientes e cobranças usam referências externas estáveis para reconciliação.
 - Horários sem offset são interpretados em `APP_TIMEZONE=America/Sao_Paulo`; reservas não pagas vencidas liberam automaticamente o slot.
-- A CI executa testes no PostgreSQL, migrações, Ruff e MyPy antes de publicar as imagens principal e `-backup`. A migração aborta se já existirem agendamentos ativos sobrepostos.
+- Em produção, o Hermes usa exclusivamente o domínio do MCP Gateway com `X-Gateway-Key`; o gateway injeta o Bearer interno da API e `/ready` confirma o upstream.
+- A CI executa testes no PostgreSQL, migrações, Ruff e MyPy antes de publicar as imagens principal, `-backup` e `-mcp-gateway`. A migração aborta se já existirem agendamentos ativos sobrepostos.
+- Após cada publicação, valide `/ready` da API, `/ready` do gateway, `tools/list` pelo gateway e o backup mais recente. Faça um teste de restauração periodicamente em ambiente isolado.
 
 ## Deploy com Portainer
 
