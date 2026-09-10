@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recuperar acesso - Agenda Atende</title>
+    <style>
+        body { margin: 0; background: #f8fafc; color: #0f172a; font: 1rem/1.5 system-ui, sans-serif; }
+        main { max-width: 26rem; margin: 5vh auto; padding: 2rem; background: white; border: 1px solid #e2e8f0; border-radius: 1rem; }
+        label { display: block; margin-top: 1rem; font-weight: 600; }
+        input, button { box-sizing: border-box; width: 100%; padding: .75rem; border-radius: .5rem; font: inherit; }
+        input { border: 1px solid #94a3b8; }
+        button { margin-top: 1.5rem; background: #2563eb; color: white; border: 0; cursor: pointer; }
+        a { color: #1d4ed8; } [role="alert"] { color: #991b1b; }
+    </style>
+</head>
+<body>
+    <main>
+        <p>Agenda Atende · Administração</p>
+        <h1>Recuperar acesso</h1>
+        <p>Use a chave de recuperação fornecida pelo responsável pelo sistema.</p>
+        <p>A nova senha deve ter pelo menos 12 caracteres. As sessões abertas serão encerradas.</p>
+        {% if error %}<p role="alert">{{ error }}</p>{% endif %}
+        <form action="/admin/recover" method="post">
+            <label for="username">Usuário</label>
+            <input id="username" name="username" type="text" autocomplete="username" required>
+            <label for="recovery_key">Chave de recuperação</label>
+            <input id="recovery_key" name="recovery_key" type="password" autocomplete="off" required>
+            <label for="new_password">Nova senha</label>
+            <input id="new_password" name="new_password" type="password" autocomplete="new-password" minlength="12" required>
+            <label for="confirm_password">Confirme a nova senha</label>
+            <input id="confirm_password" name="confirm_password" type="password" autocomplete="new-password" minlength="12" required>
+            <button type="submit">Redefinir senha</button>
+        </form>
+        <p><a href="/admin/login">Voltar para o login</a></p>
+    </main>
+</body>
+</html>

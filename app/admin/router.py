@@ -1,10 +1,14 @@
-from datetime import date
+import hmac
+import secrets
+from datetime import UTC, date, datetime
+from urllib.parse import parse_qs
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
+from app.admin.auth_service import authenticate_admin, change_admin_password
 from app.admin.schemas import (
     AdminAppointmentCreate,
     AdminAppointmentUpdate,
@@ -17,12 +21,13 @@ from app.admin.schemas import (
 )
 from app.admin.service import AdminService
 from app.database import get_db
+from app.models.admin_account import AdminAccount
 from app.models.payment import Payment
 from app.models.service import Service
 from app.models.user import User
 from app.schemas.availability import AvailabilityCreate, AvailabilityUpdate
 from app.schemas.professional import ProfessionalCreate, ProfessionalUpdate
-from app.security import require_admin, require_admin_mutation
+from app.security import AdminContext, require_admin, require_admin_mutation, require_csrf_token
 from app.services.asaas_client import AsaasIntegrationError
 from app.services.availability_service import AvailabilityService
 from app.services.payment_service import PaymentService
@@ -31,6 +36,82 @@ from app.services.professional_service import ProfessionalService
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 templates = Jinja2Templates(directory="app/admin/templates")
+
+
+async def _access_form(request: Request) -> dict[str, str]:
+    # These browser forms use the default URL-encoded format, with no uploads.
+    if request.headers.get("content-type", "").split(";", 1)[0] != "application/x-www-form-urlencoded":
+        return {}
+    try:
+        fields = parse_qs((await request.body()).decode("utf-8"), keep_blank_values=True, max_num_fields=10)
+    except (UnicodeDecodeError, ValueError):
+        return {}
+    return {name: values[0] for name, values in fields.items() if len(values) == 1}
+
+
+@router.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    return templates.TemplateResponse(request=request, name="login.html")
+
+
+@router.post("/login", response_class=HTMLResponse)
+async def login(request: Request, db: Session = Depends(get_db)):
+    form = await _access_form(request)
+    account = authenticate_admin(db, form.get("username", ""), form.get("password", ""), datetime.now(UTC))
+    if account is None:
+        return templates.TemplateResponse(
+            request=request, name="login.html", status_code=400,
+            context={"error": "Não foi possível entrar. Confira os dados ou tente novamente mais tarde."},
+        )
+    request.session.clear()
+    request.session.update({
+        "admin_account_id": account.id,
+        "auth_version": account.auth_version,
+        "csrf_token": secrets.token_urlsafe(32),
+    })
+    return RedirectResponse("/admin", status_code=303)
+
+
+@router.get("/recover", response_class=HTMLResponse)
+async def recover_page(request: Request):
+    return templates.TemplateResponse(request=request, name="recover.html")
+
+
+@router.post("/recover", response_class=HTMLResponse)
+async def recover(request: Request, db: Session = Depends(get_db)):
+    form = await _access_form(request)
+    expected_key = request.app.state.settings.admin_recovery_key
+    key_matches = hmac.compare_digest(form.get("recovery_key", "").encode(), expected_key.encode())
+    account = db.get(AdminAccount, 1, populate_existing=True)
+    new_password = form.get("new_password", "")
+    if (
+        not expected_key
+        or not key_matches
+        or account is None
+        or account.username != form.get("username", "")
+        or len(new_password) < 12
+        or new_password != form.get("confirm_password", "")
+    ):
+        return templates.TemplateResponse(
+            request=request, name="recover.html", status_code=400,
+            context={"error": "Não foi possível recuperar o acesso. Confira os dados e tente novamente."},
+        )
+    change_admin_password(db, account, new_password)
+    request.session.clear()
+    return RedirectResponse("/admin/login", status_code=303)
+
+
+@router.post("/logout")
+async def logout(request: Request, context: AdminContext = Depends(require_admin)):
+    if context.method == "session" and "X-CSRF-Token" not in request.headers:
+        form = await _access_form(request)
+        expected = context.csrf_token
+        if not expected or not hmac.compare_digest(form.get("csrf_token", "").encode(), expected.encode()):
+            raise HTTPException(status_code=403, detail="Admin access denied")
+    else:
+        require_csrf_token(request, context)
+    request.session.clear()
+    return RedirectResponse("/admin/login", status_code=303)
 
 
 @router.get("", response_class=HTMLResponse, dependencies=[Depends(require_admin)])
