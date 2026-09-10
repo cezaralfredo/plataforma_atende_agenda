@@ -201,15 +201,34 @@ async def payment_action(
     try:
         if action.action == "refresh":
             payment = await service.refresh(payment_id)
-        else:
+            status_label = {
+                "pending": "pendente",
+                "received": "recebido",
+                "confirmed": "confirmado",
+                "overdue": "vencido",
+                "refunded": "estornado",
+                "cancelled": "cancelado",
+            }.get(payment.status, payment.status)
+            return {
+                "id": payment.id,
+                "status": payment.status,
+                "message": f"Sincronizado: {status_label}.",
+            }
+        if action.action == "refund":
             payment = await service.refund(payment_id)
+            return {"id": payment.id, "status": payment.status}
+        if action.action == "archive":
+            payment = service.archive(payment_id)
+            return {"id": payment.id, "outcome": "archived"}
+        if action.action == "unarchive":
+            payment = service.unarchive(payment_id)
+            return {"id": payment.id, "outcome": "unarchived"}
+        if action.action == "delete_draft":
+            return {"id": service.delete_draft(payment_id), "outcome": "deleted"}
     except AsaasIntegrationError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    return {"id": payment.id, "status": payment.status}
-
 
 @router.get("/professionals", response_class=HTMLResponse, dependencies=[Depends(require_admin)])
 async def professionals_page(request: Request, db: Session = Depends(get_db)):
@@ -519,6 +538,7 @@ async def api_payments(
     professional_id: int | None = None,
     status: str | None = None,
     search: str | None = None,
+    archived: bool = False,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
@@ -530,6 +550,7 @@ async def api_payments(
         professional_id=professional_id,
         status=status,
         search=search,
+        archived=archived,
         page=page,
         page_size=page_size,
     )

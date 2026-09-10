@@ -196,6 +196,7 @@ class AdminService:
         professional_id: int | None = None,
         status: str | None = None,
         search: str | None = None,
+        archived: bool = False,
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list[dict], int]:
@@ -211,6 +212,11 @@ class AdminService:
         ).outerjoin(Professional, Appointment.professional_id == Professional.id).outerjoin(
             Service, Appointment.service_id == Service.id
         )
+
+        if archived:
+            query = query.filter(Payment.archived_at.isnot(None))
+        else:
+            query = query.filter(Payment.archived_at.is_(None))
 
         if date_from:
             query = query.filter(func.date(Appointment.start_time) >= date_from)
@@ -250,6 +256,7 @@ class AdminService:
                 "status": pay.status,
                 "invoice_url": pay.invoice_url,
                 "received_at": pay.received_at,
+                "archived_at": pay.archived_at,
                 "created_at": pay.created_at,
                 "updated_at": pay.updated_at,
                 "client_name": client_name,

@@ -34,6 +34,7 @@ class Payment(Base):
     )
     invoice_url: Mapped[str] = mapped_column(String(500), nullable=True)
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    archived_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

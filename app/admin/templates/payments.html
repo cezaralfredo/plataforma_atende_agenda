@@ -81,6 +81,9 @@
         <div class="p-4 border-b border-gray-100 flex items-center justify-between">
             <h3 class="text-lg font-semibold text-gray-900">Pagamentos</h3>
             <div class="flex items-center space-x-2">
+                <button @click="showArchived = !showArchived; page = 1; loadPayments()"
+                        class="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        x-text="showArchived ? 'Ocultar arquivados' : 'Ver arquivados'"></button>
                 <select x-model="pageSize" @change="loadPayments()"
                         class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
                     <option value="10">10 por página</option>
@@ -136,6 +139,24 @@
                                             class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
                                         Sincronizar
                                     </button>
+                                    <template x-if="(pay.status === 'overdue' || pay.status === 'cancelled') && !pay.archived_at">
+                                        <button @click="archivePayment(pay.id)"
+                                                class="text-slate-600 hover:text-slate-800 text-sm font-medium">
+                                            Arquivar
+                                        </button>
+                                    </template>
+                                    <template x-if="pay.archived_at">
+                                        <button @click="unarchivePayment(pay.id)"
+                                                class="text-slate-600 hover:text-slate-800 text-sm font-medium">
+                                            Restaurar
+                                        </button>
+                                    </template>
+                                    <template x-if="!pay.asaas_payment_id">
+                                        <button @click="deleteDraftPayment(pay.id)"
+                                                class="text-red-600 hover:text-red-800 text-sm font-medium">
+                                            Excluir rascunho
+                                        </button>
+                                    </template>
                                     <template x-if="pay.status === 'received' || pay.status === 'confirmed'">
                                         <button @click="refundPayment(pay.id)"
                                                 class="text-red-600 hover:text-red-800 text-sm font-medium">
@@ -191,6 +212,7 @@ function payments() {
         pageSize: 20,
         totalPages: 1,
         loading: false,
+        showArchived: false,
         filters: {
             date_from: '',
             date_to: '',
@@ -208,6 +230,7 @@ function payments() {
                 Object.entries(this.filters).forEach(([key, value]) => {
                     if (value) params.append(key, value);
                 });
+                if (this.showArchived) params.append('archived', 'true');
 
                 const response = await fetch('/admin/api/payments?' + params.toString());
                 const data = await response.json();
@@ -251,12 +274,45 @@ function payments() {
                 });
                 const result = await response.json();
                 if (response.ok) {
-                    alert(result.message || 'Sincronização solicitada. Use o endpoint da API para sincronizar com Asaas.');
+                    alert(result.message || 'Pagamento sincronizado.');
+                    this.loadPayments();
                 } else {
                     alert('Erro: ' + result.detail);
                 }
             } catch (error) {
                 alert('Erro ao sincronizar');
+            }
+        },
+
+        async archivePayment(id) {
+            if (!confirm('Arquivar esta cobrança vencida ou cancelada? Ela continuará no histórico.')) return;
+            await this.paymentAction(id, 'archive');
+        },
+
+        async unarchivePayment(id) {
+            await this.paymentAction(id, 'unarchive');
+        },
+
+        async deleteDraftPayment(id) {
+            if (!confirm('Excluir este rascunho local? Esta ação não pode ser desfeita.')) return;
+            await this.paymentAction(id, 'delete_draft');
+        },
+
+        async paymentAction(id, action) {
+            try {
+                const response = await fetch(`/admin/payments/${id}/action`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action})
+                });
+                const result = await response.json();
+                if (!response.ok) {
+                    alert('Erro: ' + result.detail);
+                    return;
+                }
+                this.loadPayments();
+            } catch (error) {
+                alert('Erro ao atualizar pagamento');
             }
         },
 

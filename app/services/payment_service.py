@@ -246,6 +246,40 @@ class PaymentService:
         self.db.refresh(payment)
         return payment
 
+    def archive(self, payment_id: int) -> Payment:
+        payment = self.db.query(Payment).filter(Payment.id == payment_id).first()
+        if not payment:
+            raise ValueError("Pagamento não encontrado")
+        if payment.status not in {"overdue", "cancelled"}:
+            raise ValueError("Somente pagamentos vencidos ou cancelados podem ser arquivados")
+
+        payment.archived_at = datetime.now(UTC)
+        self.db.commit()
+        self.db.refresh(payment)
+        return payment
+
+    def unarchive(self, payment_id: int) -> Payment:
+        payment = self.db.query(Payment).filter(Payment.id == payment_id).first()
+        if not payment:
+            raise ValueError("Pagamento não encontrado")
+
+        payment.archived_at = None
+        self.db.commit()
+        self.db.refresh(payment)
+        return payment
+
+    def delete_draft(self, payment_id: int) -> int:
+        payment = self.db.query(Payment).filter(Payment.id == payment_id).first()
+        if not payment:
+            raise ValueError("Pagamento não encontrado")
+        if payment.asaas_payment_id:
+            raise ValueError("Pagamentos sincronizados com o Asaas não podem ser excluídos")
+
+        deleted_id = payment.id
+        self.db.delete(payment)
+        self.db.commit()
+        return deleted_id
+
     async def verify_recent_payments(self) -> list[Payment]:
         pending_payments = (
             self.db.query(Payment)

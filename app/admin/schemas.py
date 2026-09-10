@@ -175,4 +175,4 @@ class AppointmentAction(BaseModel):
 
 
 class PaymentAction(BaseModel):
-    action: Literal["refresh", "refund"]
+    action: Literal["refresh", "refund", "archive", "unarchive", "delete_draft"]
