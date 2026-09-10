@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.professional import Professional
 from app.models.professional_service import ProfessionalService
@@ -34,6 +34,39 @@ class ProfessionalOfferingService:
                 ProfessionalService.active.is_(True),
             )
             .first()
+        )
+
+    def list_active(
+        self,
+        *,
+        professional_id: int | None = None,
+        category: str | None = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> list[ProfessionalService]:
+        query = (
+            self.db.query(ProfessionalService)
+            .join(ProfessionalService.service)
+            .join(ProfessionalService.professional)
+            .options(
+                joinedload(ProfessionalService.service),
+                joinedload(ProfessionalService.professional),
+            )
+            .filter(
+                ProfessionalService.active.is_(True),
+                Service.active.is_(True),
+                Professional.active.is_(True),
+            )
+        )
+        if professional_id is not None:
+            query = query.filter(ProfessionalService.professional_id == professional_id)
+        if category is not None:
+            query = query.filter(Service.category == category)
+        return (
+            query.order_by(Service.name, Professional.name)
+            .offset(skip)
+            .limit(limit)
+            .all()
         )
 
     def create_or_update(
