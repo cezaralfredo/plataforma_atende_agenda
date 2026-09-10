@@ -1,4 +1,3 @@
-from base64 import b64encode
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -11,8 +10,7 @@ from tests.seed import seed_data
 
 
 def _admin_headers() -> dict[str, str]:
-    encoded = b64encode(f"admin:{settings.admin_api_key}".encode()).decode()
-    return {"Authorization": f"Basic {encoded}"}
+    return {"X-Admin-Key": settings.admin_api_key}
 
 
 def test_admin_creates_offering_with_configurable_commission(

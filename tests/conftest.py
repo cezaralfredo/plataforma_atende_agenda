@@ -48,6 +48,7 @@ def _test_client(db_session: Session) -> Generator[TestClient, None, None]:
         Settings(
             admin_username="admin-fixture",
             admin_bootstrap_password="fixture-password-only-123",  # noqa: S106
+            admin_session_secret="fixture-session-secret-" + "s" * 32,
         ),
         session_factory=TestingSessionLocal,
     )

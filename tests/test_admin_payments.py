@@ -1,4 +1,3 @@
-from base64 import b64encode
 from unittest.mock import AsyncMock
 
 from fastapi.testclient import TestClient
@@ -10,8 +9,7 @@ from tests.seed import seed_appointment, seed_data, seed_payment
 
 
 def _admin_headers() -> dict[str, str]:
-    credentials = b64encode(f"admin:{settings.admin_api_key}".encode()).decode()
-    return {"Authorization": f"Basic {credentials}"}
+    return {"X-Admin-Key": settings.admin_api_key}
 
 
 def _received_payment(db_session: Session):

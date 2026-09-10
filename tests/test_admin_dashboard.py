@@ -1,5 +1,4 @@
 import re
-from base64 import b64encode
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -9,8 +8,7 @@ from app.models.professional import Professional
 
 
 def _admin_headers() -> dict[str, str]:
-    credentials = b64encode(f"admin:{settings.admin_api_key}".encode()).decode()
-    return {"Authorization": f"Basic {credentials}"}
+    return {"X-Admin-Key": settings.admin_api_key}
 
 
 def test_admin_layout_keeps_sidebar_visible_on_desktop(

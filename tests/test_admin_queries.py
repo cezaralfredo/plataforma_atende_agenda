@@ -1,4 +1,3 @@
-from base64 import b64encode
 from datetime import datetime
 
 from fastapi.testclient import TestClient
@@ -85,9 +84,8 @@ def test_admin_appointment_detail_keeps_historical_service_terms(db_session: Ses
 
 
 def test_admin_rejects_zero_page(anonymous_client: TestClient):
-    credentials = b64encode(f"admin:{settings.admin_api_key}".encode()).decode()
     response = anonymous_client.get(
         "/admin/api/appointments?page=0",
-        headers={"Authorization": f"Basic {credentials}"},
+        headers={"X-Admin-Key": settings.admin_api_key},
     )
     assert response.status_code == 422

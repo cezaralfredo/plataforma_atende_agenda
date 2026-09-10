@@ -4,6 +4,7 @@ from fastapi import Depends, FastAPI, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from prometheus_fastapi_instrumentator import Instrumentator
 from sqlalchemy.orm import Session
+from starlette.middleware.sessions import SessionMiddleware
 
 from app.admin.auth_service import bootstrap_admin_account
 from app.admin.router import router as admin_router
@@ -34,6 +35,15 @@ def create_app(
         docs_url=docs_url,
         redoc_url=redoc_url,
         openapi_url=openapi_url,
+    )
+    application.state.settings = app_settings
+    application.add_middleware(
+        SessionMiddleware,
+        secret_key=app_settings.admin_session_secret,
+        session_cookie="admin_session",
+        max_age=8 * 60 * 60,
+        https_only=not app_settings.debug,
+        same_site="lax",
     )
 
     application.include_router(health_router)

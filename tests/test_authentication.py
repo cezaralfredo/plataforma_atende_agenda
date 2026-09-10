@@ -1,5 +1,3 @@
-from base64 import b64encode
-
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
@@ -8,9 +6,8 @@ import app.main as main_module
 from app.config import Settings, settings
 
 
-def _basic_admin_headers() -> dict[str, str]:
-    credentials = b64encode(f"admin:{settings.admin_api_key}".encode()).decode()
-    return {"Authorization": f"Basic {credentials}"}
+def _admin_headers() -> dict[str, str]:
+    return {"X-Admin-Key": settings.admin_api_key}
 
 
 def test_api_rejects_missing_bearer(anonymous_client: TestClient):
@@ -26,8 +23,8 @@ def test_api_accepts_configured_bearer(client: TestClient):
     assert response.status_code == 200
 
 
-def test_admin_basic_auth_works_without_exposing_secret(anonymous_client: TestClient):
-    response = anonymous_client.get("/admin", headers=_basic_admin_headers())
+def test_admin_technical_key_works_without_exposing_secret(anonymous_client: TestClient):
+    response = anonymous_client.get("/admin", headers=_admin_headers())
 
     assert response.status_code == 200
     assert settings.admin_api_key not in response.text
@@ -41,7 +38,7 @@ def test_admin_pages_do_not_render_authentication_headers(
     anonymous_client: TestClient,
     path: str,
 ):
-    response = anonymous_client.get(path, headers=_basic_admin_headers())
+    response = anonymous_client.get(path, headers=_admin_headers())
 
     assert response.status_code == 200
     assert settings.admin_api_key not in response.text

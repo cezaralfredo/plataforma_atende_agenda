@@ -22,7 +22,7 @@ from app.models.service import Service
 from app.models.user import User
 from app.schemas.availability import AvailabilityCreate, AvailabilityUpdate
 from app.schemas.professional import ProfessionalCreate, ProfessionalUpdate
-from app.security import require_admin
+from app.security import require_admin, require_admin_mutation
 from app.services.asaas_client import AsaasIntegrationError
 from app.services.availability_service import AvailabilityService
 from app.services.payment_service import PaymentService
@@ -127,7 +127,7 @@ async def appointment_detail(
     })
 
 
-@router.post("/appointments/{appointment_id}/action", dependencies=[Depends(require_admin)])
+@router.post("/appointments/{appointment_id}/action", dependencies=[Depends(require_admin_mutation)])
 async def appointment_action(
     appointment_id: int,
     action: AppointmentAction,
@@ -188,7 +188,7 @@ async def payments_page(
     })
 
 
-@router.post("/payments/{payment_id}/action", dependencies=[Depends(require_admin)])
+@router.post("/payments/{payment_id}/action", dependencies=[Depends(require_admin_mutation)])
 async def payment_action(
     payment_id: int,
     action: PaymentAction,
@@ -278,14 +278,14 @@ async def api_catalog_services(db: Session = Depends(get_db)):
     return AdminService(db).list_catalog_services()
 
 
-@router.post("/api/services", status_code=201, dependencies=[Depends(require_admin)])
+@router.post("/api/services", status_code=201, dependencies=[Depends(require_admin_mutation)])
 async def create_catalog_service(
     data: AdminServiceCatalogCreate, db: Session = Depends(get_db)
 ):
     return AdminService(db).create_catalog_service(data)
 
 
-@router.put("/api/services/{service_id}", dependencies=[Depends(require_admin)])
+@router.put("/api/services/{service_id}", dependencies=[Depends(require_admin_mutation)])
 async def update_catalog_service(
     service_id: int, data: AdminServiceCatalogUpdate, db: Session = Depends(get_db)
 ):
@@ -295,7 +295,7 @@ async def update_catalog_service(
     return service
 
 
-@router.delete("/api/services/{service_id}", dependencies=[Depends(require_admin)])
+@router.delete("/api/services/{service_id}", dependencies=[Depends(require_admin_mutation)])
 async def delete_catalog_service(service_id: int, db: Session = Depends(get_db)):
     outcome = AdminService(db).archive_or_delete_catalog_service(service_id)
     if not outcome:
@@ -303,7 +303,7 @@ async def delete_catalog_service(service_id: int, db: Session = Depends(get_db))
     return {"outcome": outcome}
 
 
-@router.post("/api/services/{service_id}/reactivate", dependencies=[Depends(require_admin)])
+@router.post("/api/services/{service_id}/reactivate", dependencies=[Depends(require_admin_mutation)])
 async def reactivate_catalog_service(service_id: int, db: Session = Depends(get_db)):
     service = AdminService(db).reactivate_catalog_service(service_id)
     if not service:
@@ -313,7 +313,7 @@ async def reactivate_catalog_service(service_id: int, db: Session = Depends(get_
 @router.post(
     "/api/professionals",
     status_code=201,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_mutation)],
 )
 async def create_admin_professional(
     data: ProfessionalCreate, db: Session = Depends(get_db)
@@ -321,7 +321,7 @@ async def create_admin_professional(
     return ProfessionalService(db).create(data)
 
 
-@router.put("/api/professionals/{professional_id}", dependencies=[Depends(require_admin)])
+@router.put("/api/professionals/{professional_id}", dependencies=[Depends(require_admin_mutation)])
 async def update_admin_professional(
     professional_id: int,
     data: ProfessionalUpdate,
@@ -335,7 +335,7 @@ async def update_admin_professional(
 
 @router.delete(
     "/api/professionals/{professional_id}",
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_mutation)],
 )
 async def delete_admin_professional(
     professional_id: int, db: Session = Depends(get_db)
@@ -349,7 +349,7 @@ async def delete_admin_professional(
 @router.post(
     "/api/professionals/{professional_id}/services",
     status_code=201,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_mutation)],
 )
 async def save_admin_professional_offering(
     professional_id: int,
@@ -364,7 +364,7 @@ async def save_admin_professional_offering(
 
 @router.delete(
     "/api/professionals/{professional_id}/services/{service_id}",
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_mutation)],
 )
 async def remove_admin_professional_offering(
     professional_id: int, service_id: int, db: Session = Depends(get_db)
@@ -378,7 +378,7 @@ async def remove_admin_professional_offering(
 @router.post(
     "/api/professionals/{professional_id}/availability",
     status_code=201,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_mutation)],
 )
 async def create_admin_availability(
     professional_id: int,
@@ -395,7 +395,7 @@ async def create_admin_availability(
 
 @router.put(
     "/api/professionals/{professional_id}/availability/{availability_id}",
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_mutation)],
 )
 async def update_admin_availability(
     professional_id: int,
@@ -419,7 +419,7 @@ async def update_admin_availability(
 @router.delete(
     "/api/professionals/{professional_id}/availability/{availability_id}",
     status_code=204,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_mutation)],
 )
 async def delete_admin_availability(
     professional_id: int, availability_id: int, db: Session = Depends(get_db)
@@ -433,7 +433,7 @@ async def delete_admin_availability(
 @router.post(
     "/api/appointments",
     status_code=201,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_mutation)],
 )
 async def create_admin_appointment(
     data: AdminAppointmentCreate, db: Session = Depends(get_db)
@@ -444,7 +444,7 @@ async def create_admin_appointment(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
-@router.put("/api/appointments/{appointment_id}", dependencies=[Depends(require_admin)])
+@router.put("/api/appointments/{appointment_id}", dependencies=[Depends(require_admin_mutation)])
 async def update_admin_appointment(
     appointment_id: int,
     data: AdminAppointmentUpdate,
@@ -462,7 +462,7 @@ async def update_admin_appointment(
 @router.delete(
     "/api/appointments/{appointment_id}",
     status_code=204,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_mutation)],
 )
 async def delete_admin_appointment(
     appointment_id: int, db: Session = Depends(get_db)
