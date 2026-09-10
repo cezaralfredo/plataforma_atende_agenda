@@ -78,3 +78,17 @@ def test_charge_uses_stable_external_reference(db_session: Session):
     assert service.asaas.create_payment.await_args.kwargs["external_reference"] == (
         f"appointment:{appointment.id}"
     )
+
+
+def test_charge_uses_price_snapshot_instead_of_later_catalog_price(db_session: Session):
+    service, appointment, entities = _service_with_appointment(db_session)
+    appointment.service_price_cents = 7500
+    entities["service"].price_cents = 9900
+    db_session.commit()
+    service.asaas.list_payments = AsyncMock(return_value=[])
+    service.asaas.create_payment = AsyncMock(return_value=_asaas_payment("pay_snapshot"))
+
+    payment = asyncio.run(service.create_charge(appointment.id, "pix"))
+
+    assert payment.amount_cents == 7500
+    assert service.asaas.create_payment.await_args.kwargs["value"] == 75.0

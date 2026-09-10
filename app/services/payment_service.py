@@ -85,6 +85,14 @@ class PaymentService:
         return matches[0] if matches else None
 
     @staticmethod
+    def _appointment_price_cents(appointment: Appointment) -> int:
+        if appointment.service_price_cents is not None:
+            return appointment.service_price_cents
+        if not appointment.service:
+            raise ValueError("Agendamento sem serviço")
+        return appointment.service.price_cents
+
+    @staticmethod
     def _payment_from_asaas(
         appointment: Appointment,
         payload: dict,
@@ -97,7 +105,7 @@ class PaymentService:
         return Payment(
             appointment_id=appointment.id,
             asaas_payment_id=payment_id,
-            amount_cents=appointment.service.price_cents,
+            amount_cents=PaymentService._appointment_price_cents(appointment),
             billing_type=billing_type,
             status=(
                 ASAAS_STATUS_MAP.get(remote_status, "pending")
@@ -150,9 +158,7 @@ class PaymentService:
         if active_payment:
             return active_payment
 
-        if not appointment.service:
-            raise ValueError("Agendamento sem serviço")
-        value_cents = appointment.service.price_cents
+        value_cents = self._appointment_price_cents(appointment)
         if amount_cents is not None and amount_cents != value_cents:
             raise ValueError("Charge amount must match the service price")
 

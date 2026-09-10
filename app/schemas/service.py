@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -31,3 +32,14 @@ class ServiceRead(BaseModel):
     price_cents: int
     category: str | None = None
     created_at: datetime | None = None
+
+
+class ServiceOfferingRead(BaseModel):
+    service_id: int
+    professional_id: int
+    name: str
+    description: str | None = None
+    category: str | None = None
+    price_cents: int
+    duration_minutes: int
+    commission_percent: Decimal

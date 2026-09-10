@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models.professional import Professional
+from app.models.professional_service import ProfessionalService
 from app.models.service import Service
 from app.repositories import UserRepository
 from tests.seed import seed_data
@@ -32,13 +33,11 @@ class TestMCPClientes:
         db_session.add(outro_profissional)
         db_session.flush()
         db_session.add(
-            Service(
+            ProfessionalService(
                 professional_id=outro_profissional.id,
-                name="Corte de cabelo",
-                description=entities["service"].description,
-                duration_minutes=60,
+                service_id=entities["service"].id,
                 price_cents=5000,
-                category="corte",
+                duration_minutes=60,
             )
         )
         db_session.commit()

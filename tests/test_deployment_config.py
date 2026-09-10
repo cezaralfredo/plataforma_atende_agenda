@@ -76,7 +76,7 @@ def test_ci_uses_psycopg3_urls_for_migrations_and_tests():
     assert tests["env"]["TEST_DATABASE_URL"] == expected
 
 
-def test_pull_requests_build_both_images_without_publishing():
+def test_pull_requests_build_all_runtime_images_without_publishing():
     jobs = _yaml(".github/workflows/ci-cd.yml")["jobs"]
     validation = jobs["validate-images"]
     assert validation["needs"] == "test"
@@ -86,10 +86,11 @@ def test_pull_requests_build_both_images_without_publishing():
         for step in validation["steps"]
         if step.get("uses", "").startswith("docker/build-push-action@")
     ]
-    assert len(builds) == 2
+    assert len(builds) == 3
     assert {step["with"]["file"] for step in builds} == {
         "./Dockerfile",
         "./Dockerfile.backup",
+        "./mcp_gateway/Dockerfile",
     }
     assert all(step["with"]["push"] is False for step in builds)
 
@@ -133,6 +134,25 @@ def test_portainer_neon_stack_uses_only_the_existing_proxy_network():
         "external": True,
         "name": "${NPM_NETWORK:-nginx-proxy_default}",
     }
+
+
+def test_portainer_gateway_uses_traceable_image_and_readiness_check():
+    required_tag = "${MCP_GATEWAY_IMAGE_TAG:?Defina MCP_GATEWAY_IMAGE_TAG no Portainer}"
+    for path in (
+        "docker-compose.portainer-npm.yml",
+        "docker-compose.portainer-neon.yml",
+    ):
+        gateway = _yaml(path)["services"]["mcp-gateway"]
+        assert "build" not in gateway
+        assert required_tag in gateway["image"]
+        assert "http://localhost:8080/ready" in gateway["healthcheck"]["test"][3]
+
+
+def test_ci_validates_and_publishes_mcp_gateway_image():
+    workflow = Path(".github/workflows/ci-cd.yml").read_text(encoding="utf-8")
+
+    assert "mcp_gateway/Dockerfile" in workflow
+    assert "${{ env.IMAGE_NAME }}-mcp-gateway" in workflow
 
 
 def test_shipped_compose_defaults_use_the_current_asaas_production_endpoint():

@@ -6,6 +6,7 @@ from app.models.appointment import Appointment
 from app.models.availability import Availability
 from app.models.payment import Payment
 from app.models.professional import Professional
+from app.models.professional_service import ProfessionalService
 from app.models.service import Service
 from app.models.user import User
 
@@ -51,6 +52,23 @@ def seed_data(db: Session) -> dict:
     )
     db.add(service2)
     db.flush()
+
+    db.add_all(
+        [
+            ProfessionalService(
+                professional_id=professional.id,
+                service_id=service.id,
+                price_cents=service.price_cents,
+                duration_minutes=service.duration_minutes,
+            ),
+            ProfessionalService(
+                professional_id=professional.id,
+                service_id=service2.id,
+                price_cents=service2.price_cents,
+                duration_minutes=service2.duration_minutes,
+            ),
+        ]
+    )
 
     availability = Availability(
         professional_id=professional.id,

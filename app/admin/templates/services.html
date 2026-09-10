@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}Serviços - Admin Agenda Atende{% endblock %}
+{% block page_title %}Gestão de Serviços{% endblock %}
+
+{% block content %}
+<div x-data="serviceCatalog({{ services | tojson }})" class="space-y-6">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <p class="text-sm text-slate-600">Catálogo único do empreendimento. Valores, duração e comissão são definidos para cada profissional.</p>
+        </div>
+        <button type="button" @click="openCreate()" class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
+            <i class="fas fa-plus mr-2"></i>Novo serviço
+        </button>
+    </div>
+
+    <div x-show="message" x-cloak class="rounded-lg border px-4 py-3 text-sm" :class="messageError ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'" x-text="message"></div>
+
+    <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-200">
+                <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <tr>
+                        <th class="px-5 py-3">Serviço</th>
+                        <th class="px-5 py-3">Categoria</th>
+                        <th class="px-5 py-3">Profissionais</th>
+                        <th class="px-5 py-3">Status</th>
+                        <th class="px-5 py-3 text-right">Gestão</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 text-sm text-slate-700">
+                    <template x-for="service in services" :key="service.id">
+                        <tr :class="service.active ? '' : 'bg-slate-50 text-slate-400'">
+                            <td class="px-5 py-4">
+                                <p class="font-semibold text-slate-900" x-text="service.name"></p>
+                                <p class="mt-1 max-w-xl text-xs text-slate-500" x-show="service.description" x-text="service.description"></p>
+                            </td>
+                            <td class="px-5 py-4" x-text="service.category || 'Sem categoria'"></td>
+                            <td class="px-5 py-4" x-text="service.active_offerings_count + ' ativo(s)'"></td>
+                            <td class="px-5 py-4">
+                                <span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="service.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'" x-text="service.active ? 'Ativo' : 'Arquivado'"></span>
+                            </td>
+                            <td class="px-5 py-4 text-right">
+                                <div class="inline-flex items-center gap-3">
+                                    <button type="button" x-show="service.active" @click="openEdit(service)" class="font-medium text-blue-600 hover:text-blue-800">Editar</button>
+                                    <button type="button" x-show="service.active" @click="remove(service)" class="font-medium text-red-600 hover:text-red-800">Arquivar/remover</button>
+                                    <button type="button" x-show="!service.active" @click="reactivate(service)" class="font-medium text-emerald-600 hover:text-emerald-800">Reativar</button>
+                                </div>
+                            </td>
+                        </tr>
+                    </template>
+                    <tr x-show="services.length === 0"><td colspan="5" class="px-5 py-12 text-center text-sm text-slate-500">Nenhum serviço cadastrado.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div x-show="formOpen" x-cloak class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-4" @keydown.escape.window="formOpen = false">
+        <div class="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl" @click.outside="formOpen = false">
+            <div class="mb-5 flex items-center justify-between"><h3 class="text-lg font-bold text-slate-900" x-text="editingId ? 'Editar serviço' : 'Novo serviço'"></h3><button type="button" @click="formOpen = false" class="text-slate-400 hover:text-slate-700" aria-label="Fechar"><i class="fas fa-times"></i></button></div>
+            <form class="space-y-4" @submit.prevent="save()">
+                <label class="block text-sm font-medium text-slate-700">Nome<input x-model.trim="form.name" required maxlength="255" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-500 focus:outline-none" /></label>
+                <label class="block text-sm font-medium text-slate-700">Categoria<input x-model.trim="form.category" maxlength="100" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-500 focus:outline-none" placeholder="Ex.: Cabelos" /></label>
+                <label class="block text-sm font-medium text-slate-700">Descrição<textarea x-model.trim="form.description" rows="3" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-500 focus:outline-none" placeholder="Opcional"></textarea></label>
+                <div class="flex justify-end gap-3 pt-2"><button type="button" @click="formOpen = false" class="rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100">Cancelar</button><button type="submit" :disabled="saving" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60" x-text="saving ? 'Salvando...' : 'Salvar'"></button></div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function serviceCatalog(initialServices) {
+    return {
+        services: initialServices,
+        formOpen: false, editingId: null, saving: false, message: '', messageError: false,
+        form: { name: '', description: '', category: '' },
+        openCreate() { this.editingId = null; this.form = { name: '', description: '', category: '' }; this.formOpen = true; },
+        openEdit(service) { this.editingId = service.id; this.form = { name: service.name, description: service.description || '', category: service.category || '' }; this.formOpen = true; },
+        async request(url, options = {}) {
+            const response = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
+            if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.detail || 'Não foi possível concluir a operação.'); }
+            return response.status === 204 ? null : response.json();
+        },
+        async reload() { this.services = await this.request('/admin/api/services'); },
+        async save() {
+            this.saving = true;
+            try { await this.request(this.editingId ? `/admin/api/services/${this.editingId}` : '/admin/api/services', { method: this.editingId ? 'PUT' : 'POST', body: JSON.stringify(this.form) }); await this.reload(); this.formOpen = false; this.message = 'Serviço salvo com sucesso.'; this.messageError = false; }
+            catch (error) { this.message = error.message; this.messageError = true; }
+            finally { this.saving = false; }
+        },
+        async remove(service) {
+            if (!confirm(`Arquivar ou remover o serviço "${service.name}"? O histórico será preservado quando houver vínculos.`)) return;
+            try { const result = await this.request(`/admin/api/services/${service.id}`, { method: 'DELETE' }); await this.reload(); this.message = result.outcome === 'archived' ? 'Serviço arquivado para preservar o histórico.' : 'Serviço removido.'; this.messageError = false; }
+            catch (error) { this.message = error.message; this.messageError = true; }
+        },
+        async reactivate(service) {
+            try { await this.request(`/admin/api/services/${service.id}/reactivate`, { method: 'POST' }); await this.reload(); this.message = 'Serviço reativado. Configure novamente os profissionais que o oferecem, se necessário.'; this.messageError = false; }
+            catch (error) { this.message = error.message; this.messageError = true; }
+        },
+    };
+}
+</script>
+{% endblock %}

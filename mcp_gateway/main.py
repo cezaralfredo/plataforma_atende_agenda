@@ -57,6 +57,18 @@ def health():
     return {"status": "ok", "service": "mcp-gateway"}
 
 
+@app.get("/ready")
+async def ready():
+    try:
+        if http_client is None:
+            raise RuntimeError("Cliente HTTP não inicializado")
+        response = await http_client.get("/ready")
+        response.raise_for_status()
+    except (httpx.HTTPError, RuntimeError) as exc:
+        raise HTTPException(status_code=502, detail="API indisponível") from exc
+    return {"status": "ready"}
+
+
 @app.post("/mcp", dependencies=[Depends(verify_gateway_key)])
 async def mcp_proxy(request: Request):
     body = await request.json()

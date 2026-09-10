@@ -2,9 +2,7 @@
 # Define all required values in the Portainer Stack environment table.
 services:
   mcp-gateway:
-    build:
-      context: .
-      dockerfile: mcp_gateway/Dockerfile
+    image: "${REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY:-cezaralfredo/plataforma_atende_agenda}-mcp-gateway:${MCP_GATEWAY_IMAGE_TAG:?Defina MCP_GATEWAY_IMAGE_TAG no Portainer}"
     restart: unless-stopped
     environment:
       API_BASE_URL: http://api:8000
@@ -17,7 +15,13 @@ services:
         aliases:
           - mcp-gateway
     depends_on:
-      - api
+      api:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8080/ready', timeout=2).raise_for_status()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   api:
     image: "${REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY:-cezaralfredo/plataforma_atende_agenda}:${IMAGE_TAG:?Defina IMAGE_TAG no Portainer}"

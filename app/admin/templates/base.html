@@ -70,6 +70,11 @@
                         <i class="fas fa-users mr-3 w-5 text-center"></i>
                         Profissionais
                     </a>
+                    <a href="/admin/services"
+                       class="flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors {% if request.url.path.startswith('/admin/services') %}bg-blue-50 text-blue-700{% else %}text-slate-600 hover:bg-slate-100 hover:text-slate-900{% endif %}">
+                        <i class="fas fa-concierge-bell mr-3 w-5 text-center"></i>
+                        Serviços
+                    </a>
                 </nav>
                 <div class="border-t border-slate-200 p-4">
                     <div class="flex items-center gap-3 rounded-lg bg-slate-50 px-3 py-3 text-sm">
