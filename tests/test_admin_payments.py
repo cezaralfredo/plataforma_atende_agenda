@@ -130,6 +130,24 @@ def test_admin_can_archive_overdue_payment_without_deleting_history(
     assert listing.status_code == 200
     assert listing.json()["total"] == 0
 
+    archived_listing = anonymous_client.get(
+        "/admin/api/payments?archived=true",
+        headers=_admin_headers(),
+    )
+    assert archived_listing.status_code == 200
+    assert archived_listing.json()["total"] == 1
+    assert archived_listing.json()["data"][0]["id"] == payment.id
+
+    restore = anonymous_client.post(
+        f"/admin/payments/{payment.id}/action",
+        json={"action": "unarchive"},
+        headers=_admin_headers(),
+    )
+    assert restore.json() == {"id": payment.id, "outcome": "unarchived"}
+    assert anonymous_client.get(
+        "/admin/api/payments", headers=_admin_headers()
+    ).json()["total"] == 1
+
 
 def test_admin_cannot_archive_pending_payment(
     anonymous_client: TestClient,
@@ -186,6 +204,27 @@ def test_admin_never_deletes_payment_synced_to_asaas(
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Pagamentos sincronizados com o Asaas não podem ser excluídos"
+
+
+def test_admin_never_deletes_received_payment_without_asaas_identifier(
+    anonymous_client: TestClient,
+    db_session: Session,
+):
+    entities = seed_data(db_session)
+    appointment = seed_appointment(db_session, entities)
+    payment = seed_payment(db_session, appointment)
+    payment.asaas_payment_id = None
+    payment.status = "received"
+    db_session.commit()
+
+    response = anonymous_client.post(
+        f"/admin/payments/{payment.id}/action",
+        json={"action": "delete_draft"},
+        headers=_admin_headers(),
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Somente rascunhos pendentes podem ser excluídos"
 
 
 def test_admin_payment_action_rejects_unknown_action(

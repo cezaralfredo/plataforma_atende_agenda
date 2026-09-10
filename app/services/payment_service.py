@@ -274,6 +274,8 @@ class PaymentService:
             raise ValueError("Pagamento não encontrado")
         if payment.asaas_payment_id:
             raise ValueError("Pagamentos sincronizados com o Asaas não podem ser excluídos")
+        if payment.status != "pending":
+            raise ValueError("Somente rascunhos pendentes podem ser excluídos")
 
         deleted_id = payment.id
         self.db.delete(payment)
