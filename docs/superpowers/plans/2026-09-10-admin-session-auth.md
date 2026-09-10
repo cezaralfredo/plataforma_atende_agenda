@@ -22,7 +22,7 @@
 
 ---
 
-## 1. Configuração, modelo persistente e migração
+## Task 1: Configuração, modelo persistente e migração
 
 **Arquivos:**
 - Criar: `app/models/admin_account.py`
@@ -52,7 +52,7 @@
 - [ ] Rodar os testes desta tarefa e `python -m alembic upgrade head` contra o banco de testes configurado; confirmar criação, reexecução idempotente e startup sem senha de bootstrap após conta existente.
 - [ ] Fazer commit: `feat(auth): persist single admin account`.
 
-## 2. Middleware de sessão e dependências de autorização
+## Task 2: Middleware de sessão e dependências de autorização
 
 **Arquivos:**
 - Modificar: `app/main.py`
@@ -68,7 +68,7 @@
 - [ ] Rodar `pytest tests/test_admin_session_security.py tests/test_authentication.py -q` e corrigir os testes antigos para usar cabeçalho técnico, nunca Basic.
 - [ ] Fazer commit: `feat(auth): secure admin session authorization`.
 
-## 3. Fluxo de login, logout e recuperação local
+## Task 3: Fluxo de login, logout e recuperação local
 
 **Arquivos:**
 - Modificar: `app/admin/router.py`
@@ -85,7 +85,7 @@
 - [ ] Rodar os testes da tarefa mais `pytest tests/test_admin_dashboard.py -q` e confirmar que login válido estabelece acesso ao painel.
 - [ ] Fazer commit: `feat(auth): add admin login recovery and logout`.
 
-## 4. Troca de senha no painel e revogação de sessões
+## Task 4: Troca de senha no painel e revogação de sessões
 
 **Arquivos:**
 - Modificar: `app/admin/router.py`
@@ -101,7 +101,7 @@
 - [ ] Rodar os testes desta tarefa e os testes das tarefas 2 e 3.
 - [ ] Fazer commit: `feat(auth): let admin change password in panel`.
 
-## 5. CSRF nas telas existentes e compatibilidade da chave técnica
+## Task 5: CSRF nas telas existentes e compatibilidade da chave técnica
 
 **Arquivos:**
 - Modificar: `app/admin/router.py`
@@ -127,7 +127,7 @@
 - [ ] Rodar os testes das telas administrativas e verificar que ações de agendamento, pagamento, profissional e serviço continuam com os mesmos códigos e corpos de resposta.
 - [ ] Fazer commit: `feat(auth): protect admin mutations with csrf`.
 
-## 6. Documentação, stack Portainer e validação final
+## Task 6: Documentação, stack Portainer e validação final
 
 **Arquivos:**
 - Modificar: `.env.example`
