@@ -224,10 +224,10 @@ async def professionals_page(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/services", response_class=HTMLResponse, dependencies=[Depends(require_admin)])
 async def services_page(request: Request, db: Session = Depends(get_db)):
-    services = AdminService(db).list_catalog_services()
+    dashboard = AdminService(db).get_catalog_service_dashboard()
     return templates.TemplateResponse("services.html", {
         "request": request,
-        "services": services,
+        "dashboard": dashboard,
     })
 
 
@@ -276,6 +276,11 @@ async def edit_professional_page(
 @router.get("/api/services", dependencies=[Depends(require_admin)])
 async def api_catalog_services(db: Session = Depends(get_db)):
     return AdminService(db).list_catalog_services()
+
+
+@router.get("/api/services/dashboard", dependencies=[Depends(require_admin)])
+async def api_catalog_services_dashboard(db: Session = Depends(get_db)):
+    return AdminService(db).get_catalog_service_dashboard()
 
 
 @router.post("/api/services", status_code=201, dependencies=[Depends(require_admin)])
