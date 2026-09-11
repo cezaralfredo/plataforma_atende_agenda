@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from app.admin.auth_service import authenticate_admin, change_admin_password
+from app.admin.auth_service import authenticate_admin, change_admin_password, verify_password
 from app.admin.schemas import (
     AdminAppointmentCreate,
     AdminAppointmentUpdate,
@@ -112,6 +112,57 @@ async def logout(request: Request, context: AdminContext = Depends(require_admin
         require_csrf_token(request, context)
     request.session.clear()
     return RedirectResponse("/admin/login", status_code=303)
+
+
+@router.get("/password", response_class=HTMLResponse)
+async def password_page(request: Request, context: AdminContext = Depends(require_admin)):
+    if context.method != "session":
+        raise HTTPException(status_code=403, detail="Entre com sua sessão para alterar a senha.")
+    return templates.TemplateResponse(
+        request=request, name="password.html", context={"changed": request.query_params.get("changed") == "1"},
+    )
+
+
+@router.post("/password", response_class=HTMLResponse)
+async def password_change(
+    request: Request, context: AdminContext = Depends(require_admin), db: Session = Depends(get_db),
+):
+    if context.method != "session" or context.account is None:
+        raise HTTPException(status_code=403, detail="Entre com sua sessão para alterar a senha.")
+    form = await _access_form(request)
+    supplied_token = request.headers.get("X-CSRF-Token", form.get("csrf_token", ""))
+    if not context.csrf_token or not hmac.compare_digest(supplied_token.encode(), context.csrf_token.encode()):
+        return templates.TemplateResponse(
+            request=request, name="password.html", status_code=403,
+            context={"error": "Não foi possível validar o formulário. Atualize a página e tente novamente."},
+        )
+    account = context.account
+    # Hold the account lock through verification and the password/version update.
+    db.refresh(account, with_for_update=True)
+    if account.auth_version != request.session.get("auth_version"):
+        request.session.clear()
+        raise HTTPException(status_code=401, detail="Sua sessão expirou. Entre novamente.")
+    new_password = form.get("new_password", "")
+    if not verify_password(form.get("current_password", ""), account.password_hash):
+        error = "A senha atual está incorreta. Confira e tente novamente."
+    elif len(new_password) < 12:
+        error = "A nova senha deve ter pelo menos 12 caracteres."
+    elif new_password != form.get("confirm_password", ""):
+        error = "A confirmação da nova senha não confere."
+    else:
+        error = None
+    if error:
+        return templates.TemplateResponse(
+            request=request, name="password.html", status_code=400, context={"error": error},
+        )
+    change_admin_password(db, account, new_password)
+    request.session.clear()
+    request.session.update({
+        "admin_account_id": account.id,
+        "auth_version": account.auth_version,
+        "csrf_token": secrets.token_urlsafe(32),
+    })
+    return RedirectResponse("/admin/password?changed=1", status_code=303)
 
 
 @router.get("", response_class=HTMLResponse, dependencies=[Depends(require_admin)])

@@ -78,6 +78,7 @@
                 </nav>
                 <div class="border-t border-slate-200 p-4">
                     {% if request.state.admin_context.method == 'session' %}
+                    <a href="/admin/password" class="mb-3 block rounded-lg px-3 py-2 text-center text-sm font-medium text-blue-700 hover:bg-blue-50"{% if request.url.path == '/admin/password' %} aria-current="page"{% endif %}>Alterar senha</a>
                     <form action="/admin/logout" method="post" class="mb-3">
                         <input type="hidden" name="csrf_token" value="{{ request.state.admin_context.csrf_token }}">
                         <button type="submit" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">Sair</button>
