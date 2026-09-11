@@ -236,6 +236,10 @@ Crie um arquivo `.env` na raiz:
 ```env
 DATABASE_URL=postgresql+psycopg://agenda_user:agenda_pass@localhost:5432/agenda_atende
 API_KEY=sua-chave-secreta-aqui
+ADMIN_USERNAME=admin
+ADMIN_BOOTSTRAP_PASSWORD=SUA_SENHA_DE_BOOTSTRAP_ADMIN
+ADMIN_SESSION_SECRET=SUA_CHAVE_DE_SESSAO_ADMIN_64_CHARS
+ADMIN_RECOVERY_KEY=SUA_CHAVE_DE_RECUPERACAO_ADMIN_64_CHARS
 APP_NAME=Agenda Atende
 DEBUG=true
 
@@ -265,6 +269,9 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 Acesse a documentação interativa: **http://localhost:8000/docs**
+
+Antes de iniciar a API pela primeira vez, substitua os placeholders de acesso
+administrativo seguindo a seção [Acesso administrativo](#acesso-administrativo).
 
 ---
 
@@ -378,7 +385,8 @@ WebhookEvent (tabela de idempotência para webhooks)
 ## Operação segura
 
 - Clientes da API devem enviar `Authorization: Bearer <API_KEY>`
-- Painel `/admin` aceita **duas formas**: header `X-Admin-Key: <ADMIN_API_KEY>` **ou** HTTP Basic (username ignorado, senha = `ADMIN_API_KEY`)
+- No navegador, abra `/admin/login` e entre com usuário e senha próprios. O painel usa cookie de sessão e proteção CSRF nas alterações.
+- Automações técnicas administrativas continuam enviando `X-Admin-Key: <ADMIN_API_KEY>`. Guarde essa chave no servidor da automação; não a coloque no HTML, JavaScript ou URL do painel.
 - Em produção, a documentação interativa é desativada e `/metrics` também exige Bearer. `/health` indica vida do processo e `/ready` confirma acesso ao PostgreSQL.
 - O sandbox atual do Asaas é `https://api-sandbox.asaas.com/v3` e a produção usa `https://api.asaas.com/v3`. Clientes e cobranças usam referências externas estáveis para reconciliação.
 - Horários sem offset são interpretados em `APP_TIMEZONE=America/Sao_Paulo`; reservas não pagas vencidas liberam automaticamente o slot.
@@ -390,6 +398,83 @@ WebhookEvent (tabela de idempotência para webhooks)
 
 - Para a variante com PostgreSQL local e Nginx Proxy Manager, siga [DEPLOY_PORTAINER_NPM.md](DEPLOY_PORTAINER_NPM.md).
 - Para a topologia com PostgreSQL externo no Neon, siga [DEPLOY_PORTAINER_NEON.md](DEPLOY_PORTAINER_NEON.md).
+
+## Acesso administrativo
+
+O painel atende uma única empresa e uma única conta. Acesse `/admin/login`
+com o usuário e a senha inicial configurados abaixo. Em produção, use HTTPS:
+o cookie dura oito horas e usa `HttpOnly`, `Secure` e `SameSite=Lax`. As telas
+enviam o token CSRF nas alterações. Após cinco tentativas inválidas consecutivas,
+a conta fica bloqueada por quinze minutos.
+
+| Configuração | Finalidade e conservação |
+| --- | --- |
+| `ADMIN_USERNAME` | Nome da conta criada no primeiro start. Não pode ser vazio. Alterar a variável depois não renomeia a conta existente. |
+| `ADMIN_BOOTSTRAP_PASSWORD` | Senha exclusiva de pelo menos 12 caracteres para criar a conta quando ainda não existe. Não sobrescreve a senha salva no banco. |
+| `ADMIN_SESSION_SECRET` | Chave aleatória de pelo menos 32 caracteres para assinar sessões. Guarde no cofre e mantenha o mesmo valor entre workers, reinícios, publicações e rollback. |
+| `ADMIN_RECOVERY_KEY` | Chave aleatória independente, de pelo menos 32 caracteres, para recuperar acesso em emergência. Guarde no cofre com acesso restrito ao responsável. |
+
+Gere a senha inicial no gerenciador de senhas. Gere cada uma das duas chaves
+separadamente com `openssl rand -hex 32` em um terminal privado e salve os
+resultados diretamente no cofre; não reutilize `API_KEY` nem `ADMIN_API_KEY`.
+Os valores dos arquivos `.env.example` e `.env.prod.example` são placeholders,
+nunca credenciais utilizáveis. Com `DEBUG=false`, configurações de segurança
+ausentes, fracas ou conhecidas como padrão impedem a inicialização.
+
+### Configurar pelo Portainer
+
+1. Abra o Portainer por HTTPS em uma sessão privada, sem gravação ou
+   compartilhamento de tela. Nas stacks `docker-compose.portainer-npm.yml`
+   e `docker-compose.portainer-neon.yml`, cadastre as quatro variáveis na
+   tabela de ambiente da stack a partir do cofre. Não cole valores no editor
+   YAML, em comentários, tickets, chat ou capturas de tela. Usuários com acesso
+   administrativo ao Portainer/Docker podem consultar variáveis de ambiente;
+   restrinja esse acesso. Essas stacks usam variáveis, não Docker Secrets.
+2. No ambiente com suporte a secrets externos do Docker Swarm, a composição
+   `docker-compose.prod.yml` referencia `admin_username`,
+   `admin_bootstrap_password`, `admin_session_secret` e `admin_recovery_key`.
+   Crie os quatro secrets em **Secrets → Add secret**, preenchendo os valores
+   a partir do cofre sem mostrá-los. O container recebe somente caminhos
+   `ADMIN_*_FILE=/run/secrets/...`; o entrypoint carrega os arquivos antes das
+   migrações e da API. Não use secrets externos em Docker Compose standalone;
+   escolha a stack NPM/Neon por ambiente ou a VPS com `.env.prod` protegido.
+3. Publique a stack, confirme `/ready` e entre em `/admin/login`. Vá a
+   `/admin/password` e troque a senha inicial por outra exclusiva, confirmando
+   a senha atual. A alteração invalida as sessões anteriores e renova a sessão
+   que efetuou a troca. **Sair** encerra a sessão do navegador.
+4. Após confirmar o acesso com a senha nova e a persistência do banco, retire
+   o valor do bootstrap: nas stacks por ambiente, mantenha a variável declarada
+   como `ADMIN_BOOTSTRAP_PASSWORD=` (vazia). As stacks exigem sua declaração
+   explícita, mas permitem vazio após a criação da conta. Em Docker Secrets,
+   remova do serviço `api` tanto a entrada `ADMIN_BOOTSTRAP_PASSWORD_FILE`
+   quanto a montagem `admin_bootstrap_password`, e remova sua declaração no
+   bloco `secrets` da stack; publique a atualização e só então exclua esse
+   secret do Portainer. Preserve esse ajuste nos próximos deploys. Um banco
+   novo, sem a conta, voltará a exigir uma senha de bootstrap.
+
+Na VPS, preencha `.env.prod` a partir de `.env.prod.example`, restrinja a
+leitura do arquivo ao operador e siga a mesma retirada do valor de bootstrap.
+Para verificar configuração sem exibir credenciais, use
+`docker compose -f docker-compose.portainer-npm.yml config --quiet` no ambiente
+controlado. A saída completa de `config`, inspeções do container e exportações
+da stack podem revelar variáveis; não as compartilhe com valores reais.
+
+### Recuperação e rollback
+
+Se perder a senha, abra `/admin/recover` por HTTPS e informe o usuário salvo,
+`ADMIN_RECOVERY_KEY` e uma nova senha de pelo menos 12 caracteres com confirmação.
+As sessões existentes são invalidadas; faça login com a senha nova. A aplicação
+não retorna nem grava a chave de recuperação no banco. Não envie a chave em URL,
+logs ou mensagens. Recupere seu valor do cofre, evitando expor variáveis do
+container no console do Portainer.
+
+**`ADMIN_SESSION_SECRET` precisa permanecer estável em rollback.** Reutilize a
+configuração guardada no cofre e preserve a tabela `admin_accounts`, que contém
+o hash da senha e a versão de autenticação. Não restaure uma senha de bootstrap
+para tentar alterar uma conta existente. Reverter para uma imagem anterior à
+autenticação por sessão remove essa proteção; valide a compatibilidade da imagem
+e da migration antes de efetuar o rollback. A rotação deliberada da chave de
+sessão encerra as sessões ativas e exige novo login.
 
 ## Licença
 

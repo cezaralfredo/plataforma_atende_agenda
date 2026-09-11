@@ -51,6 +51,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no Portainer}
       API_KEY: ${API_KEY:?Defina API_KEY no Portainer}
       ADMIN_API_KEY: ${ADMIN_API_KEY:?Defina ADMIN_API_KEY no Portainer}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:?Defina ADMIN_USERNAME no Portainer}
+      ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD?Defina ADMIN_BOOTSTRAP_PASSWORD no Portainer (vazio apos criar a conta)}
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:?Defina ADMIN_SESSION_SECRET no Portainer}
+      ADMIN_RECOVERY_KEY: ${ADMIN_RECOVERY_KEY:?Defina ADMIN_RECOVERY_KEY no Portainer}
       APP_NAME: ${APP_NAME:-Agenda Atende}
       DEBUG: "false"
       ASAAS_API_KEY: ${ASAAS_API_KEY:?Defina ASAAS_API_KEY no Portainer}
