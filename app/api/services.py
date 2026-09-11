@@ -50,8 +50,8 @@ def list_services(
             "name": offering.service.name,
             "description": offering.service.description,
             "category": offering.service.category,
-            "price_cents": offering.price_cents,
-            "duration_minutes": offering.duration_minutes,
+            "price_cents": offering.service.price_cents,
+            "duration_minutes": offering.service.duration_minutes,
             "commission_percent": offering.commission_percent,
         }
         for offering in offerings

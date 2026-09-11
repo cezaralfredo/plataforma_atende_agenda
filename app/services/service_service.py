@@ -1,8 +1,10 @@
+from datetime import UTC, datetime
+
 from sqlalchemy.orm import Session
 
 from app.models.appointment import Appointment
+from app.models.notification_log import NotificationLog
 from app.models.payment import Payment
-from app.models.professional import Professional
 from app.models.professional_service import ProfessionalService
 from app.models.service import Service
 from app.repositories import ServiceRepository
@@ -15,8 +17,6 @@ class ServiceService:
         self.repo = ServiceRepository(db)
 
     def create(self, data: ServiceCreate):
-        if not self.repo.db.get(Professional, data.professional_id):
-            raise ValueError("Profissional não encontrado")
         return self.repo.create(**data.model_dump())
 
     def get(self, service_id: int):
@@ -49,8 +49,22 @@ class ServiceCatalogService:
     def __init__(self, db: Session):
         self.db = db
 
-    def create(self, *, name: str, description: str | None, category: str | None) -> Service:
-        service = Service(name=name, description=description, category=category)
+    def create(
+        self,
+        *,
+        name: str,
+        description: str | None,
+        category: str | None,
+        duration_minutes: int,
+        price_cents: int,
+    ) -> Service:
+        service = Service(
+            name=name,
+            description=description,
+            category=category,
+            duration_minutes=duration_minutes,
+            price_cents=price_cents,
+        )
         self.db.add(service)
         self.db.commit()
         self.db.refresh(service)
@@ -63,6 +77,8 @@ class ServiceCatalogService:
         name: str | None = None,
         description: str | None = None,
         category: str | None = None,
+        duration_minutes: int | None = None,
+        price_cents: int | None = None,
     ) -> Service | None:
         service = self.db.get(Service, service_id)
         if not service:
@@ -73,6 +89,10 @@ class ServiceCatalogService:
             service.description = description
         if category is not None:
             service.category = category
+        if duration_minutes is not None:
+            service.duration_minutes = duration_minutes
+        if price_cents is not None:
+            service.price_cents = price_cents
         self.db.commit()
         self.db.refresh(service)
         return service
@@ -91,22 +111,56 @@ class ServiceCatalogService:
         if not service:
             return None
 
-        has_appointments = self.db.query(Appointment.id).filter(
+        appointments = self.db.query(Appointment).filter(
             Appointment.service_id == service_id
-        ).first()
-        has_payments = self.db.query(Payment.id).join(Appointment).filter(
-            Appointment.service_id == service_id
-        ).first()
-        has_offerings = self.db.query(ProfessionalService.id).filter(
-            ProfessionalService.service_id == service_id
-        ).first()
+        ).all()
+        protected_statuses = {"confirmed", "completed"}
+        financial_statuses = {"received", "confirmed", "refunded"}
+        has_protected_history = any(
+            appointment.status in protected_statuses
+            or any(payment.status in financial_statuses for payment in appointment.payments)
+            for appointment in appointments
+        )
 
-        if has_appointments or has_payments or has_offerings:
+        if has_protected_history:
             service.active = False
             for offering in service.professional_offerings:
                 offering.active = False
             self.db.commit()
             return "archived"
+
+        now = datetime.now(UTC)
+        removable_appointments = all(
+            appointment.status == "cancelled"
+            or (
+                appointment.status in {"pending", "awaiting_payment"}
+                and appointment.expires_at is not None
+                and appointment.expires_at <= now
+            )
+            for appointment in appointments
+        )
+        if appointments and not removable_appointments:
+            service.active = False
+            for offering in service.professional_offerings:
+                offering.active = False
+            self.db.commit()
+            return "archived"
+
+        appointment_ids = [appointment.id for appointment in appointments]
+        if appointment_ids:
+            self.db.query(NotificationLog).filter(
+                NotificationLog.appointment_id.in_(appointment_ids)
+            ).delete(synchronize_session=False)
+            self.db.query(Payment).filter(
+                Payment.appointment_id.in_(appointment_ids)
+            ).delete(synchronize_session=False)
+            self.db.query(Appointment).filter(
+                Appointment.id.in_(appointment_ids)
+            ).delete(synchronize_session=False)
+
+        self.db.query(ProfessionalService).filter(
+            ProfessionalService.service_id == service_id
+        ).delete(synchronize_session=False)
 
         self.db.delete(service)
         self.db.commit()

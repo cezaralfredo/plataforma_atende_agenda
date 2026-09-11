@@ -27,7 +27,7 @@ def test_duplicate_phone_update_returns_409(client: TestClient, db_session: Sess
     assert response.status_code == 409
 
 
-def test_service_rejects_unknown_professional(client: TestClient):
+def test_company_service_creation_does_not_depend_on_professional(client: TestClient):
     response = client.post(
         "/api/services",
         json={
@@ -37,7 +37,8 @@ def test_service_rejects_unknown_professional(client: TestClient):
             "price_cents": 1000,
         },
     )
-    assert response.status_code == 409
+    assert response.status_code == 201
+    assert "professional_id" not in response.json()
 
 
 def test_availability_update_validates_merged_interval(

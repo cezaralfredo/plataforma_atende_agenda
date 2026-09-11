@@ -43,15 +43,18 @@ def test_slots_use_active_professional_offering_from_shared_catalog(
     client: TestClient, db_session: Session
 ):
     entities = seed_data(db_session)
-    service = Service(name="Serviço do catálogo", active=True)
+    service = Service(
+        name="Serviço do catálogo",
+        price_cents=8000,
+        duration_minutes=60,
+        active=True,
+    )
     db_session.add(service)
     db_session.flush()
     db_session.add(
         ProfessionalService(
             professional_id=entities["professional"].id,
             service_id=service.id,
-            price_cents=8000,
-            duration_minutes=60,
         )
     )
     db_session.commit()

@@ -159,7 +159,7 @@ class AvailabilityService:
         free_periods = self.check_availability(professional_id, date_str)
 
         slots: list[TimeSlot] = []
-        duration = timedelta(minutes=offering.duration_minutes)
+        duration = timedelta(minutes=offering.service.duration_minutes)
 
         for period in free_periods:
             period_start = period.start
