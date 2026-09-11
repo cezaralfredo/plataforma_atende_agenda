@@ -79,6 +79,10 @@ services:
       - DATABASE_URL=postgresql+psycopg://agenda_user:${POSTGRES_PASSWORD}@postgres:5432/agenda_atende
       - API_KEY=${API_KEY}
       - ADMIN_API_KEY=${ADMIN_API_KEY}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:?Defina ADMIN_USERNAME em .env.prod}
+      - ADMIN_BOOTSTRAP_PASSWORD=${ADMIN_BOOTSTRAP_PASSWORD?Defina ADMIN_BOOTSTRAP_PASSWORD em .env.prod (vazio apos criar a conta)}
+      - ADMIN_SESSION_SECRET=${ADMIN_SESSION_SECRET:?Defina ADMIN_SESSION_SECRET em .env.prod}
+      - ADMIN_RECOVERY_KEY=${ADMIN_RECOVERY_KEY:?Defina ADMIN_RECOVERY_KEY em .env.prod}
       - APP_NAME=${APP_NAME}
       - DEBUG=${DEBUG:-false}
       - ASAAS_API_KEY=${ASAAS_API_KEY}

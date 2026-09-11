@@ -3,6 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% if request.state.admin_context.method == 'session' %}
+    <meta name="csrf-token" content="{{ request.state.admin_context.csrf_token }}">
+    {% endif %}
+    <script>
+        function adminFetch(url, options = {}) {
+            const headers = new Headers(options.headers);
+            const method = (options.method || 'GET').toUpperCase();
+            if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+                const token = document.querySelector('meta[name="csrf-token"]')?.content;
+                if (token) headers.set('X-CSRF-Token', token);
+            }
+            return fetch(url, {...options, headers, credentials: 'same-origin'});
+        }
+    </script>
     <title>{% block title %}Admin - Agenda Atende{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
@@ -77,6 +91,13 @@
                     </a>
                 </nav>
                 <div class="border-t border-slate-200 p-4">
+                    {% if request.state.admin_context.method == 'session' %}
+                    <a href="/admin/password" class="mb-3 block rounded-lg px-3 py-2 text-center text-sm font-medium text-blue-700 hover:bg-blue-50"{% if request.url.path == '/admin/password' %} aria-current="page"{% endif %}>Alterar senha</a>
+                    <form action="/admin/logout" method="post" class="mb-3">
+                        <input type="hidden" name="csrf_token" value="{{ request.state.admin_context.csrf_token }}">
+                        <button type="submit" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">Sair</button>
+                    </form>
+                    {% endif %}
                     <div class="flex items-center gap-3 rounded-lg bg-slate-50 px-3 py-3 text-sm">
                         <span class="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
                             <i class="fas fa-shield-alt text-xs"></i>

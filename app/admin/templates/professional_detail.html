@@ -135,11 +135,11 @@ function professionalManagement() {
         message: '',
         messageError: false,
         professionalForm: {
-            name: {{ professional.name|tojson if professional else "''" }},
-            phone: {{ professional.phone|tojson if professional else "''" }},
-            email: {{ professional.email|tojson if professional else "''" }},
-            bio: {{ professional.bio|tojson if professional else "''" }},
-            photo_url: {{ professional.photo_url|tojson if professional else "''" }},
+            name: {{ (professional.name if professional else '')|tojson }},
+            phone: {{ (professional.phone if professional else '')|tojson }},
+            email: {{ (professional.email if professional else '')|tojson }},
+            bio: {{ (professional.bio if professional else '')|tojson }},
+            photo_url: {{ (professional.photo_url if professional else '')|tojson }},
             active: {{ professional.active|tojson if professional else 'true' }}
         },
         availabilityForm: {day_of_week: '0', start_time: '', end_time: ''},
@@ -150,7 +150,7 @@ function professionalManagement() {
             this.messageError = error;
         },
         async request(url, method, payload) {
-            const response = await fetch(url, {
+            const response = await adminFetch(url, {
                 method,
                 headers: payload ? {'Content-Type': 'application/json'} : {},
                 body: payload ? JSON.stringify(payload) : undefined

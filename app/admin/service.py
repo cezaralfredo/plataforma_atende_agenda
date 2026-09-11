@@ -316,10 +316,17 @@ class AdminService:
         return result
 
     def _catalog_service_response(self, service: Service) -> dict:
-        active_offerings_count = self.db.query(func.count(ProfessionalService.id)).filter(
-            ProfessionalService.service_id == service.id,
-            ProfessionalService.active.is_(True),
-        ).scalar() or 0
+        active_offerings_count = (
+            self.db.query(func.count(ProfessionalService.id))
+            .join(ProfessionalService.professional)
+            .filter(
+                ProfessionalService.service_id == service.id,
+                ProfessionalService.active.is_(True),
+                Professional.active.is_(True),
+            )
+            .scalar()
+            or 0
+        )
         return {
             "id": service.id,
             "name": service.name,
@@ -332,6 +339,77 @@ class AdminService:
     def list_catalog_services(self) -> list[dict]:
         services = self.db.query(Service).order_by(Service.active.desc(), Service.name).all()
         return [self._catalog_service_response(service) for service in services]
+
+    def get_catalog_service_dashboard(self) -> dict:
+        """Return operational health information for the shared service catalog."""
+        active_services = (
+            self.db.query(Service)
+            .filter(Service.active.is_(True))
+            .order_by(Service.id)
+            .all()
+        )
+        active_offerings = (
+            self.db.query(ProfessionalService)
+            .join(ProfessionalService.service)
+            .join(ProfessionalService.professional)
+            .filter(
+                ProfessionalService.active.is_(True),
+                Service.active.is_(True),
+                Professional.active.is_(True),
+            )
+            .all()
+        )
+        offering_service_ids = {offering.service_id for offering in active_offerings}
+        normalized_names: dict[str, list[int]] = {}
+        unnamed_ids: list[int] = []
+
+        for service in active_services:
+            name = " ".join(service.name.split())
+            if not name:
+                unnamed_ids.append(service.id)
+                continue
+            normalized_names.setdefault(name.casefold(), []).append(service.id)
+
+        issues = []
+        if unnamed_ids:
+            issues.append(
+                {
+                    "kind": "unnamed",
+                    "label": "Serviço sem denominação",
+                    "service_ids": unnamed_ids,
+                }
+            )
+        for _normalized_name, service_ids in sorted(normalized_names.items()):
+            if len(service_ids) > 1:
+                issues.append(
+                    {
+                        "kind": "duplicate",
+                        "label": " ".join(
+                            next(
+                                service.name
+                                for service in active_services
+                                if service.id == service_ids[0]
+                            ).split()
+                        ),
+                        "service_ids": service_ids,
+                    }
+                )
+
+        return {
+            "metrics": {
+                "active_services": len(active_services),
+                "active_offerings": len(active_offerings),
+                "professionals_with_offerings": len(
+                    {offering.professional_id for offering in active_offerings}
+                ),
+                "services_without_professionals": sum(
+                    service.id not in offering_service_ids for service in active_services
+                ),
+                "inconsistencies": len(issues),
+            },
+            "issues": issues,
+            "services": self.list_catalog_services(),
+        }
 
     def create_catalog_service(self, data) -> dict:
         service = ServiceCatalogService(self.db).create(

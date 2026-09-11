@@ -1,7 +1,12 @@
+from collections.abc import Callable
+
 from fastapi import Depends, FastAPI, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from prometheus_fastapi_instrumentator import Instrumentator
+from sqlalchemy.orm import Session
+from starlette.middleware.sessions import SessionMiddleware
 
+from app.admin.auth_service import bootstrap_admin_account
 from app.admin.router import router as admin_router
 from app.api.appointments import router as appointments_router
 from app.api.availability import router as availability_router
@@ -12,11 +17,15 @@ from app.api.services import router as services_router
 from app.api.users import router as users_router
 from app.api.webhooks import router as webhooks_router
 from app.config import Settings, settings
+from app.database import SessionLocal
 from app.mcp.router import router as mcp_router
 from app.security import require_api_key
 
 
-def create_app(app_settings: Settings = settings) -> FastAPI:
+def create_app(
+    app_settings: Settings = settings,
+    session_factory: Callable[[], Session] = SessionLocal,
+) -> FastAPI:
     docs_url = "/docs" if app_settings.debug else None
     redoc_url = "/redoc" if app_settings.debug else None
     openapi_url = "/openapi.json" if app_settings.debug else None
@@ -26,6 +35,15 @@ def create_app(app_settings: Settings = settings) -> FastAPI:
         docs_url=docs_url,
         redoc_url=redoc_url,
         openapi_url=openapi_url,
+    )
+    application.state.settings = app_settings
+    application.add_middleware(
+        SessionMiddleware,
+        secret_key=app_settings.admin_session_secret,
+        session_cookie="admin_session",
+        max_age=8 * 60 * 60,
+        https_only=not app_settings.debug,
+        same_site="lax",
     )
 
     application.include_router(health_router)
@@ -40,6 +58,14 @@ def create_app(app_settings: Settings = settings) -> FastAPI:
     application.include_router(admin_router)
 
     Instrumentator().instrument(application)
+
+    @application.on_event("startup")
+    def bootstrap_admin() -> None:
+        db = session_factory()
+        try:
+            bootstrap_admin_account(db, app_settings)
+        finally:
+            db.close()
 
     @application.get(
         "/metrics",

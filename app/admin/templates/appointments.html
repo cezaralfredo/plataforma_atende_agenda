@@ -331,7 +331,7 @@ function appointments() {
                     if (value) params.append(key, value);
                 });
 
-                const response = await fetch('/admin/api/appointments?' + params.toString());
+                const response = await adminFetch('/admin/api/appointments?' + params.toString());
                 const data = await response.json();
                 this.appointments = data.data;
                 this.total = data.total;
@@ -346,7 +346,7 @@ function appointments() {
 
         async loadProfessionals() {
             try {
-                const response = await fetch('/admin/professionals');
+                const response = await adminFetch('/admin/professionals');
                 // Parse from HTML or use API - for now we'll skip
             } catch (error) {
                 console.error('Erro ao carregar profissionais:', error);
@@ -373,7 +373,7 @@ function appointments() {
                 payload.user_id = Number(this.newAppointment.user_id);
             }
             try {
-                const response = await fetch('/admin/api/appointments', {
+                const response = await adminFetch('/admin/api/appointments', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(payload)
@@ -431,7 +431,7 @@ function appointments() {
             const notes = prompt('Observações do agendamento:', appointment.notes || '');
             if (notes === null) return;
             try {
-                const response = await fetch(\`/admin/api/appointments/\${appointment.id}\`, {
+                const response = await adminFetch(`/admin/api/appointments/${appointment.id}`, {
                     method: 'PUT',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({notes})
@@ -450,7 +450,7 @@ function appointments() {
         async deleteAppointment(id) {
             if (!confirm('Excluir este agendamento? Esta ação só é permitida sem pagamentos vinculados.')) return;
             try {
-                const response = await fetch(\`/admin/api/appointments/\${id}\`, {
+                const response = await adminFetch(`/admin/api/appointments/${id}`, {
                     method: 'DELETE'
                 });
                 if (!response.ok) {
@@ -466,7 +466,7 @@ function appointments() {
 
         async appointmentAction(id, action, notes = '') {
             try {
-                const response = await fetch(`/admin/appointments/${id}/action`, {
+                const response = await adminFetch(`/admin/appointments/${id}/action`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'

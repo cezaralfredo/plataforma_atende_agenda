@@ -1,10 +1,15 @@
-from datetime import date
+import hmac
+import secrets
+from datetime import UTC, date, datetime
+from urllib.parse import parse_qs
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
+from app.admin.auth_service import authenticate_admin, change_admin_password, verify_password
 from app.admin.schemas import (
     AdminAppointmentCreate,
     AdminAppointmentUpdate,
@@ -17,12 +22,13 @@ from app.admin.schemas import (
 )
 from app.admin.service import AdminService
 from app.database import get_db
+from app.models.admin_account import AdminAccount
 from app.models.payment import Payment
 from app.models.service import Service
 from app.models.user import User
 from app.schemas.availability import AvailabilityCreate, AvailabilityUpdate
 from app.schemas.professional import ProfessionalCreate, ProfessionalUpdate
-from app.security import require_admin
+from app.security import AdminContext, require_admin, require_admin_mutation, require_csrf_token
 from app.services.asaas_client import AsaasIntegrationError
 from app.services.availability_service import AvailabilityService
 from app.services.payment_service import PaymentService
@@ -31,6 +37,133 @@ from app.services.professional_service import ProfessionalService
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 templates = Jinja2Templates(directory="app/admin/templates")
+
+
+async def _access_form(request: Request) -> dict[str, str]:
+    # These browser forms use the default URL-encoded format, with no uploads.
+    if request.headers.get("content-type", "").split(";", 1)[0] != "application/x-www-form-urlencoded":
+        return {}
+    try:
+        fields = parse_qs((await request.body()).decode("utf-8"), keep_blank_values=True, max_num_fields=10)
+    except (UnicodeDecodeError, ValueError):
+        return {}
+    return {name: values[0] for name, values in fields.items() if len(values) == 1}
+
+
+@router.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    return templates.TemplateResponse(request=request, name="login.html")
+
+
+@router.post("/login", response_class=HTMLResponse)
+async def login(request: Request, db: Session = Depends(get_db)):
+    form = await _access_form(request)
+    account = authenticate_admin(db, form.get("username", ""), form.get("password", ""), datetime.now(UTC))
+    if account is None:
+        return templates.TemplateResponse(
+            request=request, name="login.html", status_code=400,
+            context={"error": "Não foi possível entrar. Confira os dados ou tente novamente mais tarde."},
+        )
+    request.session.clear()
+    request.session.update({
+        "admin_account_id": account.id,
+        "auth_version": account.auth_version,
+        "csrf_token": secrets.token_urlsafe(32),
+    })
+    return RedirectResponse("/admin", status_code=303)
+
+
+@router.get("/recover", response_class=HTMLResponse)
+async def recover_page(request: Request):
+    return templates.TemplateResponse(request=request, name="recover.html")
+
+
+@router.post("/recover", response_class=HTMLResponse)
+async def recover(request: Request, db: Session = Depends(get_db)):
+    form = await _access_form(request)
+    expected_key = request.app.state.settings.admin_recovery_key
+    key_matches = hmac.compare_digest(form.get("recovery_key", "").encode(), expected_key.encode())
+    account = db.get(AdminAccount, 1, populate_existing=True)
+    new_password = form.get("new_password", "")
+    if (
+        not expected_key
+        or not key_matches
+        or account is None
+        or account.username != form.get("username", "")
+        or len(new_password) < 12
+        or new_password != form.get("confirm_password", "")
+    ):
+        return templates.TemplateResponse(
+            request=request, name="recover.html", status_code=400,
+            context={"error": "Não foi possível recuperar o acesso. Confira os dados e tente novamente."},
+        )
+    change_admin_password(db, account, new_password)
+    request.session.clear()
+    return RedirectResponse("/admin/login", status_code=303)
+
+
+@router.post("/logout")
+async def logout(request: Request, context: AdminContext = Depends(require_admin)):
+    if context.method == "session" and "X-CSRF-Token" not in request.headers:
+        form = await _access_form(request)
+        expected = context.csrf_token
+        if not expected or not hmac.compare_digest(form.get("csrf_token", "").encode(), expected.encode()):
+            raise HTTPException(status_code=403, detail="Admin access denied")
+    else:
+        require_csrf_token(request, context)
+    request.session.clear()
+    return RedirectResponse("/admin/login", status_code=303)
+
+
+@router.get("/password", response_class=HTMLResponse)
+async def password_page(request: Request, context: AdminContext = Depends(require_admin)):
+    if context.method != "session":
+        raise HTTPException(status_code=403, detail="Entre com sua sessão para alterar a senha.")
+    return templates.TemplateResponse(
+        request=request, name="password.html", context={"changed": request.query_params.get("changed") == "1"},
+    )
+
+
+@router.post("/password", response_class=HTMLResponse)
+async def password_change(
+    request: Request, context: AdminContext = Depends(require_admin), db: Session = Depends(get_db),
+):
+    if context.method != "session" or context.account is None:
+        raise HTTPException(status_code=403, detail="Entre com sua sessão para alterar a senha.")
+    form = await _access_form(request)
+    supplied_token = request.headers.get("X-CSRF-Token", form.get("csrf_token", ""))
+    if not context.csrf_token or not hmac.compare_digest(supplied_token.encode(), context.csrf_token.encode()):
+        return templates.TemplateResponse(
+            request=request, name="password.html", status_code=403,
+            context={"error": "Não foi possível validar o formulário. Atualize a página e tente novamente."},
+        )
+    account = context.account
+    # Hold the account lock through verification and the password/version update.
+    db.refresh(account, with_for_update=True)
+    if account.auth_version != request.session.get("auth_version"):
+        request.session.clear()
+        raise HTTPException(status_code=401, detail="Sua sessão expirou. Entre novamente.")
+    new_password = form.get("new_password", "")
+    if not verify_password(form.get("current_password", ""), account.password_hash):
+        error = "A senha atual está incorreta. Confira e tente novamente."
+    elif len(new_password) < 12:
+        error = "A nova senha deve ter pelo menos 12 caracteres."
+    elif new_password != form.get("confirm_password", ""):
+        error = "A confirmação da nova senha não confere."
+    else:
+        error = None
+    if error:
+        return templates.TemplateResponse(
+            request=request, name="password.html", status_code=400, context={"error": error},
+        )
+    change_admin_password(db, account, new_password)
+    request.session.clear()
+    request.session.update({
+        "admin_account_id": account.id,
+        "auth_version": account.auth_version,
+        "csrf_token": secrets.token_urlsafe(32),
+    })
+    return RedirectResponse("/admin/password?changed=1", status_code=303)
 
 
 @router.get("", response_class=HTMLResponse, dependencies=[Depends(require_admin)])
@@ -123,11 +256,11 @@ async def appointment_detail(
 
     return templates.TemplateResponse("appointment_detail.html", {
         "request": request,
-        "detail": detail,
+        "detail": jsonable_encoder(detail),
     })
 
 
-@router.post("/appointments/{appointment_id}/action", dependencies=[Depends(require_admin)])
+@router.post("/appointments/{appointment_id}/action", dependencies=[Depends(require_admin_mutation)])
 async def appointment_action(
     appointment_id: int,
     action: AppointmentAction,
@@ -188,7 +321,7 @@ async def payments_page(
     })
 
 
-@router.post("/payments/{payment_id}/action", dependencies=[Depends(require_admin)])
+@router.post("/payments/{payment_id}/action", dependencies=[Depends(require_admin_mutation)])
 async def payment_action(
     payment_id: int,
     action: PaymentAction,
@@ -224,10 +357,10 @@ async def professionals_page(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/services", response_class=HTMLResponse, dependencies=[Depends(require_admin)])
 async def services_page(request: Request, db: Session = Depends(get_db)):
-    services = AdminService(db).list_catalog_services()
+    dashboard = AdminService(db).get_catalog_service_dashboard()
     return templates.TemplateResponse("services.html", {
         "request": request,
-        "services": services,
+        "dashboard": dashboard,
     })
 
 
@@ -278,14 +411,19 @@ async def api_catalog_services(db: Session = Depends(get_db)):
     return AdminService(db).list_catalog_services()
 
 
-@router.post("/api/services", status_code=201, dependencies=[Depends(require_admin)])
+@router.get("/api/services/dashboard", dependencies=[Depends(require_admin)])
+async def api_catalog_services_dashboard(db: Session = Depends(get_db)):
+    return AdminService(db).get_catalog_service_dashboard()
+
+
+@router.post("/api/services", status_code=201, dependencies=[Depends(require_admin_mutation)])
 async def create_catalog_service(
     data: AdminServiceCatalogCreate, db: Session = Depends(get_db)
 ):
     return AdminService(db).create_catalog_service(data)
 
 
-@router.put("/api/services/{service_id}", dependencies=[Depends(require_admin)])
+@router.put("/api/services/{service_id}", dependencies=[Depends(require_admin_mutation)])
 async def update_catalog_service(
     service_id: int, data: AdminServiceCatalogUpdate, db: Session = Depends(get_db)
 ):
@@ -295,7 +433,7 @@ async def update_catalog_service(
     return service
 
 
-@router.delete("/api/services/{service_id}", dependencies=[Depends(require_admin)])
+@router.delete("/api/services/{service_id}", dependencies=[Depends(require_admin_mutation)])
 async def delete_catalog_service(service_id: int, db: Session = Depends(get_db)):
     outcome = AdminService(db).archive_or_delete_catalog_service(service_id)
     if not outcome:
@@ -303,7 +441,7 @@ async def delete_catalog_service(service_id: int, db: Session = Depends(get_db))
     return {"outcome": outcome}
 
 
-@router.post("/api/services/{service_id}/reactivate", dependencies=[Depends(require_admin)])
+@router.post("/api/services/{service_id}/reactivate", dependencies=[Depends(require_admin_mutation)])
 async def reactivate_catalog_service(service_id: int, db: Session = Depends(get_db)):
     service = AdminService(db).reactivate_catalog_service(service_id)
     if not service:
@@ -313,7 +451,7 @@ async def reactivate_catalog_service(service_id: int, db: Session = Depends(get_
 @router.post(
     "/api/professionals",
     status_code=201,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_mutation)],
 )
 async def create_admin_professional(
     data: ProfessionalCreate, db: Session = Depends(get_db)
@@ -321,7 +459,7 @@ async def create_admin_professional(
     return ProfessionalService(db).create(data)
 
 
-@router.put("/api/professionals/{professional_id}", dependencies=[Depends(require_admin)])
+@router.put("/api/professionals/{professional_id}", dependencies=[Depends(require_admin_mutation)])
 async def update_admin_professional(
     professional_id: int,
     data: ProfessionalUpdate,
@@ -335,7 +473,7 @@ async def update_admin_professional(
 
 @router.delete(
     "/api/professionals/{professional_id}",
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_mutation)],
 )
 async def delete_admin_professional(
     professional_id: int, db: Session = Depends(get_db)
@@ -349,7 +487,7 @@ async def delete_admin_professional(
 @router.post(
     "/api/professionals/{professional_id}/services",
     status_code=201,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_mutation)],
 )
 async def save_admin_professional_offering(
     professional_id: int,
@@ -364,7 +502,7 @@ async def save_admin_professional_offering(
 
 @router.delete(
     "/api/professionals/{professional_id}/services/{service_id}",
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_mutation)],
 )
 async def remove_admin_professional_offering(
     professional_id: int, service_id: int, db: Session = Depends(get_db)
@@ -378,7 +516,7 @@ async def remove_admin_professional_offering(
 @router.post(
     "/api/professionals/{professional_id}/availability",
     status_code=201,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_mutation)],
 )
 async def create_admin_availability(
     professional_id: int,
@@ -395,7 +533,7 @@ async def create_admin_availability(
 
 @router.put(
     "/api/professionals/{professional_id}/availability/{availability_id}",
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_mutation)],
 )
 async def update_admin_availability(
     professional_id: int,
@@ -419,7 +557,7 @@ async def update_admin_availability(
 @router.delete(
     "/api/professionals/{professional_id}/availability/{availability_id}",
     status_code=204,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_mutation)],
 )
 async def delete_admin_availability(
     professional_id: int, availability_id: int, db: Session = Depends(get_db)
@@ -433,7 +571,7 @@ async def delete_admin_availability(
 @router.post(
     "/api/appointments",
     status_code=201,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_mutation)],
 )
 async def create_admin_appointment(
     data: AdminAppointmentCreate, db: Session = Depends(get_db)
@@ -444,7 +582,7 @@ async def create_admin_appointment(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
-@router.put("/api/appointments/{appointment_id}", dependencies=[Depends(require_admin)])
+@router.put("/api/appointments/{appointment_id}", dependencies=[Depends(require_admin_mutation)])
 async def update_admin_appointment(
     appointment_id: int,
     data: AdminAppointmentUpdate,
@@ -462,7 +600,7 @@ async def update_admin_appointment(
 @router.delete(
     "/api/appointments/{appointment_id}",
     status_code=204,
-    dependencies=[Depends(require_admin)],
+    dependencies=[Depends(require_admin_mutation)],
 )
 async def delete_admin_appointment(
     appointment_id: int, db: Session = Depends(get_db)
