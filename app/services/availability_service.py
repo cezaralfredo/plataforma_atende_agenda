@@ -145,11 +145,13 @@ class AvailabilityService:
         offering = (
             self.repo.db.query(ProfessionalService)
             .join(Service)
+            .join(Professional)
             .filter(
                 ProfessionalService.professional_id == professional_id,
                 ProfessionalService.service_id == service_id,
                 ProfessionalService.active.is_(True),
                 Service.active.is_(True),
+                Professional.active.is_(True),
             )
             .first()
         )

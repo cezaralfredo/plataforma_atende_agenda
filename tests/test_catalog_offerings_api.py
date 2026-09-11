@@ -54,26 +54,24 @@ def _create_catalog_offerings(db_session: Session) -> tuple[Service, Professiona
     return service, professional
 
 
-def test_api_lists_only_active_offerings_from_global_catalog(
+def test_api_lists_company_catalog_once_including_unassigned_services(
     client: TestClient, db_session: Session
 ):
-    service, professional = _create_catalog_offerings(db_session)
+    service, _professional = _create_catalog_offerings(db_session)
+    unassigned = Service(
+        name="Drenagem",
+        price_cents=12000,
+        duration_minutes=50,
+        active=True,
+    )
+    db_session.add(unassigned)
+    db_session.commit()
 
     response = client.get("/api/services")
 
     assert response.status_code == 200
-    assert response.json() == [
-        {
-            "service_id": service.id,
-            "professional_id": professional.id,
-            "name": "Massagem relaxante",
-            "description": None,
-            "category": "Bem-estar",
-            "price_cents": 15000,
-            "duration_minutes": 60,
-            "commission_percent": "10.00",
-        }
-    ]
+    assert {item["id"] for item in response.json()} == {service.id, unassigned.id}
+    assert sum(item["id"] == service.id for item in response.json()) == 1
 
 
 def test_mcp_lists_catalog_service_using_active_offering_values(
@@ -113,13 +111,13 @@ def test_api_uses_company_terms_and_professional_commission(
     )
     db_session.commit()
 
-    response = client.get("/api/services")
+    response = client.get(f"/api/professionals/{first_professional.id}/services")
 
     assert response.status_code == 200
-    items = {item["professional_id"]: item for item in response.json()}
-    assert items[first_professional.id]["price_cents"] == 15000
-    assert items[second_professional.id]["price_cents"] == 15000
-    assert items[first_professional.id]["duration_minutes"] == 60
-    assert items[second_professional.id]["duration_minutes"] == 60
-    assert items[first_professional.id]["commission_percent"] == "10.00"
-    assert items[second_professional.id]["commission_percent"] == "25.00"
+    assert response.json()[0]["commission_percent"] == "10.00"
+
+    second_response = client.get(
+        f"/api/professionals/{second_professional.id}/services"
+    )
+    assert second_response.status_code == 200
+    assert second_response.json()[0]["commission_percent"] == "25.00"

@@ -8,7 +8,6 @@ from app.models.payment import Payment
 from app.models.professional_service import ProfessionalService
 from app.models.service import Service
 from app.repositories import ServiceRepository
-from app.repositories.base import RelatedRecordsError
 from app.schemas.service import ServiceCreate, ServiceUpdate
 from app.services.payment_state_service import _is_expired
 
@@ -23,25 +22,26 @@ class ServiceService:
     def get(self, service_id: int):
         return self.repo.get(service_id)
 
-    def list(self, professional_id: int | None = None, category: str | None = None, skip: int = 0, limit: int = 100):
-        if professional_id is not None:
-            return self.repo.list_by_professional(professional_id)
+    def list(
+        self,
+        category: str | None = None,
+        skip: int = 0,
+        limit: int = 100,
+        active_only: bool = False,
+    ):
         if category is not None:
-            return self.repo.list_by_category(category)
-        # Quando sem filtro, carrega o relacionamento professional para incluir o nome
-        return self.repo.list_with_professional(skip=skip, limit=limit)
+            return self.repo.list_by_category(
+                category, skip=skip, limit=limit, active_only=active_only
+            )
+        return self.repo.list_catalog(
+            skip=skip, limit=limit, active_only=active_only
+        )
 
     def update(self, service_id: int, data: ServiceUpdate):
         return self.repo.update(service_id, **data.model_dump(exclude_unset=True))
 
     def delete(self, service_id: int):
-        if self.repo.db.query(Appointment.id).filter(
-            Appointment.service_id == service_id
-        ).first():
-            raise RelatedRecordsError(
-                "Serviço possui agendamentos e não pode ser excluído"
-            )
-        return self.repo.delete(service_id)
+        return ServiceCatalogService(self.repo.db).archive_or_delete(service_id)
 
 
 class ServiceCatalogService:

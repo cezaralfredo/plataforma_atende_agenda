@@ -69,6 +69,17 @@ class ProfessionalOfferingService:
             .all()
         )
 
+    def list_for_professional(
+        self, professional_id: int
+    ) -> list[ProfessionalService]:
+        return (
+            self.db.query(ProfessionalService)
+            .options(joinedload(ProfessionalService.service))
+            .filter(ProfessionalService.professional_id == professional_id)
+            .order_by(ProfessionalService.service_id)
+            .all()
+        )
+
     def create_or_update(
         self,
         *,
@@ -98,6 +109,28 @@ class ProfessionalOfferingService:
                 active=True,
             )
             self.db.add(offering)
+        self.db.commit()
+        self.db.refresh(offering)
+        return offering
+
+    def update(
+        self,
+        professional_id: int,
+        service_id: int,
+        *,
+        commission_percent: Decimal | None = None,
+        active: bool | None = None,
+    ) -> ProfessionalService | None:
+        offering = self.get(professional_id, service_id)
+        if not offering:
+            return None
+        if commission_percent is not None:
+            commission_percent = Decimal(commission_percent)
+            if not Decimal("0") <= commission_percent <= Decimal("100"):
+                raise ValueError("A comissão deve estar entre 0% e 100%")
+            offering.commission_percent = commission_percent
+        if active is not None:
+            offering.active = active
         self.db.commit()
         self.db.refresh(offering)
         return offering

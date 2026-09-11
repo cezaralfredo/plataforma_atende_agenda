@@ -138,7 +138,33 @@ def test_company_creates_catalog_service_without_choosing_professional(
     assert response.status_code == 201
     assert response.json()["name"] == "Coloração"
     assert response.json()["price_cents"] == 18000
-    assert response.json()["active"] is True
+
+
+def test_public_api_manages_professional_service_assignment(client, db_session):
+    entities = seed_data(db_session)
+    professional = Professional(name="Nova profissional", active=True)
+    db_session.add(professional)
+    db_session.commit()
+
+    created = client.post(
+        f"/api/professionals/{professional.id}/services",
+        json={"service_id": entities["service"].id},
+    )
+    assert created.status_code == 201
+    assert created.json()["commission_percent"] == "10.00"
+
+    updated = client.put(
+        f"/api/professionals/{professional.id}/services/{entities['service'].id}",
+        json={"commission_percent": "22.50", "active": False},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["commission_percent"] == "22.50"
+    assert updated.json()["active"] is False
+
+    deleted = client.delete(
+        f"/api/professionals/{professional.id}/services/{entities['service'].id}"
+    )
+    assert deleted.status_code == 204
 
 
 def test_expired_unpaid_service_history_is_deleted_instead_of_archived(
@@ -175,6 +201,37 @@ def test_expired_unpaid_service_history_is_deleted_instead_of_archived(
     outcome = ServiceCatalogService(db_session).archive_or_delete(service_id)
 
     assert outcome == "deleted"
+    assert db_session.get(Service, service_id) is None
+    assert db_session.get(Appointment, appointment_id) is None
+
+
+def test_public_delete_removes_cancelled_unpaid_service_history(client, db_session):
+    entities = seed_data(db_session)
+    appointment = Appointment(
+        user_id=entities["user"].id,
+        professional_id=entities["professional"].id,
+        service_id=entities["service"].id,
+        start_time=datetime(2026, 8, 1, 9),
+        end_time=datetime(2026, 8, 1, 10),
+        status="cancelled",
+    )
+    db_session.add(appointment)
+    db_session.flush()
+    db_session.add(
+        Payment(
+            appointment_id=appointment.id,
+            amount_cents=entities["service"].price_cents,
+            billing_type="pix",
+            status="overdue",
+        )
+    )
+    service_id = entities["service"].id
+    appointment_id = appointment.id
+    db_session.commit()
+
+    response = client.delete(f"/api/services/{service_id}")
+
+    assert response.status_code == 204
     assert db_session.get(Service, service_id) is None
     assert db_session.get(Appointment, appointment_id) is None
 

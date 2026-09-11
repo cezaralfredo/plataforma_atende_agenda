@@ -38,15 +38,95 @@ def upgrade() -> None:
     for assignment in assignment_rows:
         assignments_by_service.setdefault(assignment.service_id, []).append(assignment)
 
+    assignment_column_names = set(assignments.c.keys())
+    service_column_names = set(services.c.keys())
+    if {"price_cents", "duration_minutes"} <= assignment_column_names:
+        for service_id, service in list(service_rows.items()):
+            candidates = assignments_by_service.get(service_id, [])
+            if not candidates:
+                continue
+            base_price = service.price_cents
+            base_duration = service.duration_minutes
+            if base_price is None:
+                base_price = candidates[0].price_cents
+            if base_duration is None:
+                base_duration = candidates[0].duration_minutes
+            if base_price is None or base_duration is None:
+                continue
+
+            bind.execute(
+                services.update()
+                .where(services.c.id == service_id)
+                .values(
+                    price_cents=int(base_price),
+                    duration_minutes=int(base_duration),
+                )
+            )
+            clones_by_terms: dict[tuple[int, int], int] = {}
+            for assignment in candidates:
+                terms = (
+                    int(assignment.price_cents),
+                    int(assignment.duration_minutes),
+                )
+                if terms == (int(base_price), int(base_duration)):
+                    continue
+                clone_id = clones_by_terms.get(terms)
+                if clone_id is None:
+                    clone_values = {
+                        "name": service.name,
+                        "description": service.description,
+                        "duration_minutes": terms[1],
+                        "price_cents": terms[0],
+                        "category": service.category,
+                        "active": service.active,
+                    }
+                    if "professional_id" in service_column_names:
+                        clone_values["professional_id"] = None
+                    result = bind.execute(services.insert().values(**clone_values))
+                    clone_id = int(result.inserted_primary_key[0])
+                    clones_by_terms[terms] = clone_id
+                bind.execute(
+                    assignments.update()
+                    .where(assignments.c.id == assignment.id)
+                    .values(service_id=clone_id)
+                )
+                bind.execute(
+                    appointments.update()
+                    .where(
+                        appointments.c.service_id == service_id,
+                        appointments.c.professional_id == assignment.professional_id,
+                    )
+                    .values(service_id=clone_id)
+                )
+
+        service_rows = {
+            row.id: row
+            for row in bind.execute(
+                sa.select(services).order_by(services.c.id)
+            ).mappings()
+        }
+        assignment_rows = list(
+            bind.execute(sa.select(assignments).order_by(assignments.c.id)).mappings()
+        )
+        assignments_by_service = {}
+        for assignment in assignment_rows:
+            assignments_by_service.setdefault(assignment.service_id, []).append(
+                assignment
+            )
+
     effective_terms: dict[int, tuple[int, int]] = {}
     invalid_orphans: list[int] = []
     for service_id, service in service_rows.items():
         price = service.price_cents
         duration = service.duration_minutes
         candidates = assignments_by_service.get(service_id, [])
-        if price is None and candidates:
+        if price is None and candidates and "price_cents" in assignment_column_names:
             price = candidates[0].price_cents
-        if duration is None and candidates:
+        if (
+            duration is None
+            and candidates
+            and "duration_minutes" in assignment_column_names
+        ):
             duration = candidates[0].duration_minutes
         if price is None or duration is None:
             appointment_exists = bind.execute(

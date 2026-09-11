@@ -66,3 +66,17 @@ def test_slots_use_active_professional_offering_from_shared_catalog(
 
     assert response.status_code == 200
     assert response.json()
+
+
+def test_slots_hide_inactive_professional(client: TestClient, db_session: Session):
+    entities = seed_data(db_session)
+    entities["professional"].active = False
+    db_session.commit()
+
+    response = client.get(
+        f"/api/availability/slots/{entities['professional'].id}/{entities['service'].id}",
+        params={"date": "2026-07-30"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == []

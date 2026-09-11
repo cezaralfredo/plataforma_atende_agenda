@@ -64,7 +64,9 @@ def test_company_catalog_migration_consolidates_equal_services_and_preserves_lin
             )
         )
         connection.execute(
-            text("INSERT INTO professionals VALUES (1, 'Ana', 1), (2, 'Bia', 1)")
+            text(
+                "INSERT INTO professionals VALUES (1, 'Ana', 1), (2, 'Bia', 1), (3, 'Clara', 1)"
+            )
         )
         connection.execute(
             text(
@@ -86,13 +88,14 @@ def test_company_catalog_migration_consolidates_equal_services_and_preserves_lin
                 VALUES
                     (20, 1, 10, 9000, 60, 10.00, 1),
                     (21, 2, 11, 9000, 60, 25.00, 1),
-                    (19, 1, 12, 9000, 60, 15.00, 1)
+                    (19, 1, 12, 9000, 60, 15.00, 1),
+                    (22, 3, 10, 12000, 90, 30.00, 1)
                 """
             )
         )
         connection.execute(
             text(
-                "INSERT INTO appointments VALUES (30, 1, 10), (31, 2, 11), (32, 1, 12)"
+                "INSERT INTO appointments VALUES (30, 1, 10), (31, 2, 11), (32, 1, 12), (33, 3, 10)"
             )
         )
 
@@ -119,7 +122,11 @@ def test_company_catalog_migration_consolidates_equal_services_and_preserves_lin
 
     assert "professional_id" not in columns
     assert {"price_cents", "duration_minutes"}.isdisjoint(assignment_columns)
-    assert services == [(10, 9000, 60)]
-    assert [(row[0], row[1]) for row in assignments] == [(1, 10), (2, 10)]
-    assert [str(row[2]) for row in assignments] == ["15", "25"]
-    assert appointment_services == [10, 10, 10]
+    assert services == [(10, 9000, 60), (13, 12000, 90)]
+    assert [(row[0], row[1]) for row in assignments] == [
+        (1, 10),
+        (2, 10),
+        (3, 13),
+    ]
+    assert [str(row[2]) for row in assignments] == ["15", "25", "30"]
+    assert appointment_services == [10, 10, 10, 13]

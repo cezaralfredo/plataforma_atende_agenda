@@ -22,8 +22,16 @@ class ServiceRepository(BaseRepository):
             .all()
         )
 
-    def list_by_category(self, category: str):
-        return self.db.query(Service).filter(Service.category == category).all()
+    def list_by_category(
+        self, category: str, skip: int = 0, limit: int = 100, active_only: bool = False
+    ):
+        query = self.db.query(Service).filter(Service.category == category)
+        if active_only:
+            query = query.filter(Service.active.is_(True))
+        return query.order_by(Service.name).offset(skip).limit(limit).all()
 
-    def list_with_professional(self, skip: int = 0, limit: int = 100):
-        return self.db.query(Service).offset(skip).limit(limit).all()
+    def list_catalog(self, skip: int = 0, limit: int = 100, active_only: bool = False):
+        query = self.db.query(Service)
+        if active_only:
+            query = query.filter(Service.active.is_(True))
+        return query.order_by(Service.name).offset(skip).limit(limit).all()
