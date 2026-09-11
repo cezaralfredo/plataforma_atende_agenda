@@ -130,7 +130,7 @@ def authenticate_admin(
         db.commit()
         return None
     account.failed_login_count = 0
-    account.locked_until = None
+    account.locked_until = None  # type: ignore[assignment]
     db.commit()
     db.refresh(account)
     return account
@@ -141,6 +141,6 @@ def change_admin_password(db: Session, account: AdminAccount, new_password: str)
     account.password_hash = hash_password(new_password)
     account.auth_version += 1
     account.failed_login_count = 0
-    account.locked_until = None
+    account.locked_until = None  # type: ignore[assignment]
     db.commit()
     db.refresh(account)
