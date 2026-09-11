@@ -20,6 +20,101 @@ def test_services_page_is_in_admin_navigation(anonymous_client: TestClient):
     assert 'href="/admin/services"' in response.text
 
 
+def test_services_dashboard_reports_catalog_health(
+    anonymous_client: TestClient, db_session: Session
+):
+    """Catches a dashboard that hides blank, duplicate, or unassigned services."""
+    professional = Professional(name="Profissional", phone="11999999999")
+    active_service = Service(name="Corte", category="Cabelos", active=True)
+    duplicate_service = Service(name=" corte ", category="Cabelos", active=True)
+    blank_service = Service(name="   ", active=True)
+    archived_service = Service(name="Serviço antigo", active=False)
+    db_session.add_all(
+        [professional, active_service, duplicate_service, blank_service, archived_service]
+    )
+    db_session.commit()
+    db_session.add(
+        ProfessionalService(
+            professional_id=professional.id,
+            service_id=active_service.id,
+            price_cents=9000,
+            duration_minutes=45,
+        )
+    )
+    db_session.commit()
+
+    response = anonymous_client.get(
+        "/admin/api/services/dashboard", headers=_admin_headers()
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["metrics"] == {
+        "active_services": 3,
+        "active_offerings": 1,
+        "professionals_with_offerings": 1,
+        "services_without_professionals": 2,
+        "inconsistencies": 2,
+    }
+    assert payload["issues"] == [
+        {
+            "kind": "unnamed",
+            "label": "Serviço sem denominação",
+            "service_ids": [blank_service.id],
+        },
+        {
+            "kind": "duplicate",
+            "label": "Corte",
+            "service_ids": [active_service.id, duplicate_service.id],
+        },
+    ]
+
+
+def test_services_dashboard_ignores_offerings_of_archived_professionals(
+    anonymous_client: TestClient, db_session: Session
+):
+    """Catches catalog coverage that is not actually available for booking."""
+    professional = Professional(
+        name="Profissional arquivado", phone="11999999999", active=False
+    )
+    service = Service(name="Serviço sem cobertura", active=True)
+    db_session.add_all([professional, service])
+    db_session.commit()
+    db_session.add(
+        ProfessionalService(
+            professional_id=professional.id,
+            service_id=service.id,
+            price_cents=9000,
+            duration_minutes=45,
+            active=True,
+        )
+    )
+    db_session.commit()
+
+    response = anonymous_client.get(
+        "/admin/api/services/dashboard", headers=_admin_headers()
+    )
+
+    assert response.status_code == 200
+    assert response.json()["metrics"] == {
+        "active_services": 1,
+        "active_offerings": 0,
+        "professionals_with_offerings": 0,
+        "services_without_professionals": 1,
+        "inconsistencies": 0,
+    }
+
+
+def test_services_page_shows_catalog_overview(anonymous_client: TestClient):
+    """Catches removal of the operational summary from the services page."""
+    response = anonymous_client.get("/admin/services", headers=_admin_headers())
+
+    assert response.status_code == 200
+    assert "Visão do catálogo" in response.text
+    assert "Serviços sem profissional" in response.text
+    assert "Revisar inconsistências" in response.text
+
+
 def test_admin_manages_shared_service_catalog(anonymous_client: TestClient):
     created = anonymous_client.post(
         "/admin/api/services",
