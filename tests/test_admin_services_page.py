@@ -25,10 +25,10 @@ def test_services_dashboard_reports_catalog_health(
 ):
     """Catches a dashboard that hides blank, duplicate, or unassigned services."""
     professional = Professional(name="Profissional", phone="11999999999")
-    active_service = Service(name="Corte", category="Cabelos", active=True)
-    duplicate_service = Service(name=" corte ", category="Cabelos", active=True)
-    blank_service = Service(name="   ", active=True)
-    archived_service = Service(name="Serviço antigo", active=False)
+    active_service = Service(name="Corte", category="Cabelos", price_cents=9000, duration_minutes=45, active=True)
+    duplicate_service = Service(name=" corte ", category="Cabelos", price_cents=9000, duration_minutes=45, active=True)
+    blank_service = Service(name="   ", price_cents=1000, duration_minutes=30, active=True)
+    archived_service = Service(name="Serviço antigo", price_cents=1000, duration_minutes=30, active=False)
     db_session.add_all(
         [professional, active_service, duplicate_service, blank_service, archived_service]
     )
@@ -37,8 +37,6 @@ def test_services_dashboard_reports_catalog_health(
         ProfessionalService(
             professional_id=professional.id,
             service_id=active_service.id,
-            price_cents=9000,
-            duration_minutes=45,
         )
     )
     db_session.commit()
@@ -77,15 +75,13 @@ def test_services_dashboard_ignores_offerings_of_archived_professionals(
     professional = Professional(
         name="Profissional arquivado", phone="11999999999", active=False
     )
-    service = Service(name="Serviço sem cobertura", active=True)
+    service = Service(name="Serviço sem cobertura", price_cents=9000, duration_minutes=45, active=True)
     db_session.add_all([professional, service])
     db_session.commit()
     db_session.add(
         ProfessionalService(
             professional_id=professional.id,
             service_id=service.id,
-            price_cents=9000,
-            duration_minutes=45,
             active=True,
         )
     )
@@ -113,6 +109,8 @@ def test_services_page_shows_catalog_overview(anonymous_client: TestClient):
     assert "Visão do catálogo" in response.text
     assert "Serviços sem profissional" in response.text
     assert "Revisar inconsistências" in response.text
+    assert "Preço da empresa" in response.text
+    assert "Duração" in response.text
 
 
 def test_admin_manages_shared_service_catalog(anonymous_client: TestClient):
@@ -123,6 +121,8 @@ def test_admin_manages_shared_service_catalog(anonymous_client: TestClient):
             "name": "Massagem relaxante",
             "description": "Sessão de bem-estar",
             "category": "Massagens",
+            "price_cents": 15000,
+            "duration_minutes": 60,
         },
     )
 
@@ -131,31 +131,33 @@ def test_admin_manages_shared_service_catalog(anonymous_client: TestClient):
     assert service["name"] == "Massagem relaxante"
     assert service["active"] is True
     assert service["active_offerings_count"] == 0
+    assert service["price_cents"] == 15000
+    assert service["duration_minutes"] == 60
 
     updated = anonymous_client.put(
         f"/admin/api/services/{service['id']}",
         headers=_admin_headers(),
-        json={"name": "Massagem terapêutica", "category": "Terapias"},
+        json={"name": "Massagem terapêutica", "category": "Terapias", "price_cents": 18000, "duration_minutes": 75},
     )
 
     assert updated.status_code == 200
     assert updated.json()["name"] == "Massagem terapêutica"
     assert updated.json()["category"] == "Terapias"
+    assert updated.json()["price_cents"] == 18000
+    assert updated.json()["duration_minutes"] == 75
 
 
-def test_deleting_catalog_service_with_offering_archives_it(
+def test_deleting_catalog_service_without_history_removes_assignment_and_service(
     anonymous_client: TestClient, db_session: Session
 ):
     professional = Professional(name="Profissional", phone="11999999999")
-    service = Service(name="Corte", category="Cabelos", active=True)
+    service = Service(name="Corte", category="Cabelos", price_cents=9000, duration_minutes=45, active=True)
     db_session.add_all([professional, service])
     db_session.commit()
     db_session.add(
         ProfessionalService(
             professional_id=professional.id,
             service_id=service.id,
-            price_cents=9000,
-            duration_minutes=45,
         )
     )
     db_session.commit()
@@ -165,12 +167,5 @@ def test_deleting_catalog_service_with_offering_archives_it(
     )
 
     assert deleted.status_code == 200
-    assert deleted.json() == {"outcome": "archived"}
-    assert db_session.get(Service, service.id).active is False
-
-    reactivated = anonymous_client.post(
-        f"/admin/api/services/{service.id}/reactivate", headers=_admin_headers()
-    )
-
-    assert reactivated.status_code == 200
-    assert reactivated.json()["active"] is True
+    assert deleted.json() == {"outcome": "deleted"}
+    assert db_session.get(Service, service.id) is None

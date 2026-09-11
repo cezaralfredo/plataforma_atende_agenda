@@ -145,8 +145,6 @@ class AdminAppointmentUpdate(BaseModel):
 
 class AdminProfessionalOfferingUpsert(BaseModel):
     service_id: int
-    price_cents: int
-    duration_minutes: int
     commission_percent: Decimal = Decimal("10.00")
 
 
@@ -161,12 +159,16 @@ class AdminServiceCatalogCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     description: str | None = None
     category: str | None = Field(default=None, max_length=100)
+    price_cents: int = Field(ge=0)
+    duration_minutes: int = Field(gt=0)
 
 
 class AdminServiceCatalogUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = None
     category: str | None = Field(default=None, max_length=100)
+    price_cents: int | None = Field(default=None, ge=0)
+    duration_minutes: int | None = Field(default=None, gt=0)
 
 
 class AppointmentAction(BaseModel):

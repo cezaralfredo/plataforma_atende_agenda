@@ -10,6 +10,7 @@ from app.models.service import Service
 from app.repositories import ServiceRepository
 from app.repositories.base import RelatedRecordsError
 from app.schemas.service import ServiceCreate, ServiceUpdate
+from app.services.payment_state_service import _is_expired
 
 
 class ServiceService:
@@ -135,7 +136,7 @@ class ServiceCatalogService:
             or (
                 appointment.status in {"pending", "awaiting_payment"}
                 and appointment.expires_at is not None
-                and appointment.expires_at <= now
+                and _is_expired(appointment.expires_at, now)
             )
             for appointment in appointments
         )

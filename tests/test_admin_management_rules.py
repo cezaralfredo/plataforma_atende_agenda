@@ -42,11 +42,12 @@ def test_appointment_uses_active_offering_and_keeps_its_commercial_snapshot(
     db_session: Session,
 ):
     entities = seed_data(db_session)
+    entities["service"].price_cents = 7500
+    entities["service"].duration_minutes = 60
+    db_session.commit()
     offering = ProfessionalOfferingService(db_session).create_or_update(
         professional_id=entities["professional"].id,
         service_id=entities["service"].id,
-        price_cents=7500,
-        duration_minutes=60,
         commission_percent=Decimal("17.50"),
     )
 

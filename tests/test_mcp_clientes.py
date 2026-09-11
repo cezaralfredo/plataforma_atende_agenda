@@ -36,8 +36,6 @@ class TestMCPClientes:
             ProfessionalService(
                 professional_id=outro_profissional.id,
                 service_id=entities["service"].id,
-                price_cents=5000,
-                duration_minutes=60,
             )
         )
         db_session.commit()
@@ -55,7 +53,6 @@ class TestMCPClientes:
         entities = seed_data(db_session)
         db_session.add(
             Service(
-                professional_id=entities["professional"].id,
                 name="Corte de cabelo",
                 description=entities["service"].description,
                 duration_minutes=60,

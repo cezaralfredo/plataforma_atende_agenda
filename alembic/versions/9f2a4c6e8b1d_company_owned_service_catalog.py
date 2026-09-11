@@ -132,10 +132,19 @@ def upgrade() -> None:
     if duplicate_ids:
         bind.execute(services.delete().where(services.c.id.in_(duplicate_ids)))
 
+    assignment_columns = {
+        column["name"]
+        for column in sa.inspect(bind).get_columns("professional_services")
+    }
     with op.batch_alter_table("professional_services") as batch_op:
-        batch_op.drop_column("duration_minutes")
-        batch_op.drop_column("price_cents")
+        if "duration_minutes" in assignment_columns:
+            batch_op.drop_column("duration_minutes")
+        if "price_cents" in assignment_columns:
+            batch_op.drop_column("price_cents")
 
+    service_columns = {
+        column["name"] for column in sa.inspect(bind).get_columns("services")
+    }
     with op.batch_alter_table("services") as batch_op:
         batch_op.alter_column(
             "duration_minutes", existing_type=sa.Integer(), nullable=False
@@ -143,28 +152,27 @@ def upgrade() -> None:
         batch_op.alter_column(
             "price_cents", existing_type=sa.Integer(), nullable=False
         )
-        batch_op.drop_column("professional_id")
+        if "professional_id" in service_columns:
+            batch_op.drop_column("professional_id")
 
 
 def downgrade() -> None:
-    op.add_column("services", sa.Column("professional_id", sa.Integer(), nullable=True))
-    op.create_foreign_key(
-        "fk_services_professional_id",
-        "services",
-        "professionals",
-        ["professional_id"],
-        ["id"],
-    )
-    op.create_index(
-        "ix_services_professional_id", "services", ["professional_id"], unique=False
-    )
-    op.add_column(
-        "professional_services", sa.Column("price_cents", sa.Integer(), nullable=True)
-    )
-    op.add_column(
-        "professional_services",
-        sa.Column("duration_minutes", sa.Integer(), nullable=True),
-    )
+    with op.batch_alter_table("services") as batch_op:
+        batch_op.add_column(
+            sa.Column("professional_id", sa.Integer(), nullable=True)
+        )
+        batch_op.create_foreign_key(
+            "fk_services_professional_id",
+            "professionals",
+            ["professional_id"],
+            ["id"],
+        )
+        batch_op.create_index("ix_services_professional_id", ["professional_id"])
+    with op.batch_alter_table("professional_services") as batch_op:
+        batch_op.add_column(sa.Column("price_cents", sa.Integer(), nullable=True))
+        batch_op.add_column(
+            sa.Column("duration_minutes", sa.Integer(), nullable=True)
+        )
     op.execute(
         """
         UPDATE professional_services
@@ -186,22 +194,16 @@ def downgrade() -> None:
         WHERE services.id = source.service_id
         """
     )
-    op.alter_column(
-        "professional_services", "price_cents", existing_type=sa.Integer(), nullable=False
-    )
-    op.alter_column(
-        "professional_services",
-        "duration_minutes",
-        existing_type=sa.Integer(),
-        nullable=False,
-    )
-    op.create_check_constraint(
-        "check_professional_service_price",
-        "professional_services",
-        "price_cents >= 0",
-    )
-    op.create_check_constraint(
-        "check_professional_service_duration",
-        "professional_services",
-        "duration_minutes > 0",
-    )
+    with op.batch_alter_table("professional_services") as batch_op:
+        batch_op.alter_column(
+            "price_cents", existing_type=sa.Integer(), nullable=False
+        )
+        batch_op.alter_column(
+            "duration_minutes", existing_type=sa.Integer(), nullable=False
+        )
+        batch_op.create_check_constraint(
+            "check_professional_service_price", "price_cents >= 0"
+        )
+        batch_op.create_check_constraint(
+            "check_professional_service_duration", "duration_minutes > 0"
+        )
