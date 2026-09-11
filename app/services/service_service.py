@@ -8,6 +8,7 @@ from app.models.payment import Payment
 from app.models.professional_service import ProfessionalService
 from app.models.service import Service
 from app.repositories import ServiceRepository
+from app.repositories.base import RelatedRecordsError
 from app.schemas.service import ServiceCreate, ServiceUpdate
 from app.services.payment_state_service import _is_expired
 
@@ -41,7 +42,12 @@ class ServiceService:
         return self.repo.update(service_id, **data.model_dump(exclude_unset=True))
 
     def delete(self, service_id: int):
-        return ServiceCatalogService(self.repo.db).archive_or_delete(service_id)
+        catalog = ServiceCatalogService(self.repo.db)
+        if catalog.deletion_requires_archival(service_id):
+            raise RelatedRecordsError(
+                "Serviço possui histórico protegido; desative-o em vez de excluir"
+            )
+        return catalog.archive_or_delete(service_id)
 
 
 class ServiceCatalogService:
@@ -166,3 +172,31 @@ class ServiceCatalogService:
         self.db.delete(service)
         self.db.commit()
         return "deleted"
+
+    def deletion_requires_archival(self, service_id: int) -> bool:
+        appointments = (
+            self.db.query(Appointment)
+            .filter(Appointment.service_id == service_id)
+            .all()
+        )
+        protected_statuses = {"confirmed", "completed"}
+        financial_statuses = {"received", "confirmed", "refunded"}
+        if any(
+            appointment.status in protected_statuses
+            or any(
+                payment.status in financial_statuses
+                for payment in appointment.payments
+            )
+            for appointment in appointments
+        ):
+            return True
+        now = datetime.now(UTC)
+        return any(
+            appointment.status != "cancelled"
+            and not (
+                appointment.status in {"pending", "awaiting_payment"}
+                and appointment.expires_at is not None
+                and _is_expired(appointment.expires_at, now)
+            )
+            for appointment in appointments
+        )

@@ -86,6 +86,7 @@ class ProfessionalOfferingService:
         professional_id: int,
         service_id: int,
         commission_percent: Decimal = Decimal("10.00"),
+        active: bool = True,
     ) -> ProfessionalService:
         professional = self.db.get(Professional, professional_id)
         if not professional or not professional.active:
@@ -100,13 +101,13 @@ class ProfessionalOfferingService:
         offering = self.get(professional_id, service_id)
         if offering:
             offering.commission_percent = commission_percent
-            offering.active = True
+            offering.active = active
         else:
             offering = ProfessionalService(
                 professional_id=professional_id,
                 service_id=service_id,
                 commission_percent=commission_percent,
-                active=True,
+                active=active,
             )
             self.db.add(offering)
         self.db.commit()
@@ -130,6 +131,13 @@ class ProfessionalOfferingService:
                 raise ValueError("A comissão deve estar entre 0% e 100%")
             offering.commission_percent = commission_percent
         if active is not None:
+            if active:
+                professional = self.db.get(Professional, professional_id)
+                service = self.db.get(Service, service_id)
+                if not professional or not professional.active:
+                    raise ValueError("Profissional não encontrado ou inativo")
+                if not service or not service.active:
+                    raise ValueError("Serviço não encontrado ou inativo")
             offering.active = active
         self.db.commit()
         self.db.refresh(offering)

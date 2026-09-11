@@ -90,6 +90,7 @@ def create_professional_service(
             professional_id=professional_id,
             service_id=data.service_id,
             commission_percent=data.commission_percent,
+            active=data.active,
         )
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.repositories.base import RelatedRecordsError
 from app.schemas.service import (
     ServiceCreate,
     ServiceRead,
@@ -59,5 +60,8 @@ def update_service(service_id: int, data: ServiceUpdate, db: Session = Depends(g
 @router.delete("/{service_id}", status_code=204)
 def delete_service(service_id: int, db: Session = Depends(get_db)):
     service = ServiceService(db)
-    if not service.delete(service_id):
-        raise HTTPException(status_code=404, detail="Serviço não encontrado")
+    try:
+        if not service.delete(service_id):
+            raise HTTPException(status_code=404, detail="Serviço não encontrado")
+    except RelatedRecordsError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc

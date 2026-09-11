@@ -148,10 +148,11 @@ def test_public_api_manages_professional_service_assignment(client, db_session):
 
     created = client.post(
         f"/api/professionals/{professional.id}/services",
-        json={"service_id": entities["service"].id},
+        json={"service_id": entities["service"].id, "active": False},
     )
     assert created.status_code == 201
     assert created.json()["commission_percent"] == "10.00"
+    assert created.json()["active"] is False
 
     updated = client.put(
         f"/api/professionals/{professional.id}/services/{entities['service'].id}",
@@ -165,6 +166,24 @@ def test_public_api_manages_professional_service_assignment(client, db_session):
         f"/api/professionals/{professional.id}/services/{entities['service'].id}"
     )
     assert deleted.status_code == 204
+
+
+def test_public_api_rejects_reactivating_assignment_for_inactive_professional(
+    client, db_session
+):
+    entities = seed_data(db_session)
+    entities["professional"].active = False
+    assignment = entities["service"].professional_offerings[0]
+    assignment.active = False
+    db_session.commit()
+
+    response = client.put(
+        f"/api/professionals/{entities['professional'].id}/services/{entities['service'].id}",
+        json={"active": True},
+    )
+
+    assert response.status_code == 409
+    assert assignment.active is False
 
 
 def test_expired_unpaid_service_history_is_deleted_instead_of_archived(
@@ -234,6 +253,36 @@ def test_public_delete_removes_cancelled_unpaid_service_history(client, db_sessi
     assert response.status_code == 204
     assert db_session.get(Service, service_id) is None
     assert db_session.get(Appointment, appointment_id) is None
+
+
+def test_public_delete_rejects_service_with_paid_history(client, db_session):
+    entities = seed_data(db_session)
+    appointment = Appointment(
+        user_id=entities["user"].id,
+        professional_id=entities["professional"].id,
+        service_id=entities["service"].id,
+        start_time=datetime(2026, 8, 1, 9),
+        end_time=datetime(2026, 8, 1, 10),
+        status="confirmed",
+    )
+    db_session.add(appointment)
+    db_session.flush()
+    db_session.add(
+        Payment(
+            appointment_id=appointment.id,
+            amount_cents=entities["service"].price_cents,
+            billing_type="pix",
+            status="received",
+        )
+    )
+    service_id = entities["service"].id
+    db_session.commit()
+
+    response = client.delete(f"/api/services/{service_id}")
+
+    assert response.status_code == 409
+    assert "desative" in response.json()["detail"].lower()
+    assert db_session.get(Service, service_id).active is True
 
 
 def test_catalog_management_defines_company_price_and_duration(
