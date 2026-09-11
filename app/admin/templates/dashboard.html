@@ -218,11 +218,11 @@ function dashboard() {
 
         async loadKPIs() {
             try {
-                const response = await fetch('/admin/api/kpis');
+                const response = await adminFetch('/admin/api/kpis');
                 this.kpis = await response.json();
 
                 // Load professionals for overview
-                const profsResponse = await fetch('/admin/api/professionals?limit=5');
+                const profsResponse = await adminFetch('/admin/api/professionals?limit=5');
                 this.professionals = await profsResponse.json();
             } catch (error) {
                 console.error('Erro ao carregar KPIs:', error);

@@ -79,7 +79,7 @@ function serviceCatalog(initialServices) {
         openCreate() { this.editingId = null; this.form = { name: '', description: '', category: '' }; this.formOpen = true; },
         openEdit(service) { this.editingId = service.id; this.form = { name: service.name, description: service.description || '', category: service.category || '' }; this.formOpen = true; },
         async request(url, options = {}) {
-            const response = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
+            const response = await adminFetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
             if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.detail || 'Não foi possível concluir a operação.'); }
             return response.status === 204 ? null : response.json();
         },

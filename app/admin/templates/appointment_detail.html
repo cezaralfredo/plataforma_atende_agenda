@@ -10,7 +10,7 @@
     <div class="bg-white rounded-lg shadow-sm border border-gray-100 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
             <h3 class="text-lg font-semibold text-gray-900">Agendamento #{{ detail.appointment.id }}</h3>
-            <p class="text-sm text-gray-500">Criado em {{ formatDateTime(detail.appointment.created_at) }}</p>
+            <p class="text-sm text-gray-500">Criado em <span x-text="formatDateTime(appointment.created_at)"></span></p>
         </div>
         <div class="flex items-center space-x-3">
             <a href="/admin/appointments"
@@ -281,7 +281,7 @@ function appointmentDetail() {
 
         async appointmentAction(action, notes) {
             try {
-                const response = await fetch(`/admin/appointments/{{ detail.appointment.id }}/action`, {
+                const response = await adminFetch(`/admin/appointments/{{ detail.appointment.id }}/action`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -301,7 +301,7 @@ function appointmentDetail() {
 
         async refreshPayment(paymentId) {
             try {
-                const response = await fetch(`/admin/payments/${paymentId}/action`, {
+                const response = await adminFetch(`/admin/payments/${paymentId}/action`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -318,7 +318,7 @@ function appointmentDetail() {
         async refundPayment(paymentId) {
             if (!confirm('Tem certeza que deseja estornar este pagamento?')) return;
             try {
-                const response = await fetch(`/admin/payments/${paymentId}/action`, {
+                const response = await adminFetch(`/admin/payments/${paymentId}/action`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'

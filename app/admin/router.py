@@ -4,6 +4,7 @@ from datetime import UTC, date, datetime
 from urllib.parse import parse_qs
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -255,7 +256,7 @@ async def appointment_detail(
 
     return templates.TemplateResponse("appointment_detail.html", {
         "request": request,
-        "detail": detail,
+        "detail": jsonable_encoder(detail),
     })
 
 
