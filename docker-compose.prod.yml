@@ -71,6 +71,10 @@ services:
       - DATABASE_URL=postgresql+psycopg://agenda_user:__POSTGRES_PASSWORD__@postgres:5432/agenda_atende
       - API_KEY_FILE=/run/secrets/api_key
       - ADMIN_API_KEY_FILE=/run/secrets/admin_api_key
+      - ADMIN_USERNAME_FILE=/run/secrets/admin_username
+      - ADMIN_BOOTSTRAP_PASSWORD_FILE=/run/secrets/admin_bootstrap_password
+      - ADMIN_SESSION_SECRET_FILE=/run/secrets/admin_session_secret
+      - ADMIN_RECOVERY_KEY_FILE=/run/secrets/admin_recovery_key
       - APP_NAME=${APP_NAME}
       - DEBUG=false
       - ASAAS_API_KEY_FILE=/run/secrets/asaas_api_key
@@ -80,6 +84,10 @@ services:
       - postgres_password
       - api_key
       - admin_api_key
+      - admin_username
+      - admin_bootstrap_password
+      - admin_session_secret
+      - admin_recovery_key
       - asaas_api_key
       - asaas_webhook_token
     depends_on:
@@ -181,6 +189,14 @@ secrets:
   api_key:
     external: true
   admin_api_key:
+    external: true
+  admin_username:
+    external: true
+  admin_bootstrap_password:
+    external: true
+  admin_session_secret:
+    external: true
+  admin_recovery_key:
     external: true
   asaas_api_key:
     external: true

@@ -6,11 +6,13 @@ from datetime import datetime, time, timedelta
 from sqlalchemy.orm import Session
 
 from app.business_time import as_business_time, business_datetime, utc_now
+from app.models.availability import Availability
 from app.models.professional import Professional
+from app.models.professional_service import ProfessionalService
+from app.models.service import Service
 from app.repositories import (
     AppointmentRepository,
     AvailabilityRepository,
-    ServiceRepository,
 )
 from app.schemas.availability import AvailabilityCreate, AvailabilityUpdate, TimeSlot
 
@@ -19,11 +21,11 @@ class AvailabilityService:
     def __init__(self, db: Session):
         self.repo = AvailabilityRepository(db)
         self.appointment_repo = AppointmentRepository(db)
-        self.service_repo = ServiceRepository(db)
 
     def create(self, data: AvailabilityCreate):
         if not self.repo.db.get(Professional, data.professional_id):
             raise ValueError("Profissional não encontrado")
+        self._ensure_no_overlap(data)
         return self.repo.create(**data.model_dump())
 
     def get(self, availability_id: int):
@@ -47,8 +49,28 @@ class AvailabilityService:
             "specific_date": availability.specific_date,
             **values,
         }
-        AvailabilityCreate(**merged)
+        candidate = AvailabilityCreate(**merged)
+        self._ensure_no_overlap(candidate, exclude_availability_id=availability_id)
         return self.repo.update(availability_id, **values)
+
+    def _ensure_no_overlap(
+        self,
+        data: AvailabilityCreate,
+        exclude_availability_id: int | None = None,
+    ) -> None:
+        query = self.repo.db.query(Availability).filter(
+            Availability.professional_id == data.professional_id,
+            Availability.start_time < data.end_time,
+            Availability.end_time > data.start_time,
+        )
+        if data.specific_date is not None:
+            query = query.filter(Availability.specific_date == data.specific_date)
+        else:
+            query = query.filter(Availability.day_of_week == data.day_of_week)
+        if exclude_availability_id is not None:
+            query = query.filter(Availability.id != exclude_availability_id)
+        if query.first():
+            raise ValueError("O horário se sobrepõe a uma disponibilidade existente")
 
     def delete(self, availability_id: int):
         return self.repo.delete(availability_id)
@@ -124,14 +146,26 @@ class AvailabilityService:
         return _dedupe_slots(free_slots)
 
     def get_time_slots_for_service(self, professional_id: int, service_id: int, date_str: str) -> builtins.list[TimeSlot]:
-        service = self.service_repo.get(service_id)
-        if not service or service.professional_id != professional_id:
+        offering = (
+            self.repo.db.query(ProfessionalService)
+            .join(Service)
+            .join(Professional)
+            .filter(
+                ProfessionalService.professional_id == professional_id,
+                ProfessionalService.service_id == service_id,
+                ProfessionalService.active.is_(True),
+                Service.active.is_(True),
+                Professional.active.is_(True),
+            )
+            .first()
+        )
+        if not offering:
             return []
 
         free_periods = self.check_availability(professional_id, date_str)
 
         slots: list[TimeSlot] = []
-        duration = timedelta(minutes=service.duration_minutes)
+        duration = timedelta(minutes=offering.service.duration_minutes)
 
         for period in free_periods:
             period_start = period.start

@@ -4,6 +4,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.business_time import as_business_time
+from app.models.professional_service import ProfessionalService
+from app.models.service import Service
 from tests.seed import seed_data
 
 
@@ -35,3 +37,46 @@ def test_booking_with_z_suffix_compares_against_local_availability(
 
     assert response.status_code == 201
     assert response.json()["start_time"].endswith("-03:00")
+
+
+def test_slots_use_active_professional_offering_from_shared_catalog(
+    client: TestClient, db_session: Session
+):
+    entities = seed_data(db_session)
+    service = Service(
+        name="Serviço do catálogo",
+        price_cents=8000,
+        duration_minutes=60,
+        active=True,
+    )
+    db_session.add(service)
+    db_session.flush()
+    db_session.add(
+        ProfessionalService(
+            professional_id=entities["professional"].id,
+            service_id=service.id,
+        )
+    )
+    db_session.commit()
+
+    response = client.get(
+        f"/api/availability/slots/{entities['professional'].id}/{service.id}",
+        params={"date": "2026-07-30"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()
+
+
+def test_slots_hide_inactive_professional(client: TestClient, db_session: Session):
+    entities = seed_data(db_session)
+    entities["professional"].active = False
+    db_session.commit()
+
+    response = client.get(
+        f"/api/availability/slots/{entities['professional'].id}/{entities['service'].id}",
+        params={"date": "2026-07-30"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == []

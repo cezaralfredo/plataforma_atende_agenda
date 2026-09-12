@@ -9,7 +9,7 @@ from app.schemas.user import UserCreate, UserUpdate
 from app.services.appointment_service import AppointmentService
 from app.services.availability_service import AvailabilityService
 from app.services.payment_service import PaymentService
-from app.services.service_service import ServiceService
+from app.services.professional_service_offering_service import ProfessionalOfferingService
 from app.services.user_service import UserService
 
 logger = logging.getLogger(__name__)
@@ -223,9 +223,8 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
             return {"content": [{"type": "text", "text": f"WhatsApp vinculado com sucesso!\n{_format_cliente(user)}"}]}
 
         elif name == "listar_servicos":
-            service_service = ServiceService(db)
             professional_id = arguments.get("professional_id")
-            services = service_service.list(
+            offerings = ProfessionalOfferingService(db).list_active(
                 professional_id=professional_id,
                 category=arguments.get("category"),
             )
@@ -234,7 +233,7 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
                     {
                         "type": "text",
                         "text": _format_servicos(
-                            services,
+                            offerings,
                             include_professional=professional_id is None,
                         ),
                     }
@@ -387,31 +386,24 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
         }
 
 
-def _format_servicos(services, include_professional: bool = True) -> str:
-    if not services:
-        return "Nenhum serviço encontrado."
+def _format_servicos(offerings, include_professional: bool = True) -> str:
+    if not offerings:
+        return "Nenhum serviço disponível."
 
     lines = ["Serviços disponíveis:"]
-    seen = set()
-    for s in services:
+    for offering in offerings:
+        service = offering.service
+        price = f"R$ {service.price_cents / 100:.2f}".replace(".", ",")
         if include_professional:
-            duplicate_key = (
-                s.professional_id,
-                s.name,
-                s.description,
-                s.duration_minutes,
-                s.price_cents,
-                s.category,
-            )
-            if duplicate_key in seen:
-                continue
-            seen.add(duplicate_key)
             line = (
-                f"  #{s.id} {s.name} - R$ {s.price_cents / 100:.2f} "
-                f"({s.duration_minutes}min) — {s.professional.name}"
+                f"  #{service.id} {service.name} - {price} "
+                f"({service.duration_minutes}min) — {offering.professional.name}"
             )
         else:
-            line = f"  #{s.id} {s.name} - R$ {s.price_cents / 100:.2f} ({s.duration_minutes}min)"
+            line = (
+                f"  #{service.id} {service.name} - {price} "
+                f"({service.duration_minutes}min)"
+            )
         lines.append(line)
     return "\n".join(lines)
 

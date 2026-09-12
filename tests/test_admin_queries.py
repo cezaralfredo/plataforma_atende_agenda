@@ -1,4 +1,3 @@
-from base64 import b64encode
 from datetime import datetime
 
 from fastapi.testclient import TestClient
@@ -57,10 +56,36 @@ def test_confirmed_payment_is_not_counted_pending(db_session: Session):
     assert AdminService(db_session).get_kpis()["payments_pending"] == 0
 
 
+def test_admin_appointment_list_keeps_historical_service_price(db_session: Session):
+    entities = seed_data(db_session)
+    appointment = seed_appointment(db_session, entities)
+    appointment.service_price_cents = 7500
+    entities["service"].price_cents = 9900
+    db_session.commit()
+
+    rows, _ = AdminService(db_session).list_appointments()
+
+    assert rows[0]["service_price_cents"] == 7500
+
+
+def test_admin_appointment_detail_keeps_historical_service_terms(db_session: Session):
+    entities = seed_data(db_session)
+    appointment = seed_appointment(db_session, entities)
+    appointment.service_price_cents = 7500
+    appointment.service_duration_minutes = 75
+    entities["service"].price_cents = 9900
+    entities["service"].duration_minutes = 30
+    db_session.commit()
+
+    detail = AdminService(db_session).get_appointment_detail(appointment.id)
+
+    assert detail["service"]["price_cents"] == 7500
+    assert detail["service"]["duration_minutes"] == 75
+
+
 def test_admin_rejects_zero_page(anonymous_client: TestClient):
-    credentials = b64encode(f"admin:{settings.admin_api_key}".encode()).decode()
     response = anonymous_client.get(
         "/admin/api/appointments?page=0",
-        headers={"Authorization": f"Basic {credentials}"},
+        headers={"X-Admin-Key": settings.admin_api_key},
     )
     assert response.status_code == 422

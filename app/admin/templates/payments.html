@@ -209,7 +209,7 @@ function payments() {
                     if (value) params.append(key, value);
                 });
 
-                const response = await fetch('/admin/api/payments?' + params.toString());
+                const response = await adminFetch('/admin/api/payments?' + params.toString());
                 const data = await response.json();
                 this.payments = data.data;
                 this.total = data.total;
@@ -242,7 +242,7 @@ function payments() {
 
         async refreshPayment(id) {
             try {
-                const response = await fetch(`/admin/payments/${id}/action`, {
+                const response = await adminFetch(`/admin/payments/${id}/action`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -263,7 +263,7 @@ function payments() {
         async refundPayment(id) {
             if (!confirm('Tem certeza que deseja estornar este pagamento?')) return;
             try {
-                const response = await fetch(`/admin/payments/${id}/action`, {
+                const response = await adminFetch(`/admin/payments/${id}/action`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'

@@ -3,7 +3,11 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.repositories.base import RelatedRecordsError
-from app.schemas.service import ServiceCreate, ServiceRead, ServiceUpdate
+from app.schemas.service import (
+    ServiceCreate,
+    ServiceRead,
+    ServiceUpdate,
+)
 from app.security import require_api_key
 from app.services.service_service import ServiceService
 
@@ -24,9 +28,15 @@ def create_service(data: ServiceCreate, db: Session = Depends(get_db)):
 
 
 @router.get("", response_model=list[ServiceRead])
-def list_services(professional_id: int | None = None, category: str | None = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    service = ServiceService(db)
-    return service.list(professional_id=professional_id, category=category, skip=skip, limit=limit)
+def list_services(
+    category: str | None = None,
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+):
+    return ServiceService(db).list(
+        category=category, skip=skip, limit=limit, active_only=True
+    )
 
 
 @router.get("/{service_id}", response_model=ServiceRead)

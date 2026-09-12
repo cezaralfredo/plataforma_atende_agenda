@@ -9,8 +9,16 @@ from app.models.appointment import Appointment
 from app.models.availability import Availability
 from app.models.payment import Payment
 from app.models.professional import Professional
+from app.models.professional_service import ProfessionalService
 from app.models.service import Service
 from app.models.user import User
+from app.schemas.appointment import AppointmentCreate, AppointmentUpdate
+from app.schemas.user import UserCreate
+from app.services.appointment_service import AppointmentService
+from app.services.professional_service import ProfessionalManagementService
+from app.services.professional_service_offering_service import ProfessionalOfferingService
+from app.services.service_service import ServiceCatalogService
+from app.services.user_service import UserService
 
 # dias da semana p/ agenda (0=segunda ... 6=domingo)
 WEEKDAY_NAMES = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
@@ -238,7 +246,11 @@ class AdminService:
                 "client_phone": client_phone,
                 "professional_name": prof_name,
                 "service_name": svc_name,
-                "service_price_cents": svc_price,
+                "service_price_cents": (
+                    apt.service_price_cents
+                    if apt.service_price_cents is not None
+                    else svc_price
+                ),
                 "payment_status": pay_status,
                 "payment_id": pay_id,
             })
@@ -326,8 +338,9 @@ class AdminService:
 
         result = []
         for prof in professionals:
-            services_count = self.db.query(func.count(Service.id)).filter(
-                Service.professional_id == prof.id
+            services_count = self.db.query(func.count(ProfessionalService.id)).filter(
+                ProfessionalService.professional_id == prof.id,
+                ProfessionalService.active.is_(True),
             ).scalar() or 0
 
             appointments_today = self.db.query(func.count(Appointment.id)).filter(
@@ -370,33 +383,275 @@ class AdminService:
 
         return result
 
-    def appointment_action(self, appointment_id: int, action: str, notes: str | None = None) -> dict | None:
-        apt = self.db.query(Appointment).filter(Appointment.id == appointment_id).first()
-        if not apt:
-            return None
+    def _catalog_service_response(self, service: Service) -> dict:
+        active_offerings_count = (
+            self.db.query(func.count(ProfessionalService.id))
+            .join(ProfessionalService.professional)
+            .filter(
+                ProfessionalService.service_id == service.id,
+                ProfessionalService.active.is_(True),
+                Professional.active.is_(True),
+            )
+            .scalar()
+            or 0
+        )
+        return {
+            "id": service.id,
+            "name": service.name,
+            "description": service.description,
+            "category": service.category,
+            "price_cents": service.price_cents,
+            "duration_minutes": service.duration_minutes,
+            "active": service.active,
+            "active_offerings_count": active_offerings_count,
+        }
 
-        if action == "cancel":
-            if apt.status in ["cancelled", "completed"]:
-                return {"error": "Não é possível cancelar agendamento neste status"}
-            apt.status = "cancelled"
-            if notes:
-                apt.notes = (apt.notes or "") + f"\n[Admin] Cancelado: {notes}"
-        elif action == "confirm":
-            if apt.status != "pending":
-                return {"error": "Só é possível confirmar agendamentos pendentes"}
-            apt.status = "confirmed"
-            if notes:
-                apt.notes = (apt.notes or "") + f"\n[Admin] Confirmado: {notes}"
-        else:
-            return {"error": "Ação inválida"}
+    def list_catalog_services(self) -> list[dict]:
+        services = self.db.query(Service).order_by(Service.active.desc(), Service.name).all()
+        return [self._catalog_service_response(service) for service in services]
 
-        self.db.commit()
-        self.db.refresh(apt)
+    def get_catalog_service_dashboard(self) -> dict:
+        """Return operational health information for the shared service catalog."""
+        active_services = (
+            self.db.query(Service)
+            .filter(Service.active.is_(True))
+            .order_by(Service.id)
+            .all()
+        )
+        active_offerings = (
+            self.db.query(ProfessionalService)
+            .join(ProfessionalService.service)
+            .join(ProfessionalService.professional)
+            .filter(
+                ProfessionalService.active.is_(True),
+                Service.active.is_(True),
+                Professional.active.is_(True),
+            )
+            .all()
+        )
+        offering_service_ids = {offering.service_id for offering in active_offerings}
+        normalized_names: dict[str, list[int]] = {}
+        unnamed_ids: list[int] = []
+
+        for service in active_services:
+            name = " ".join(service.name.split())
+            if not name:
+                unnamed_ids.append(service.id)
+                continue
+            normalized_names.setdefault(name.casefold(), []).append(service.id)
+
+        issues = []
+        if unnamed_ids:
+            issues.append(
+                {
+                    "kind": "unnamed",
+                    "label": "Serviço sem denominação",
+                    "service_ids": unnamed_ids,
+                }
+            )
+        for _normalized_name, service_ids in sorted(normalized_names.items()):
+            if len(service_ids) > 1:
+                issues.append(
+                    {
+                        "kind": "duplicate",
+                        "label": " ".join(
+                            next(
+                                service.name
+                                for service in active_services
+                                if service.id == service_ids[0]
+                            ).split()
+                        ),
+                        "service_ids": service_ids,
+                    }
+                )
 
         return {
-            "id": apt.id,
-            "status": apt.status,
-            "notes": apt.notes,
+            "metrics": {
+                "active_services": len(active_services),
+                "active_offerings": len(active_offerings),
+                "professionals_with_offerings": len(
+                    {offering.professional_id for offering in active_offerings}
+                ),
+                "services_without_professionals": sum(
+                    service.id not in offering_service_ids for service in active_services
+                ),
+                "inconsistencies": len(issues),
+            },
+            "issues": issues,
+            "services": self.list_catalog_services(),
+        }
+
+    def create_catalog_service(self, data) -> dict:
+        service = ServiceCatalogService(self.db).create(
+            name=data.name,
+            description=data.description,
+            category=data.category,
+            price_cents=data.price_cents,
+            duration_minutes=data.duration_minutes,
+        )
+        return self._catalog_service_response(service)
+
+    def update_catalog_service(self, service_id: int, data) -> dict | None:
+        values = data.model_dump(exclude_unset=True)
+        service = ServiceCatalogService(self.db).update(service_id, **values)
+        return self._catalog_service_response(service) if service else None
+
+    def archive_or_delete_catalog_service(self, service_id: int) -> str | None:
+        return ServiceCatalogService(self.db).archive_or_delete(service_id)
+
+    def reactivate_catalog_service(self, service_id: int) -> dict | None:
+        service = ServiceCatalogService(self.db).reactivate(service_id)
+        return self._catalog_service_response(service) if service else None
+
+    @staticmethod
+    def _offering_response(offering: ProfessionalService) -> dict:
+        return {
+            "id": offering.id,
+            "professional_id": offering.professional_id,
+            "service_id": offering.service_id,
+            "price_cents": offering.service.price_cents,
+            "duration_minutes": offering.service.duration_minutes,
+            "commission_percent": f"{offering.commission_percent:.2f}",
+            "active": offering.active,
+            "service_name": offering.service.name if offering.service else None,
+            "service_description": (
+                offering.service.description if offering.service else None
+            ),
+        }
+
+    def get_professional_management(self, professional_id: int) -> dict | None:
+        professional = self.db.get(Professional, professional_id)
+        if not professional:
+            return None
+        offerings = (
+            self.db.query(ProfessionalService)
+            .filter(ProfessionalService.professional_id == professional_id)
+            .order_by(ProfessionalService.id)
+            .all()
+        )
+        availability = (
+            self.db.query(Availability)
+            .filter(Availability.professional_id == professional_id)
+            .order_by(Availability.day_of_week, Availability.start_time)
+            .all()
+        )
+        catalog = (
+            self.db.query(Service)
+            .filter(Service.active.is_(True))
+            .order_by(Service.name)
+            .all()
+        )
+        return {
+            "professional": professional,
+            "offerings": [self._offering_response(offering) for offering in offerings],
+            "availability": availability,
+            "catalog": catalog,
+        }
+
+    def save_professional_offering(self, professional_id: int, data) -> dict:
+        offering = ProfessionalOfferingService(self.db).create_or_update(
+            professional_id=professional_id,
+            service_id=data.service_id,
+            commission_percent=data.commission_percent,
+        )
+        return self._offering_response(offering)
+
+    def remove_professional_offering(
+        self, professional_id: int, service_id: int
+    ) -> str | None:
+        return ProfessionalOfferingService(self.db).archive_or_delete(
+            professional_id, service_id
+        )
+
+    def archive_or_delete_professional(self, professional_id: int) -> str | None:
+        return ProfessionalManagementService(self.db).archive_or_delete(professional_id)
+
+    def _appointment_response(self, appointment: Appointment) -> dict:
+        client = self.db.get(User, appointment.user_id)
+        return {
+            "id": appointment.id,
+            "user_id": appointment.user_id,
+            "professional_id": appointment.professional_id,
+            "service_id": appointment.service_id,
+            "start_time": appointment.start_time,
+            "end_time": appointment.end_time,
+            "status": appointment.status,
+            "notes": appointment.notes,
+            "service_price_cents": appointment.service_price_cents,
+            "client_name": client.name if client else None,
+            "client_phone": client.phone if client else None,
+        }
+
+    def create_appointment(self, data) -> dict:
+        user_id = data.user_id
+        if data.new_client:
+            client = UserService(self.db).create(
+                UserCreate(**data.new_client.model_dump())
+            )
+            user_id = client.id
+        appointment = AppointmentService(self.db).create(
+            AppointmentCreate(
+                user_id=user_id,
+                professional_id=data.professional_id,
+                service_id=data.service_id,
+                start_time=data.start_time,
+                end_time=data.end_time,
+                notes=data.notes,
+            )
+        )
+        return self._appointment_response(appointment)
+
+    def update_appointment(self, appointment_id: int, data) -> dict | None:
+        appointment = self.db.get(Appointment, appointment_id)
+        if not appointment:
+            return None
+        values = data.model_dump(exclude_unset=True)
+        booking_fields = {
+            "user_id",
+            "professional_id",
+            "service_id",
+            "start_time",
+            "end_time",
+        }
+        appointment_service = AppointmentService(self.db)
+        if booking_fields.intersection(values):
+            appointment = appointment_service.update_booking(
+                appointment_id,
+                AppointmentCreate(
+                    user_id=values.get("user_id", appointment.user_id),
+                    professional_id=values.get(
+                        "professional_id", appointment.professional_id
+                    ),
+                    service_id=values.get("service_id", appointment.service_id),
+                    start_time=values.get("start_time", appointment.start_time),
+                    end_time=values.get("end_time", appointment.end_time),
+                    notes=values.get("notes", appointment.notes),
+                ),
+            )
+        elif "notes" in values:
+            appointment = appointment_service.update(
+                appointment_id, AppointmentUpdate(notes=values["notes"])
+            )
+        return self._appointment_response(appointment)
+
+    def delete_appointment(self, appointment_id: int) -> bool:
+        return AppointmentService(self.db).delete(appointment_id)
+
+    def appointment_action(
+        self, appointment_id: int, action: str, notes: str | None = None
+    ) -> dict | None:
+        try:
+            appointment = AppointmentService(self.db).transition(
+                appointment_id, action, notes
+            )
+        except ValueError as exc:
+            return {"error": str(exc)}
+        if not appointment:
+            return None
+        return {
+            "id": appointment.id,
+            "status": appointment.status,
+            "notes": appointment.notes,
         }
 
     def get_appointment_detail(self, appointment_id: int) -> dict | None:
@@ -457,8 +712,16 @@ class AdminService:
             "service": {
                 "id": apt.service_id,
                 "name": svc_name,
-                "duration_minutes": svc_duration,
-                "price_cents": svc_price,
+                "duration_minutes": (
+                    apt.service_duration_minutes
+                    if apt.service_duration_minutes is not None
+                    else svc_duration
+                ),
+                "price_cents": (
+                    apt.service_price_cents
+                    if apt.service_price_cents is not None
+                    else svc_price
+                ),
             },
             "payment": {
                 "id": pay_id,

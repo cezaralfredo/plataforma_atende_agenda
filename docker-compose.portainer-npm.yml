@@ -2,6 +2,29 @@
 # Não publique portas: no NPM, crie um Proxy Host para agenda-api:8000.
 # Defina as variáveis abaixo na tela Environment variables da Stack.
 services:
+  mcp-gateway:
+    image: "${REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY:-cezaralfredo/plataforma_atende_agenda}-mcp-gateway:${MCP_GATEWAY_IMAGE_TAG:?Defina MCP_GATEWAY_IMAGE_TAG no Portainer}"
+    restart: unless-stopped
+    environment:
+      API_BASE_URL: http://api:8000
+      API_KEY: ${API_KEY:?Defina API_KEY no Portainer}
+      GATEWAY_KEY: ${MCP_GATEWAY_KEY:?Defina MCP_GATEWAY_KEY no Portainer}
+    expose:
+      - "8080"
+    networks:
+      agenda_internal:
+      npm:
+        aliases:
+          - mcp-gateway
+    depends_on:
+      api:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8080/ready', timeout=2).raise_for_status()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -28,6 +51,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no Portainer}
       API_KEY: ${API_KEY:?Defina API_KEY no Portainer}
       ADMIN_API_KEY: ${ADMIN_API_KEY:?Defina ADMIN_API_KEY no Portainer}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:?Defina ADMIN_USERNAME no Portainer}
+      ADMIN_BOOTSTRAP_PASSWORD: ${ADMIN_BOOTSTRAP_PASSWORD?Defina ADMIN_BOOTSTRAP_PASSWORD no Portainer (vazio apos criar a conta)}
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:?Defina ADMIN_SESSION_SECRET no Portainer}
+      ADMIN_RECOVERY_KEY: ${ADMIN_RECOVERY_KEY:?Defina ADMIN_RECOVERY_KEY no Portainer}
       APP_NAME: ${APP_NAME:-Agenda Atende}
       DEBUG: "false"
       ASAAS_API_KEY: ${ASAAS_API_KEY:?Defina ASAAS_API_KEY no Portainer}
