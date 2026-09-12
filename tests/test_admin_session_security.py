@@ -102,7 +102,7 @@ def test_cookie_mutation_requires_matching_csrf(anonymous_client, db_session, cs
 def test_cookie_mutation_with_matching_csrf_creates_service(anonymous_client, db_session):
     set_admin_session(anonymous_client)
     response = anonymous_client.post(
-        "/admin/api/services", json={"name": "Allowed"},
+        "/admin/api/services", json={"name": "Allowed", "price_cents": 5000, "duration_minutes": 60},
         headers={"X-CSRF-Token": "fixture-csrf-token"},
     )
     assert response.status_code == 201
@@ -112,7 +112,7 @@ def test_cookie_mutation_with_matching_csrf_creates_service(anonymous_client, db
 def test_technical_mutation_needs_no_csrf_even_with_stale_cookie(anonymous_client):
     set_admin_session(anonymous_client, auth_version=0)
     response = anonymous_client.post(
-        "/admin/api/services", json={"name": "Technical"},
+        "/admin/api/services", json={"name": "Technical", "price_cents": 5000, "duration_minutes": 60},
         headers={"X-Admin-Key": settings.admin_api_key},
     )
     assert response.status_code == 201

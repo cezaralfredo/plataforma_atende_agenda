@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from tests.seed import seed_appointment, seed_data
+from tests.seed import seed_appointment, seed_data, seed_payment
 
 
 def test_awaiting_payment_expires_and_releases_slot(
@@ -47,6 +47,36 @@ def test_confirm_is_idempotent(client: TestClient, db_session: Session):
     entities = seed_data(db_session)
     appointment = seed_appointment(db_session, entities)
     appointment.status = "confirmed"
+    db_session.commit()
+
+    response = client.post(f"/api/appointments/{appointment.id}/confirm")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "confirmed"
+
+
+def test_pending_appointment_cannot_be_confirmed_without_received_payment(
+    client: TestClient, db_session: Session
+):
+    entities = seed_data(db_session)
+    appointment = seed_appointment(db_session, entities)
+    appointment.status = "pending"
+    db_session.commit()
+
+    response = client.post(f"/api/appointments/{appointment.id}/confirm")
+
+    assert response.status_code == 409
+    assert "pagamento" in response.json()["detail"].lower()
+
+
+def test_pending_appointment_can_be_confirmed_after_received_payment(
+    client: TestClient, db_session: Session
+):
+    entities = seed_data(db_session)
+    appointment = seed_appointment(db_session, entities)
+    appointment.status = "pending"
+    payment = seed_payment(db_session, appointment)
+    payment.status = "received"
     db_session.commit()
 
     response = client.post(f"/api/appointments/{appointment.id}/confirm")

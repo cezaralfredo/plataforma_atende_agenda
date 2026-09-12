@@ -349,16 +349,16 @@ def _format_servicos(offerings, include_professional: bool = True) -> str:
     lines = ["Serviços disponíveis:"]
     for offering in offerings:
         service = offering.service
-        price = f"R$ {offering.price_cents / 100:.2f}".replace(".", ",")
+        price = f"R$ {service.price_cents / 100:.2f}".replace(".", ",")
         if include_professional:
             line = (
                 f"  #{service.id} {service.name} - {price} "
-                f"({offering.duration_minutes}min) — {offering.professional.name}"
+                f"({service.duration_minutes}min) — {offering.professional.name}"
             )
         else:
             line = (
                 f"  #{service.id} {service.name} - {price} "
-                f"({offering.duration_minutes}min)"
+                f"({service.duration_minutes}min)"
             )
         lines.append(line)
     return "\n".join(lines)

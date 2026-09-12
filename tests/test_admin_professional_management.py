@@ -23,14 +23,13 @@ def test_admin_creates_offering_with_configurable_commission(
         headers=_admin_headers(),
         json={
             "service_id": entities["service"].id,
-            "price_cents": 15000,
-            "duration_minutes": 60,
             "commission_percent": "17.50",
         },
     )
 
     assert response.status_code == 201
-    assert response.json()["price_cents"] == 15000
+    assert response.json()["price_cents"] == entities["service"].price_cents
+    assert response.json()["duration_minutes"] == entities["service"].duration_minutes
     assert response.json()["commission_percent"] == "17.50"
 
 
@@ -66,6 +65,7 @@ def test_professional_edit_page_shows_management_sections(
     assert response.status_code == 200
     assert "Horários de atendimento" in response.text
     assert "Serviços oferecidos" in response.text
+    assert "Preço e duração são definidos pela empresa" in response.text
 
 
 def test_professionals_page_links_to_management_ui(
@@ -84,15 +84,13 @@ def test_professional_summary_counts_active_shared_catalog_offerings(
     db_session: Session,
 ):
     entities = seed_data(db_session)
-    service = Service(name="Serviço extra", active=True)
+    service = Service(name="Serviço extra", price_cents=7000, duration_minutes=45, active=True)
     db_session.add(service)
     db_session.flush()
     db_session.add(
         ProfessionalService(
             professional_id=entities["professional"].id,
             service_id=service.id,
-            price_cents=7000,
-            duration_minutes=45,
         )
     )
     db_session.commit()

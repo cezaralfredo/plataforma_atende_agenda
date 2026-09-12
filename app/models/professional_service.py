@@ -6,7 +6,6 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
-    Integer,
     Numeric,
     UniqueConstraint,
     func,
@@ -24,10 +23,6 @@ class ProfessionalService(Base):
         UniqueConstraint(
             "professional_id", "service_id", name="uq_professional_services_pair"
         ),
-        CheckConstraint("price_cents >= 0", name="check_professional_service_price"),
-        CheckConstraint(
-            "duration_minutes > 0", name="check_professional_service_duration"
-        ),
         CheckConstraint(
             "commission_percent >= 0 AND commission_percent <= 100",
             name="check_professional_service_commission",
@@ -41,8 +36,6 @@ class ProfessionalService(Base):
     service_id: Mapped[int] = mapped_column(
         ForeignKey("services.id"), nullable=False, index=True
     )
-    price_cents: Mapped[int] = mapped_column(Integer, nullable=False)
-    duration_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
     commission_percent: Mapped[Decimal] = mapped_column(
         Numeric(5, 2), nullable=False, default=Decimal("10.00")
     )

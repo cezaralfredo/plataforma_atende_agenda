@@ -332,6 +332,8 @@ class AdminService:
             "name": service.name,
             "description": service.description,
             "category": service.category,
+            "price_cents": service.price_cents,
+            "duration_minutes": service.duration_minutes,
             "active": service.active,
             "active_offerings_count": active_offerings_count,
         }
@@ -416,6 +418,8 @@ class AdminService:
             name=data.name,
             description=data.description,
             category=data.category,
+            price_cents=data.price_cents,
+            duration_minutes=data.duration_minutes,
         )
         return self._catalog_service_response(service)
 
@@ -437,8 +441,8 @@ class AdminService:
             "id": offering.id,
             "professional_id": offering.professional_id,
             "service_id": offering.service_id,
-            "price_cents": offering.price_cents,
-            "duration_minutes": offering.duration_minutes,
+            "price_cents": offering.service.price_cents,
+            "duration_minutes": offering.service.duration_minutes,
             "commission_percent": f"{offering.commission_percent:.2f}",
             "active": offering.active,
             "service_name": offering.service.name if offering.service else None,
@@ -480,8 +484,6 @@ class AdminService:
         offering = ProfessionalOfferingService(self.db).create_or_update(
             professional_id=professional_id,
             service_id=data.service_id,
-            price_cents=data.price_cents,
-            duration_minutes=data.duration_minutes,
             commission_percent=data.commission_percent,
         )
         return self._offering_response(offering)

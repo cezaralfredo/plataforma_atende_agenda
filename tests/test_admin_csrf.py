@@ -27,8 +27,8 @@ MUTATIONS = [
     ("PUT", "/admin/api/professionals/1", {"name": "Nome atualizado"}, 200, {"name": "Nome atualizado"}),
     ("DELETE", "/admin/api/professionals/1", None, 200, {"outcome": "archived"}),
     ("POST", "/admin/api/professionals/1/services", {
-        "service_id": 1, "price_cents": 6000, "duration_minutes": 45, "commission_percent": "15.00",
-    }, 201, {"price_cents": 6000, "commission_percent": "15.00"}),
+        "service_id": 1, "commission_percent": "15.00",
+    }, 201, {"price_cents": 5000, "commission_percent": "15.00"}),
     ("DELETE", "/admin/api/professionals/1/services/1", None, 200, {"outcome": "archived"}),
     ("POST", "/admin/api/professionals/1/availability", {
         "day_of_week": 1, "start_time": "08:00", "end_time": "12:00",
@@ -37,7 +37,9 @@ MUTATIONS = [
         "start_time": "08:30", "end_time": "11:30",
     }, 200, {"start_time": "08:30:00"}),
     ("DELETE", "/admin/api/professionals/1/availability/1", None, 204, None),
-    ("POST", "/admin/api/services", {"name": "Novo serviço"}, 201, {"name": "Novo serviço"}),
+    ("POST", "/admin/api/services", {
+        "name": "Novo serviço", "price_cents": 6000, "duration_minutes": 45,
+    }, 201, {"name": "Novo serviço"}),
     ("PUT", "/admin/api/services/1", {"name": "Serviço atualizado"}, 200, {"name": "Serviço atualizado"}),
     ("DELETE", "/admin/api/services/1", None, 200, {"outcome": "archived"}),
     ("POST", "/admin/api/services/1/reactivate", None, 200, {"active": True}),
@@ -57,6 +59,9 @@ def test_business_mutation_requires_session_csrf_but_not_technical_key(
     appointment = seed_appointment(db_session, entities)
     appointment.status = "pending"
     appointment.expires_at = None
+    if path == "/admin/appointments/1/action" and payload == {"action": "confirm"}:
+        payment = seed_payment(db_session, appointment)
+        payment.status = "received"
     if "/payments/" in path:
         payment = seed_payment(db_session, appointment)
         payment.status = "received"

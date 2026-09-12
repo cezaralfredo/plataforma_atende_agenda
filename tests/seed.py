@@ -32,7 +32,6 @@ def seed_data(db: Session) -> dict:
     db.flush()
 
     service = Service(
-        professional_id=professional.id,
         name="Corte de cabelo",
         description="Corte masculino e feminino",
         duration_minutes=60,
@@ -43,7 +42,6 @@ def seed_data(db: Session) -> dict:
     db.flush()
 
     service2 = Service(
-        professional_id=professional.id,
         name="Escova",
         description="Escova modeladora",
         duration_minutes=45,
@@ -58,14 +56,10 @@ def seed_data(db: Session) -> dict:
             ProfessionalService(
                 professional_id=professional.id,
                 service_id=service.id,
-                price_cents=service.price_cents,
-                duration_minutes=service.duration_minutes,
             ),
             ProfessionalService(
                 professional_id=professional.id,
                 service_id=service2.id,
-                price_cents=service2.price_cents,
-                duration_minutes=service2.duration_minutes,
             ),
         ]
     )

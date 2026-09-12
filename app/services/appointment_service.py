@@ -12,6 +12,7 @@ from app.models.user import User
 from app.repositories import AppointmentRepository
 from app.schemas.appointment import AppointmentCreate, AppointmentUpdate
 from app.services.availability_service import AvailabilityService
+from app.services.payment_state_service import _is_expired
 
 
 class AppointmentService:
@@ -35,8 +36,8 @@ class AppointmentService:
                 status="pending",
                 expires_at=now + timedelta(minutes=30),
                 created_at=now,
-                service_price_cents=offering.price_cents,
-                service_duration_minutes=offering.duration_minutes,
+                service_price_cents=offering.service.price_cents,
+                service_duration_minutes=offering.service.duration_minutes,
                 professional_commission_percent=offering.commission_percent,
             )
         except IntegrityError as exc:
@@ -73,7 +74,9 @@ class AppointmentService:
 
         start_time = as_business_time(data.start_time)
         end_time = as_business_time(data.end_time)
-        expected_end = start_time + timedelta(minutes=offering.duration_minutes)
+        expected_end = start_time + timedelta(
+            minutes=offering.service.duration_minutes
+        )
         if end_time != expected_end:
             raise ValueError(
                 "A duração da reserva deve corresponder à duração do serviço"
@@ -114,8 +117,8 @@ class AppointmentService:
         appointment.start_time = start_time
         appointment.end_time = end_time
         appointment.notes = data.notes
-        appointment.service_price_cents = offering.price_cents
-        appointment.service_duration_minutes = offering.duration_minutes
+        appointment.service_price_cents = offering.service.price_cents
+        appointment.service_duration_minutes = offering.service.duration_minutes
         appointment.professional_commission_percent = offering.commission_percent
         self.repo.db.commit()
         self.repo.db.refresh(appointment)
@@ -176,11 +179,25 @@ class AppointmentService:
         if (
             action == "confirm"
             and appointment.expires_at
-            and appointment.expires_at <= datetime.now(UTC)
+            and _is_expired(appointment.expires_at, datetime.now(UTC))
         ):
             appointment.status = "cancelled"
             self.repo.db.commit()
             raise ValueError("A reserva expirou")
+
+        if action == "confirm":
+            payment_received = (
+                self.repo.db.query(Payment.id)
+                .filter(
+                    Payment.appointment_id == appointment_id,
+                    Payment.status.in_({"received", "confirmed"}),
+                )
+                .first()
+            )
+            if not payment_received:
+                raise ValueError(
+                    "O agendamento só pode ser confirmado após o pagamento"
+                )
 
         appointment.status = next_status
         if notes:

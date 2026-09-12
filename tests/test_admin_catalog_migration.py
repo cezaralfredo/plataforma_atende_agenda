@@ -21,8 +21,6 @@ def test_professional_service_defaults_commission_to_ten_percent(
     offering = ProfessionalService(
         professional_id=another_professional.id,
         service_id=entities["service"].id,
-        price_cents=12500,
-        duration_minutes=60,
     )
     db_session.add(offering)
     db_session.commit()
@@ -43,8 +41,8 @@ def test_appointment_keeps_commercial_snapshot_after_offering_changes(
         )
         .one()
     )
-    offering.price_cents = 12500
-    offering.duration_minutes = 60
+    entities["service"].price_cents = 12500
+    entities["service"].duration_minutes = 60
     offering.commission_percent = Decimal("10.00")
     db_session.commit()
 
@@ -55,14 +53,14 @@ def test_appointment_keeps_commercial_snapshot_after_offering_changes(
         start_time=datetime(2026, 9, 10, 9, 0, tzinfo=UTC),
         end_time=datetime(2026, 9, 10, 10, 0, tzinfo=UTC),
         status="confirmed",
-        service_price_cents=offering.price_cents,
-        service_duration_minutes=offering.duration_minutes,
+        service_price_cents=entities["service"].price_cents,
+        service_duration_minutes=entities["service"].duration_minutes,
         professional_commission_percent=offering.commission_percent,
     )
     db_session.add(appointment)
     db_session.commit()
 
-    offering.price_cents = 20000
+    entities["service"].price_cents = 20000
     offering.commission_percent = Decimal("25.00")
     db_session.commit()
     db_session.refresh(appointment)

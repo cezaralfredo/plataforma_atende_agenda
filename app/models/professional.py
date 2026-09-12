@@ -20,7 +20,6 @@ class Professional(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
-    services = relationship("Service", back_populates="professional")
     service_offerings = relationship(
         "ProfessionalService",
         back_populates="professional",

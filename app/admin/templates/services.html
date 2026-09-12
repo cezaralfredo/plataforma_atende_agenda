@@ -7,7 +7,7 @@
 <div x-data="serviceCatalog({{ dashboard | tojson }})" class="space-y-6">
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-            <p class="text-sm text-slate-600">Catálogo único do empreendimento. Valores, duração e comissão são definidos para cada profissional.</p>
+            <p class="text-sm text-slate-600">Catálogo único da empresa. Preço e duração são definidos aqui; cada profissional recebe sua própria comissão.</p>
         </div>
         <button type="button" @click="openCreate()" class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
             <i class="fas fa-plus mr-2"></i>Novo serviço
@@ -42,7 +42,7 @@
 
     <div class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div class="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-            <div><h3 class="font-bold text-slate-900">Serviços da empresa</h3><p class="text-sm text-slate-500">Configure profissionais, valores e comissão na área de Profissionais.</p></div>
+            <div><h3 class="font-bold text-slate-900">Serviços da empresa</h3><p class="text-sm text-slate-500">A empresa define o portfólio, o preço e a duração. Vincule profissionais e comissões na área de Profissionais.</p></div>
             <div class="flex flex-col gap-2 sm:flex-row"><input x-model.trim="search" type="search" placeholder="Buscar serviço" class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" /><select x-model="statusFilter" class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"><option value="active">Ativos</option><option value="archived">Arquivados</option><option value="all">Todos</option></select></div>
         </div>
         <div class="overflow-x-auto">
@@ -51,6 +51,8 @@
                     <tr>
                         <th class="px-5 py-3">Serviço</th>
                         <th class="px-5 py-3">Categoria</th>
+                        <th class="px-5 py-3">Preço da empresa</th>
+                        <th class="px-5 py-3">Duração</th>
                         <th class="px-5 py-3">Profissionais</th>
                         <th class="px-5 py-3">Status</th>
                         <th class="px-5 py-3 text-right">Gestão</th>
@@ -64,6 +66,8 @@
                                 <p class="mt-1 max-w-xl text-xs text-slate-500" x-show="service.description" x-text="service.description"></p>
                             </td>
                             <td class="px-5 py-4" x-text="service.category || 'Sem categoria'"></td>
+                            <td class="px-5 py-4 font-medium" x-text="formatMoney(service.price_cents)"></td>
+                            <td class="px-5 py-4" x-text="service.duration_minutes + ' min'"></td>
                             <td class="px-5 py-4" x-text="service.active_offerings_count + ' ativo(s)'"></td>
                             <td class="px-5 py-4">
                                 <span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="service.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'" x-text="service.active ? 'Ativo' : 'Arquivado'"></span>
@@ -77,7 +81,7 @@
                             </td>
                         </tr>
                     </template>
-                    <tr x-show="filteredServices.length === 0"><td colspan="5" class="px-5 py-12 text-center text-sm text-slate-500">Nenhum serviço encontrado para este filtro.</td></tr>
+                    <tr x-show="filteredServices.length === 0"><td colspan="7" class="px-5 py-12 text-center text-sm text-slate-500">Nenhum serviço encontrado para este filtro.</td></tr>
                 </tbody>
             </table>
         </div>
@@ -89,6 +93,10 @@
             <form class="space-y-4" @submit.prevent="save()">
                 <label class="block text-sm font-medium text-slate-700">Nome<input x-model.trim="form.name" required maxlength="255" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-500 focus:outline-none" /></label>
                 <label class="block text-sm font-medium text-slate-700">Categoria<input x-model.trim="form.category" maxlength="100" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-500 focus:outline-none" placeholder="Ex.: Cabelos" /></label>
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <label class="block text-sm font-medium text-slate-700">Preço da empresa (R$)<input x-model="form.price" required type="number" min="0" step="0.01" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-500 focus:outline-none" /></label>
+                    <label class="block text-sm font-medium text-slate-700">Duração (minutos)<input x-model.number="form.duration_minutes" required type="number" min="1" step="1" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-500 focus:outline-none" /></label>
+                </div>
                 <label class="block text-sm font-medium text-slate-700">Descrição<textarea x-model.trim="form.description" rows="3" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:border-blue-500 focus:outline-none" placeholder="Opcional"></textarea></label>
                 <div class="flex justify-end gap-3 pt-2"><button type="button" @click="formOpen = false" class="rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100">Cancelar</button><button type="submit" :disabled="saving" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60" x-text="saving ? 'Salvando...' : 'Salvar'"></button></div>
             </form>
@@ -106,9 +114,10 @@ function serviceCatalog(initialDashboard) {
         issues: initialDashboard.issues,
         search: '', statusFilter: 'active',
         formOpen: false, editingId: null, saving: false, message: '', messageError: false,
-        form: { name: '', description: '', category: '' },
-        openCreate() { this.editingId = null; this.form = { name: '', description: '', category: '' }; this.formOpen = true; },
-        openEdit(service) { this.editingId = service.id; this.form = { name: service.name, description: service.description || '', category: service.category || '' }; this.formOpen = true; },
+        form: { name: '', description: '', category: '', price: '', duration_minutes: 60 },
+        formatMoney(cents) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100); },
+        openCreate() { this.editingId = null; this.form = { name: '', description: '', category: '', price: '', duration_minutes: 60 }; this.formOpen = true; },
+        openEdit(service) { this.editingId = service.id; this.form = { name: service.name, description: service.description || '', category: service.category || '', price: (service.price_cents / 100).toFixed(2), duration_minutes: service.duration_minutes }; this.formOpen = true; },
         async request(url, options = {}) {
             const response = await adminFetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
             if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.detail || 'Não foi possível concluir a operação.'); }
@@ -130,7 +139,9 @@ function serviceCatalog(initialDashboard) {
         },
         async save() {
             this.saving = true;
-            try { await this.request(this.editingId ? `/admin/api/services/${this.editingId}` : '/admin/api/services', { method: this.editingId ? 'PUT' : 'POST', body: JSON.stringify(this.form) }); await this.reload(); this.formOpen = false; this.message = 'Serviço salvo com sucesso.'; this.messageError = false; }
+            const payload = { ...this.form, price_cents: Math.round(Number(this.form.price) * 100), duration_minutes: Number(this.form.duration_minutes) };
+            delete payload.price;
+            try { await this.request(this.editingId ? `/admin/api/services/${this.editingId}` : '/admin/api/services', { method: this.editingId ? 'PUT' : 'POST', body: JSON.stringify(payload) }); await this.reload(); this.formOpen = false; this.message = 'Serviço salvo com sucesso.'; this.messageError = false; }
             catch (error) { this.message = error.message; this.messageError = true; }
             finally { this.saving = false; }
         },
