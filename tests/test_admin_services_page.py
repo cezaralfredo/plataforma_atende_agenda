@@ -20,6 +20,19 @@ def test_services_page_is_in_admin_navigation(anonymous_client: TestClient):
     assert 'href="/admin/services"' in response.text
 
 
+def test_admin_uses_bundled_alpine_runtime(anonymous_client: TestClient):
+    """The admin must remain interactive when third-party CDNs are unavailable."""
+    response = anonymous_client.get("/admin/services", headers=_admin_headers())
+
+    assert response.status_code == 200
+    assert 'src="/admin/static/vendor/alpine.min.js"' in response.text
+    assert "cdn.jsdelivr.net/npm/alpinejs" not in response.text
+
+    runtime = anonymous_client.get("/admin/static/vendor/alpine.min.js")
+    assert runtime.status_code == 200
+    assert "Alpine" in runtime.text
+
+
 def test_services_dashboard_reports_catalog_health(
     anonymous_client: TestClient, db_session: Session
 ):

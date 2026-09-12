@@ -1,6 +1,7 @@
 from collections.abc import Callable
 
 from fastapi import Depends, FastAPI, Response
+from fastapi.staticfiles import StaticFiles
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from prometheus_fastapi_instrumentator import Instrumentator
 from sqlalchemy.orm import Session
@@ -37,6 +38,11 @@ def create_app(
         openapi_url=openapi_url,
     )
     application.state.settings = app_settings
+    application.mount(
+        "/admin/static",
+        StaticFiles(directory="app/admin/static"),
+        name="admin-static",
+    )
     application.add_middleware(
         SessionMiddleware,
         secret_key=app_settings.admin_session_secret,
