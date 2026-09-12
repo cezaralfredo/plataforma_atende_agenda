@@ -4,7 +4,8 @@
 {% block page_title %}Gestão de Serviços{% endblock %}
 
 {% block content %}
-<div x-data="serviceCatalog({{ dashboard | tojson }})" class="space-y-6">
+<div id="service-dashboard-data" hidden data-dashboard="{{ dashboard | tojson | forceescape }}"></div>
+<div x-data="serviceCatalog()" class="space-y-6">
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
             <p class="text-sm text-slate-600">Catálogo único da empresa. Preço e duração são definidos aqui; cada profissional recebe sua própria comissão.</p>
@@ -107,7 +108,10 @@
 
 {% block scripts %}
 <script>
-function serviceCatalog(initialDashboard) {
+function serviceCatalog(initialDashboard = null) {
+    initialDashboard ??= JSON.parse(
+        document.getElementById('service-dashboard-data').dataset.dashboard
+    );
     return {
         services: initialDashboard.services,
         metrics: initialDashboard.metrics,

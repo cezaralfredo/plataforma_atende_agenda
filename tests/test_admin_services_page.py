@@ -1,4 +1,7 @@
 
+import json
+from html.parser import HTMLParser
+
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -10,6 +13,22 @@ from app.models.service import Service
 
 def _admin_headers() -> dict[str, str]:
     return {"X-Admin-Key": settings.admin_api_key}
+
+
+class _ServicesBootstrapParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.x_data: str | None = None
+        self.dashboard_json = ""
+
+    def handle_starttag(
+        self, tag: str, attrs: list[tuple[str, str | None]]
+    ) -> None:
+        attributes = dict(attrs)
+        if "x-data" in attributes:
+            self.x_data = attributes["x-data"]
+        if attributes.get("id") == "service-dashboard-data":
+            self.dashboard_json = attributes.get("data-dashboard") or ""
 
 
 def test_services_page_is_in_admin_navigation(anonymous_client: TestClient):
@@ -31,6 +50,30 @@ def test_admin_uses_bundled_alpine_runtime(anonymous_client: TestClient):
     runtime = anonymous_client.get("/admin/static/vendor/alpine.min.js")
     assert runtime.status_code == 200
     assert "Alpine" in runtime.text
+
+
+def test_services_dashboard_data_does_not_break_alpine_expression(
+    anonymous_client: TestClient, db_session: Session
+):
+    """Catches JSON quotes truncating the x-data attribute in the browser."""
+    db_session.add(
+        Service(
+            name='Corte "Premium"',
+            category="Cabelos",
+            price_cents=12000,
+            duration_minutes=60,
+            active=True,
+        )
+    )
+    db_session.commit()
+
+    response = anonymous_client.get("/admin/services", headers=_admin_headers())
+
+    parser = _ServicesBootstrapParser()
+    parser.feed(response.text)
+    assert parser.x_data == "serviceCatalog()"
+    dashboard = json.loads(parser.dashboard_json)
+    assert dashboard["services"][0]["name"] == 'Corte "Premium"'
 
 
 def test_services_dashboard_reports_catalog_health(
