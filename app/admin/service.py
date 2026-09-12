@@ -1,8 +1,10 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
+from app.admin import auth
+from app.models.admin_user import AdminUser
 from app.models.appointment import Appointment
 from app.models.availability import Availability
 from app.models.payment import Payment
@@ -17,6 +19,72 @@ from app.services.professional_service import ProfessionalManagementService
 from app.services.professional_service_offering_service import ProfessionalOfferingService
 from app.services.service_service import ServiceCatalogService
 from app.services.user_service import UserService
+
+# dias da semana p/ agenda (0=segunda ... 6=domingo)
+WEEKDAY_NAMES = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
+
+
+class AdminUserService:
+    """Gerenciamento das credenciais do painel admin (login real)."""
+
+    def __init__(self, db: Session):
+        self.db = db
+
+    def list_admins(self) -> list[AdminUser]:
+        return self.db.query(AdminUser).order_by(AdminUser.id).all()
+
+    def get_by_username(self, username: str) -> AdminUser | None:
+        return (
+            self.db.query(AdminUser)
+            .filter(func.lower(AdminUser.username) == username.strip().lower())
+            .first()
+        )
+
+    def get(self, admin_id: int) -> AdminUser | None:
+        return self.db.query(AdminUser).filter(AdminUser.id == admin_id).first()
+
+    def count(self) -> int:
+        return self.db.query(func.count(AdminUser.id)).scalar() or 0
+
+    def create(self, username: str, password: str, display_name: str = "Administrador") -> AdminUser:
+        if self.get_by_username(username):
+            raise ValueError("Já existe um usuário com esse nome.")
+        admin = AdminUser(
+            username=username.strip(),
+            password_hash=auth.hash_password(password),
+            display_name=display_name.strip() or "Administrador",
+            is_active=True,
+        )
+        self.db.add(admin)
+        self.db.commit()
+        self.db.refresh(admin)
+        return admin
+
+    def authenticate(self, username: str, password: str) -> AdminUser | None:
+        admin = self.get_by_username(username)
+        if not admin or not admin.is_active:
+            return None
+        if not auth.verify_password(password, admin.password_hash):
+            return None
+        admin.last_login_at = datetime.now()
+        self.db.commit()
+        return admin
+
+    def update_password(self, admin: AdminUser, new_password: str) -> None:
+        admin.password_hash = auth.hash_password(new_password)
+        self.db.commit()
+
+    def set_active(self, admin: AdminUser, active: bool) -> None:
+        admin.is_active = active
+        self.db.commit()
+
+    def delete(self, admin: AdminUser) -> None:
+        self.db.delete(admin)
+        self.db.commit()
+
+    def update_display_name(self, admin: AdminUser, display_name: str) -> None:
+        admin.display_name = (display_name.strip() or "Administrador")
+        self.db.commit()
 
 
 class AdminService:
@@ -664,3 +732,156 @@ class AdminService:
                 "invoice_url": pay_invoice,
             } if pay_id else None,
         }
+
+
+    # ------------------------------------------------------------------
+    # CRUD: Clientes (User)
+    # ------------------------------------------------------------------
+    def list_users(self, search=None, page=1, page_size=100):
+        q = self.db.query(User)
+        if search:
+            s = f"%{search}%"
+            q = q.filter(or_(User.name.ilike(s), User.phone.ilike(s), User.email.ilike(s)))
+        total = q.count()
+        rows = q.order_by(User.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+        return rows, total
+
+    def get_user(self, user_id):
+        return self.db.query(User).filter(User.id == user_id).first()
+
+    def create_user(self, name, phone, email=None, whatsapp_number=None, cpf_cnpj=None):
+        from app.schemas.user import UserCreate
+        data = UserCreate(name=name, phone=phone, email=email, whatsapp_number=whatsapp_number, cpf_cnpj=cpf_cnpj)
+        user = User(**data.model_dump())
+        self.db.add(user)
+        self.db.commit()
+        self.db.refresh(user)
+        return user
+
+    def update_user(self, user, **fields):
+        for k, v in fields.items():
+            if hasattr(user, k):
+                setattr(user, k, v)
+        self.db.commit()
+        self.db.refresh(user)
+        return user
+
+    def delete_user(self, user):
+        try:
+            self.db.delete(user)
+            self.db.commit()
+            return True
+        except Exception:
+            self.db.rollback()
+            return False
+
+    # ------------------------------------------------------------------
+    # CRUD: Profissionais (Professional)
+    # ------------------------------------------------------------------
+    def list_professionals_raw(self, search=None):
+        q = self.db.query(Professional)
+        if search:
+            s = f"%{search}%"
+            q = q.filter(or_(Professional.name.ilike(s), Professional.phone.ilike(s)))
+        return q.order_by(Professional.name).all()
+
+    def get_professional(self, pid):
+        return self.db.query(Professional).filter(Professional.id == pid).first()
+
+    def create_professional(self, name, phone=None, email=None, bio=None, active=True):
+        p = Professional(name=name, phone=phone, email=email, bio=bio, active=active)
+        self.db.add(p)
+        self.db.commit()
+        self.db.refresh(p)
+        return p
+
+    def update_professional(self, p, **fields):
+        for k, v in fields.items():
+            if hasattr(p, k):
+                setattr(p, k, v)
+        self.db.commit()
+        self.db.refresh(p)
+        return p
+
+    def delete_professional(self, p):
+        try:
+            self.db.delete(p)
+            self.db.commit()
+            return True
+        except Exception:
+            self.db.rollback()
+            return False
+
+    # ------------------------------------------------------------------
+    # CRUD: Servicos (Service) e valores
+    # ------------------------------------------------------------------
+    def list_services_raw(self, professional_id=None):
+        q = self.db.query(Service)
+        if professional_id:
+            q = q.filter(Service.professional_id == professional_id)
+        return q.order_by(Service.professional_id, Service.name).all()
+
+    def get_service(self, sid):
+        return self.db.query(Service).filter(Service.id == sid).first()
+
+    def create_service(self, professional_id, name, duration_minutes, price_cents, description=None, category=None):
+        s = Service(professional_id=professional_id, name=name, duration_minutes=duration_minutes,
+                    price_cents=price_cents, description=description, category=category)
+        self.db.add(s)
+        self.db.commit()
+        self.db.refresh(s)
+        return s
+
+    def update_service(self, s, **fields):
+        for k, v in fields.items():
+            if hasattr(s, k):
+                setattr(s, k, v)
+        self.db.commit()
+        self.db.refresh(s)
+        return s
+
+    def delete_service(self, s):
+        try:
+            self.db.delete(s)
+            self.db.commit()
+            return True
+        except Exception:
+            self.db.rollback()
+            return False
+
+    # ------------------------------------------------------------------
+    # CRUD: Horarios / Disponibilidade (Availability)
+    # ------------------------------------------------------------------
+    def list_availability_raw(self, professional_id=None):
+        q = self.db.query(Availability)
+        if professional_id:
+            q = q.filter(Availability.professional_id == professional_id)
+        return q.order_by(Availability.professional_id, Availability.day_of_week, Availability.start_time).all()
+
+    def get_availability(self, aid):
+        return self.db.query(Availability).filter(Availability.id == aid).first()
+
+    def create_availability(self, professional_id, start_time, end_time, day_of_week=None, specific_date=None):
+        a = Availability(professional_id=professional_id, start_time=start_time, end_time=end_time,
+                         day_of_week=day_of_week, specific_date=specific_date)
+        self.db.add(a)
+        self.db.commit()
+        self.db.refresh(a)
+        return a
+
+    def update_availability(self, a, **fields):
+        for k, v in fields.items():
+            if hasattr(a, k):
+                setattr(a, k, v)
+        self.db.commit()
+        self.db.refresh(a)
+        return a
+
+    def delete_availability(self, a):
+        try:
+            self.db.delete(a)
+            self.db.commit()
+            return True
+        except Exception:
+            self.db.rollback()
+            return False

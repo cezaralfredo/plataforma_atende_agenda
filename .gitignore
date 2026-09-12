@@ -67,3 +67,4 @@ coverage.xml
 # Distribution
 dist/
 build/
+uv.lock

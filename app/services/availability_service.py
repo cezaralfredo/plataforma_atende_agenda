@@ -107,6 +107,10 @@ class AvailabilityService:
                 slot_end = business_datetime(slot_date, slot.end_time)
                 available_slots.append(TimeSlot(start=slot_start, end=slot_end))
 
+        # Defensive de-duplication: identical availability rows (e.g. the same
+        # window inserted more than once) must not produce duplicated slots.
+        available_slots = _dedupe_slots(available_slots)
+
         # Get busy appointments for the day
         day_start = business_datetime(date_obj, time.min)
         day_end = business_datetime(date_obj, time.max)
@@ -139,7 +143,7 @@ class AvailabilityService:
             if current_start < slot.end:
                 free_slots.append(TimeSlot(start=current_start, end=slot.end))
 
-        return free_slots
+        return _dedupe_slots(free_slots)
 
     def get_time_slots_for_service(self, professional_id: int, service_id: int, date_str: str) -> builtins.list[TimeSlot]:
         offering = (
@@ -175,7 +179,7 @@ class AvailabilityService:
                 ))
                 cursor = end
 
-        return slots
+        return _dedupe_slots(slots)
 
     def is_interval_available(self, professional_id: int, start: datetime, end: datetime) -> bool:
         """Return whether the entire requested interval is inside one free period."""
@@ -186,3 +190,22 @@ class AvailabilityService:
             return False
         return any(period.start <= start and end <= period.end
                    for period in self.check_availability(professional_id, date_str))
+
+
+def _dedupe_slots(slots: list[TimeSlot]) -> list[TimeSlot]:
+    """Remove duplicate time slots while preserving order.
+
+    Exact duplicate windows can arise when the `availability` table contains
+    more than one row describing the same period (e.g. a specific datetime and
+    a weekly recurrence that resolve to the same window, or a row inserted
+    twice). Serving a window twice is incorrect for availability checks.
+    """
+    seen: set[tuple[datetime, datetime]] = set()
+    result: list[TimeSlot] = []
+    for slot in slots:
+        key = (slot.start, slot.end)
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(slot)
+    return result

@@ -57,6 +57,7 @@ class PaymentService:
                     phone=user.phone,
                     email=user.email,
                     external_reference=external_reference,
+                    cpf_cnpj=user.cpf_cnpj,
                 )
             except AsaasUncertainResultError:
                 matches = await self.asaas.list_customers(external_reference)
@@ -69,6 +70,15 @@ class PaymentService:
             raise AsaasReconciliationError(
                 f"Asaas customer {external_reference} has no id"
             )
+
+        # If the user has a CPF/CNPJ and the customer was not just created with
+        # it, ensure it is present on the Asaas customer so charges can be made.
+        if user.cpf_cnpj:
+            try:
+                await self.asaas.update_customer(customer_id, cpf_cnpj=user.cpf_cnpj)
+            except AsaasUncertainResultError:
+                pass
+
         user.asaas_customer_id = customer_id
         self.db.flush()
         return customer_id
@@ -247,6 +257,12 @@ class PaymentService:
         return payment
 
     async def verify_recent_payments(self) -> list[Payment]:
+        # Expire stale reservations first so the financeiro cron also cleans
+        # reservations whose payment window lapsed; prevents lingering pending
+        # rows and the "cannot charge a cancelled appointment" re-dispatch loop.
+        self.appointment_repo.expire_reservations(datetime.now(UTC))
+        self.db.flush()
+
         pending_payments = (
             self.db.query(Payment)
             .filter(Payment.status.in_(["pending", "awaiting_payment"]))
