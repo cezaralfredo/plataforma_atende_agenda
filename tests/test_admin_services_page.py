@@ -20,7 +20,6 @@ class _ServicesBootstrapParser(HTMLParser):
         super().__init__()
         self.x_data: str | None = None
         self.dashboard_json = ""
-        self._inside_dashboard_json = False
 
     def handle_starttag(
         self, tag: str, attrs: list[tuple[str, str | None]]
@@ -28,16 +27,8 @@ class _ServicesBootstrapParser(HTMLParser):
         attributes = dict(attrs)
         if "x-data" in attributes:
             self.x_data = attributes["x-data"]
-        if tag == "script" and attributes.get("id") == "service-dashboard-data":
-            self._inside_dashboard_json = True
-
-    def handle_endtag(self, tag: str) -> None:
-        if tag == "script" and self._inside_dashboard_json:
-            self._inside_dashboard_json = False
-
-    def handle_data(self, data: str) -> None:
-        if self._inside_dashboard_json:
-            self.dashboard_json += data
+        if attributes.get("id") == "service-dashboard-data":
+            self.dashboard_json = attributes.get("data-dashboard") or ""
 
 
 def test_services_page_is_in_admin_navigation(anonymous_client: TestClient):
