@@ -93,8 +93,136 @@ def test_admin_refresh_reads_real_provider_status(
 
     assert response.status_code == 200
     assert get_payment.await_count == 1
+    assert response.json() == {
+        "id": payment.id,
+        "status": "confirmed",
+        "message": "Sincronizado: confirmado.",
+    }
     db_session.refresh(payment)
     assert payment.status == "confirmed"
+
+
+def test_admin_can_archive_overdue_payment_without_deleting_history(
+    anonymous_client: TestClient,
+    db_session: Session,
+):
+    entities = seed_data(db_session)
+    appointment = seed_appointment(db_session, entities)
+    payment = seed_payment(db_session, appointment)
+    payment.status = "overdue"
+    appointment.status = "cancelled"
+    db_session.commit()
+
+    response = anonymous_client.post(
+        f"/admin/payments/{payment.id}/action",
+        json={"action": "archive"},
+        headers=_admin_headers(),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["outcome"] == "archived"
+    db_session.refresh(payment)
+    assert payment.archived_at is not None
+
+    listing = anonymous_client.get("/admin/api/payments", headers=_admin_headers())
+    assert listing.status_code == 200
+    assert listing.json()["total"] == 0
+
+    archived_listing = anonymous_client.get(
+        "/admin/api/payments?archived=true",
+        headers=_admin_headers(),
+    )
+    assert archived_listing.status_code == 200
+    assert archived_listing.json()["total"] == 1
+    assert archived_listing.json()["data"][0]["id"] == payment.id
+
+    restore = anonymous_client.post(
+        f"/admin/payments/{payment.id}/action",
+        json={"action": "unarchive"},
+        headers=_admin_headers(),
+    )
+    assert restore.json() == {"id": payment.id, "outcome": "unarchived"}
+    assert anonymous_client.get(
+        "/admin/api/payments", headers=_admin_headers()
+    ).json()["total"] == 1
+
+
+def test_admin_cannot_archive_pending_payment(
+    anonymous_client: TestClient,
+    db_session: Session,
+):
+    entities = seed_data(db_session)
+    appointment = seed_appointment(db_session, entities)
+    payment = seed_payment(db_session, appointment)
+
+    response = anonymous_client.post(
+        f"/admin/payments/{payment.id}/action",
+        json={"action": "archive"},
+        headers=_admin_headers(),
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Somente pagamentos vencidos ou cancelados podem ser arquivados"
+
+
+def test_admin_can_delete_local_draft_without_asaas_identifier(
+    anonymous_client: TestClient,
+    db_session: Session,
+):
+    entities = seed_data(db_session)
+    appointment = seed_appointment(db_session, entities)
+    payment = seed_payment(db_session, appointment)
+    payment.asaas_payment_id = None
+    db_session.commit()
+
+    response = anonymous_client.post(
+        f"/admin/payments/{payment.id}/action",
+        json={"action": "delete_draft"},
+        headers=_admin_headers(),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"id": payment.id, "outcome": "deleted"}
+    assert db_session.get(type(payment), payment.id) is None
+
+
+def test_admin_never_deletes_payment_synced_to_asaas(
+    anonymous_client: TestClient,
+    db_session: Session,
+):
+    entities = seed_data(db_session)
+    appointment = seed_appointment(db_session, entities)
+    payment = seed_payment(db_session, appointment)
+
+    response = anonymous_client.post(
+        f"/admin/payments/{payment.id}/action",
+        json={"action": "delete_draft"},
+        headers=_admin_headers(),
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Pagamentos sincronizados com o Asaas não podem ser excluídos"
+
+
+def test_admin_never_deletes_received_payment_without_asaas_identifier(
+    anonymous_client: TestClient,
+    db_session: Session,
+):
+    entities = seed_data(db_session)
+    appointment = seed_appointment(db_session, entities)
+    payment = seed_payment(db_session, appointment)
+    payment.asaas_payment_id = None
+    payment.status = "received"
+    db_session.commit()
+
+    response = anonymous_client.post(
+        f"/admin/payments/{payment.id}/action",
+        json={"action": "delete_draft"},
+        headers=_admin_headers(),
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Somente rascunhos pendentes podem ser excluídos"
 
 
 def test_admin_payment_action_rejects_unknown_action(
