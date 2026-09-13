@@ -348,10 +348,10 @@ async def payment_action(
     action: PaymentAction,
     db: Session = Depends(get_db),
 ):
-    if not db.query(Payment.id).filter(Payment.id == payment_id).first():
+    current_payment = db.get(Payment, payment_id)
+    if current_payment is None:
         raise HTTPException(status_code=404, detail="Pagamento não encontrado")
 
-    current_payment = db.get(Payment, payment_id)
     previous_status = current_payment.status
     service = PaymentService(db)
     try:

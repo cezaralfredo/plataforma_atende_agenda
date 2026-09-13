@@ -760,8 +760,8 @@ class AdminService:
             )
             user_id = client.id
         elif user_id is not None:
-            client = self.db.get(User, user_id)
-            if client is not None and not client.active:
+            existing_client = self.db.get(User, user_id)
+            if existing_client is not None and not existing_client.active:
                 raise ValueError(
                     "Cliente arquivado não pode receber novos agendamentos."
                 )
