@@ -138,6 +138,96 @@ class AdminService:
         self.db.refresh(user)
         return user
 
+    def list_clients(
+        self,
+        *,
+        page: int = 1,
+        page_size: int = 20,
+        search: str | None = None,
+        status: str = "active",
+    ) -> tuple[list[dict], int]:
+        appointments_total = select(func.count(Appointment.id)).where(
+            Appointment.user_id == User.id
+        ).correlate(User).scalar_subquery()
+        last_appointment_at = select(func.max(Appointment.start_time)).where(
+            Appointment.user_id == User.id
+        ).correlate(User).scalar_subquery()
+        payments_received_total = select(func.count(Payment.id)).join(
+            Appointment, Payment.appointment_id == Appointment.id
+        ).where(
+            Appointment.user_id == User.id,
+            Payment.status.in_(["received", "confirmed"]),
+        ).correlate(User).scalar_subquery()
+        query = self.db.query(
+            User,
+            appointments_total.label("appointments_total"),
+            payments_received_total.label("payments_received_total"),
+            last_appointment_at.label("last_appointment_at"),
+        )
+        if status == "active":
+            query = query.filter(User.active.is_(True))
+        elif status == "archived":
+            query = query.filter(User.active.is_(False))
+        if search:
+            term = f"%{search.strip()}%"
+            query = query.filter(or_(User.name.ilike(term), User.phone.ilike(term), User.email.ilike(term)))
+        total = query.count()
+        rows = query.order_by(User.name, User.id).offset((page - 1) * page_size).limit(page_size).all()
+        return [
+            {
+                "id": user.id,
+                "name": user.name,
+                "phone": user.phone,
+                "email": user.email,
+                "whatsapp_number": user.whatsapp_number,
+                "active": user.active,
+                "appointments_total": appointment_count,
+                "payments_received_total": payment_count,
+                "last_appointment_at": last_at,
+            }
+            for user, appointment_count, payment_count, last_at in rows
+        ], total
+
+    def create_client(self, data) -> User:
+        self._ensure_unique_client_contacts(data.phone, data.email)
+        user = User(
+            name=data.name.strip(),
+            phone=data.phone.strip(),
+            email=data.email.strip() if data.email else None,
+            whatsapp_number=data.whatsapp_number.strip() if data.whatsapp_number else None,
+        )
+        self.db.add(user)
+        self.db.commit()
+        self.db.refresh(user)
+        return user
+
+    def update_client(self, user_id: int, data) -> User | None:
+        user = self.db.get(User, user_id)
+        if user is None:
+            return None
+        values = data.model_dump(exclude_unset=True)
+        phone = values.get("phone", user.phone)
+        email = values.get("email", user.email)
+        self._ensure_unique_client_contacts(phone, email, exclude_id=user_id)
+        for field, value in values.items():
+            setattr(user, field, value.strip() if isinstance(value, str) else value)
+        self.db.commit()
+        self.db.refresh(user)
+        return user
+
+    def _ensure_unique_client_contacts(
+        self, phone: str, email: str | None, exclude_id: int | None = None
+    ) -> None:
+        query = self.db.query(User.id).filter(User.phone == phone.strip())
+        if email:
+            query = self.db.query(User.id).filter(
+                or_(User.phone == phone.strip(), User.email == email.strip())
+            )
+        if exclude_id is not None:
+            query = query.filter(User.id != exclude_id)
+        if query.first():
+            raise ValueError("Telefone ou e-mail já cadastrado.")
+
     def get_kpis(self) -> dict:
         today = date.today()
         week_ago = today - timedelta(days=7)

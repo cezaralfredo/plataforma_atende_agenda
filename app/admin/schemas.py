@@ -138,6 +138,33 @@ class AdminClientCreate(BaseModel):
     whatsapp_number: str | None = None
 
 
+class AdminClientUpdate(BaseModel):
+    name: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    whatsapp_number: str | None = None
+
+
+class AdminClientSummary(BaseModel):
+    id: int
+    name: str
+    phone: str
+    email: str | None = None
+    whatsapp_number: str | None = None
+    active: bool
+    appointments_total: int
+    payments_received_total: int
+    last_appointment_at: datetime | None = None
+
+
+class AdminClientPage(BaseModel):
+    data: list[AdminClientSummary]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
 class AdminAppointmentCreate(BaseModel):
     user_id: int | None = None
     new_client: AdminClientCreate | None = None

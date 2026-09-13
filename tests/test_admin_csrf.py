@@ -43,6 +43,12 @@ MUTATIONS = [
     ("PUT", "/admin/api/services/1", {"name": "Serviço atualizado"}, 200, {"name": "Serviço atualizado"}),
     ("DELETE", "/admin/api/services/1", None, 200, {"outcome": "archived"}),
     ("POST", "/admin/api/services/1/reactivate", None, 200, {"active": True}),
+    ("POST", "/admin/api/clients", {
+        "name": "Novo cliente", "phone": "11988887777", "email": "novo@example.com",
+    }, 201, {"name": "Novo cliente"}),
+    ("PUT", "/admin/api/clients/1", {"name": "Cliente atualizado"}, 200, {"name": "Cliente atualizado"}),
+    ("DELETE", "/admin/api/clients/1", None, 200, {"outcome": "archived"}),
+    ("POST", "/admin/api/clients/1/reactivate", None, 200, {"active": True}),
 ]
 
 
@@ -69,7 +75,10 @@ def test_business_mutation_requires_session_csrf_but_not_technical_key(
         monkeypatch.setattr(AsaasClient, "get_payment", AsyncMock(return_value={"status": "CONFIRMED"}))
         monkeypatch.setattr(AsaasClient, "refund_payment", AsyncMock(return_value={"status": "REFUNDED"}))
     if path.endswith("/reactivate"):
-        entities["service"].active = False
+        if "/clients/" in path:
+            entities["user"].active = False
+        else:
+            entities["service"].active = False
     db_session.commit()
 
     if auth_method == "session":

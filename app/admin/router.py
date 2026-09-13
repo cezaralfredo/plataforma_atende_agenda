@@ -1,12 +1,14 @@
 import hmac
 import secrets
 from datetime import UTC, date, datetime
+from typing import Literal
 from urllib.parse import parse_qs
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.admin.auth_service import authenticate_admin, change_admin_password, verify_password
@@ -14,6 +16,10 @@ from app.admin.schemas import (
     AdminAppointmentCreate,
     AdminAppointmentUpdate,
     AdminAvailabilityInput,
+    AdminClientCreate,
+    AdminClientPage,
+    AdminClientSummary,
+    AdminClientUpdate,
     AdminProfessionalOfferingUpsert,
     AdminServiceCatalogCreate,
     AdminServiceCatalogUpdate,
@@ -431,6 +437,90 @@ async def edit_professional_page(
 
 
 # --- API Endpoints para HTMX partials ---
+
+@router.get(
+    "/api/clients",
+    response_model=AdminClientPage,
+    dependencies=[Depends(require_admin)],
+)
+async def api_clients(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    search: str | None = None,
+    status: Literal["active", "archived", "all"] = "active",
+    db: Session = Depends(get_db),
+):
+    clients, total = AdminService(db).list_clients(
+        page=page, page_size=page_size, search=search, status=status
+    )
+    return {
+        "data": clients,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total + page_size - 1) // page_size,
+    }
+
+
+def _client_summary(db: Session, client: User) -> dict:
+    summaries, _total = AdminService(db).list_clients(search=client.phone, status="all")
+    return next(item for item in summaries if item["id"] == client.id)
+
+
+@router.post(
+    "/api/clients",
+    response_model=AdminClientSummary,
+    status_code=201,
+    dependencies=[Depends(require_admin_mutation)],
+)
+async def create_admin_client(data: AdminClientCreate, db: Session = Depends(get_db)):
+    try:
+        client = AdminService(db).create_client(data)
+    except (IntegrityError, ValueError) as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Telefone ou e-mail já cadastrado.") from exc
+    return _client_summary(db, client)
+
+
+@router.put(
+    "/api/clients/{client_id}",
+    response_model=AdminClientSummary,
+    dependencies=[Depends(require_admin_mutation)],
+)
+async def update_admin_client(
+    client_id: int, data: AdminClientUpdate, db: Session = Depends(get_db)
+):
+    try:
+        client = AdminService(db).update_client(client_id, data)
+    except (IntegrityError, ValueError) as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Telefone ou e-mail já cadastrado.") from exc
+    if client is None:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado")
+    return _client_summary(db, client)
+
+
+@router.delete("/api/clients/{client_id}", dependencies=[Depends(require_admin_mutation)])
+async def delete_admin_client(client_id: int, db: Session = Depends(get_db)):
+    try:
+        outcome = AdminService(db).archive_or_delete_user(client_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if outcome is None:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado")
+    return {"outcome": outcome}
+
+
+@router.post(
+    "/api/clients/{client_id}/reactivate",
+    response_model=AdminClientSummary,
+    dependencies=[Depends(require_admin_mutation)],
+)
+async def reactivate_admin_client(client_id: int, db: Session = Depends(get_db)):
+    client = AdminService(db).reactivate_user(client_id)
+    if client is None:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado")
+    return _client_summary(db, client)
 
 @router.get("/api/services", dependencies=[Depends(require_admin)])
 async def api_catalog_services(db: Session = Depends(get_db)):

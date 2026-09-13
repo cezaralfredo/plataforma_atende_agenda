@@ -1,6 +1,11 @@
 from app.admin.service import AdminService
+from app.config import settings
 from app.models.user import User
-from tests.seed import seed_appointment, seed_data
+from tests.seed import seed_appointment, seed_data, seed_payment
+
+
+def _admin_headers() -> dict[str, str]:
+    return {"X-Admin-Key": settings.admin_api_key}
 
 
 def test_client_without_history_is_deleted(db_session):
@@ -30,3 +35,65 @@ def test_client_with_appointment_history_is_archived_and_can_be_reactivated(db_s
 
     assert reactivated is not None
     assert reactivated.active is True
+
+
+def test_admin_client_api_returns_paginated_history_summary(anonymous_client, db_session):
+    appointment = seed_appointment(db_session, seed_data(db_session))
+    payment = seed_payment(db_session, appointment)
+    payment.status = "received"
+    db_session.commit()
+
+    response = anonymous_client.get(
+        "/admin/api/clients?page=1&page_size=20&status=active",
+        headers=_admin_headers(),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 1
+    assert payload["page"] == 1
+    assert payload["total_pages"] == 1
+    assert payload["data"][0]["appointments_total"] == 1
+    assert payload["data"][0]["payments_received_total"] == 1
+    assert payload["data"][0]["last_appointment_at"] == appointment.start_time.isoformat()
+    assert "cpf_cnpj" not in payload["data"][0]
+    assert "asaas_customer_id" not in payload["data"][0]
+
+
+def test_admin_client_api_manages_client_lifecycle(anonymous_client, db_session):
+    created = anonymous_client.post(
+        "/admin/api/clients",
+        headers=_admin_headers(),
+        json={"name": "Maria", "phone": "11955556666", "email": "maria@example.com"},
+    )
+
+    assert created.status_code == 201
+    client_id = created.json()["id"]
+    updated = anonymous_client.put(
+        f"/admin/api/clients/{client_id}",
+        headers=_admin_headers(),
+        json={"name": "Maria Silva"},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["name"] == "Maria Silva"
+
+    deleted = anonymous_client.delete(
+        f"/admin/api/clients/{client_id}", headers=_admin_headers()
+    )
+    assert deleted.status_code == 200
+    assert deleted.json() == {"outcome": "deleted"}
+    assert db_session.get(User, client_id) is None
+
+
+def test_admin_client_api_reports_unique_contact_conflict(anonymous_client, db_session):
+    db_session.add(User(name="Existente", phone="11911110000", email="same@example.com"))
+    db_session.commit()
+
+    response = anonymous_client.post(
+        "/admin/api/clients",
+        headers=_admin_headers(),
+        json={"name": "Duplicado", "phone": "11911110000", "email": "same@example.com"},
+    )
+
+    assert response.status_code == 409
+    assert response.json() == {"detail": "Telefone ou e-mail já cadastrado."}
