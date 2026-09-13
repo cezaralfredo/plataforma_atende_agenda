@@ -179,7 +179,27 @@
             </div>
         </div>
 
-        <div class="overflow-x-auto">
+        <div class="admin-mobile-list md:hidden divide-y divide-slate-100">
+            <template x-for="apt in appointments" :key="apt.id">
+                <article class="space-y-3 p-4">
+                    <div class="flex items-start justify-between gap-3">
+                        <div><p class="font-semibold text-slate-900" x-text="apt.service_name || 'Serviço não informado'"></p><p class="text-sm text-slate-500" x-text="formatDateTime(apt.start_time)"></p></div>
+                        <span class="status-badge" :class="'status-' + apt.status" x-text="formatStatus(apt.status)"></span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 text-sm"><div><p class="text-xs text-slate-500">Cliente</p><p class="font-medium" x-text="apt.client_name || 'N/A'"></p><p class="text-xs text-slate-500" x-text="maskPhone(apt.client_phone)"></p></div><div><p class="text-xs text-slate-500">Profissional</p><p class="font-medium" x-text="apt.professional_name || 'N/A'"></p><p class="text-xs text-slate-500" x-text="formatCurrency(apt.service_price_cents)"></p></div></div>
+                    <div class="flex flex-wrap gap-3 border-t border-slate-100 pt-3 text-sm font-semibold">
+                        <a :href="'/admin/appointments/' + apt.id" class="text-blue-600">Ver detalhes</a>
+                        <button x-show="apt.status === 'pending'" @click="confirmAppointment(apt.id)" class="text-green-600">Confirmar</button>
+                        <button x-show="apt.status === 'pending' || apt.status === 'confirmed'" @click="cancelAppointment(apt.id)" class="text-red-600">Cancelar</button>
+                        <button x-show="apt.status === 'confirmed'" @click="completeAppointment(apt.id)" class="text-blue-600">Concluir</button>
+                        <button x-show="apt.status === 'pending' || apt.status === 'cancelled'" @click="deleteAppointment(apt.id)" class="text-red-600">Excluir</button>
+                    </div>
+                </article>
+            </template>
+            <p x-show="appointments.length === 0 && !loading && !loadError" class="p-6 text-center text-sm text-slate-500">Nenhum agendamento encontrado.</p>
+        </div>
+
+        <div class="admin-table hidden md:block overflow-x-auto">
             <table class="w-full">
                 <thead class="bg-gray-50">
                     <tr class="text-left text-sm text-gray-500 border-b border-gray-100">
@@ -542,6 +562,18 @@ function appointments() {
             if (!cents) return 'R$ 0,00';
             const reais = (cents / 100).toFixed(2);
             return 'R$ ' + reais.replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        },
+
+        maskPhone(value) {
+            const digits = String(value || '').replace(/\D/g, '');
+            if (digits.length < 6) return 'Não informado';
+            return `${digits.slice(0, 4)}••••${digits.slice(-3)}`;
+        },
+
+        maskEmail(value) {
+            if (!value || !value.includes('@')) return '';
+            const [name, domain] = value.split('@');
+            return `${name.slice(0, 2)}•••@${domain}`;
         },
 
         formatStatus(status) {

@@ -100,7 +100,18 @@
             </div>
         </div>
 
-        <div class="overflow-x-auto">
+        <div class="admin-mobile-list md:hidden divide-y divide-slate-100">
+            <template x-for="pay in payments" :key="pay.id">
+                <article class="space-y-3 p-4">
+                    <div class="flex items-start justify-between gap-3"><div><p class="font-semibold text-slate-900" x-text="pay.service_name || 'Serviço não informado'"></p><p class="text-sm text-slate-500" x-text="formatDate(pay.created_at)"></p></div><span class="status-badge" :class="'payment-' + pay.status" x-text="formatPaymentStatus(pay.status)"></span></div>
+                    <div class="grid grid-cols-2 gap-3 text-sm"><div><p class="text-xs text-slate-500">Cliente</p><p class="font-medium" x-text="pay.client_name || 'N/A'"></p><p class="text-xs text-slate-500" x-text="maskPhone(pay.client_phone)"></p></div><div><p class="text-xs text-slate-500">Valor</p><p class="font-semibold" x-text="formatCurrency(pay.amount_cents)"></p><p class="text-xs text-slate-500" x-text="formatBillingType(pay.billing_type)"></p></div></div>
+                    <div class="flex flex-wrap gap-3 border-t border-slate-100 pt-3 text-sm font-semibold"><a x-show="pay.invoice_url" :href="pay.invoice_url" target="_blank" class="text-blue-600">Ver fatura</a><button @click="refreshPayment(pay.id)" :disabled="syncingPaymentId === pay.id" class="text-indigo-600 disabled:opacity-50" x-text="syncingPaymentId === pay.id ? 'Sincronizando...' : 'Sincronizar'"></button><button x-show="pay.status === 'received' || pay.status === 'confirmed'" @click="refundPayment(pay.id)" class="text-red-600">Estornar</button></div>
+                </article>
+            </template>
+            <p x-show="payments.length === 0 && !loading && !loadError" class="p-6 text-center text-sm text-slate-500">Nenhum pagamento encontrado.</p>
+        </div>
+
+        <div class="admin-table hidden md:block overflow-x-auto">
             <table class="w-full">
                 <thead class="bg-gray-50">
                     <tr class="text-left text-sm text-gray-500 border-b border-gray-100">
@@ -347,6 +358,18 @@ function payments() {
                 'credit_card': 'Cartão de crédito'
             };
             return labels[normalized] || 'A definir';
+        },
+
+        maskPhone(value) {
+            const digits = String(value || '').replace(/\D/g, '');
+            if (digits.length < 6) return 'Não informado';
+            return `${digits.slice(0, 4)}••••${digits.slice(-3)}`;
+        },
+
+        maskEmail(value) {
+            if (!value || !value.includes('@')) return '';
+            const [name, domain] = value.split('@');
+            return `${name.slice(0, 2)}•••@${domain}`;
         }
     }
 }

@@ -46,7 +46,18 @@
             <div><h3 class="font-bold text-slate-900">Serviços da empresa</h3><p class="text-sm text-slate-500">A empresa define o portfólio, o preço e a duração. Vincule profissionais e comissões na área de Profissionais.</p></div>
             <div class="flex flex-col gap-2 sm:flex-row"><input x-model.trim="search" type="search" placeholder="Buscar serviço" class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" /><select x-model="statusFilter" class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"><option value="active">Ativos</option><option value="archived">Arquivados</option><option value="all">Todos</option></select></div>
         </div>
-        <div class="overflow-x-auto">
+        <div class="admin-mobile-list md:hidden divide-y divide-slate-100">
+            <template x-for="service in filteredServices" :key="service.id">
+                <article class="space-y-3 p-4" :class="service.active ? '' : 'bg-slate-50'">
+                    <div class="flex items-start justify-between gap-3"><div><p class="font-semibold text-slate-900" x-text="service.name"></p><p class="text-sm text-slate-500" x-text="service.category || 'Sem categoria'"></p></div><span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="service.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'" x-text="service.active ? 'Ativo' : 'Arquivado'"></span></div>
+                    <div class="grid grid-cols-3 gap-2 text-sm"><div><p class="text-xs text-slate-500">Preço</p><p class="font-semibold" x-text="formatMoney(service.price_cents)"></p></div><div><p class="text-xs text-slate-500">Duração</p><p class="font-semibold" x-text="service.duration_minutes + ' min'"></p></div><div><p class="text-xs text-slate-500">Profissionais</p><p class="font-semibold" x-text="service.active_offerings_count"></p></div></div>
+                    <div class="flex gap-4 border-t border-slate-100 pt-3 text-sm font-semibold"><button x-show="service.active" @click="openEdit(service)" class="text-blue-600">Editar</button><button x-show="service.active" @click="remove(service)" class="text-red-600">Arquivar/remover</button><button x-show="!service.active" @click="reactivate(service)" class="text-emerald-600">Reativar</button></div>
+                </article>
+            </template>
+            <p x-show="filteredServices.length === 0" class="p-6 text-center text-sm text-slate-500">Nenhum serviço encontrado para este filtro.</p>
+        </div>
+
+        <div class="admin-table hidden md:block overflow-x-auto">
             <table class="min-w-full divide-y divide-slate-200">
                 <thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                     <tr>
@@ -127,6 +138,16 @@ function serviceCatalog(initialDashboard = null) {
                 similar_name: 'Nomes semelhantes — confira a denominação'
             }[issue.kind] || 'Revisar';
             return `${prefix}: ${issue.label}`;
+        },
+        maskPhone(value) {
+            const digits = String(value || '').replace(/\D/g, '');
+            if (digits.length < 6) return 'Não informado';
+            return `${digits.slice(0, 4)}••••${digits.slice(-3)}`;
+        },
+        maskEmail(value) {
+            if (!value || !value.includes('@')) return '';
+            const [name, domain] = value.split('@');
+            return `${name.slice(0, 2)}•••@${domain}`;
         },
         openCreate() { this.editingId = null; this.form = { name: '', description: '', category: '', price: '', duration_minutes: 60 }; this.formOpen = true; },
         openEdit(service) { this.editingId = service.id; this.form = { name: service.name, description: service.description || '', category: service.category || '', price: (service.price_cents / 100).toFixed(2), duration_minutes: service.duration_minutes }; this.formOpen = true; },

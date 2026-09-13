@@ -26,7 +26,19 @@
 
     <!-- Table -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-        <div class="overflow-x-auto">
+        <div class="admin-mobile-list md:hidden divide-y divide-slate-100">
+            <template x-for="prof in professionals" :key="prof.id">
+                <article class="space-y-3 p-4">
+                    <div class="flex items-start justify-between gap-3"><div><p class="font-semibold text-slate-900" x-text="prof.name"></p><p class="text-sm text-slate-500" x-text="prof.services_count + ' serviço(s)'"></p></div><span class="status-badge" :class="prof.active ? 'status-confirmed' : 'status-cancelled'" x-text="prof.active ? 'Ativo' : 'Inativo'"></span></div>
+                    <div class="text-sm text-slate-600"><p x-text="maskPhone(prof.phone)"></p><p x-text="maskEmail(prof.email)"></p></div>
+                    <div class="grid grid-cols-3 gap-2 border-t border-slate-100 pt-3 text-center text-xs"><div><p class="text-slate-500">Hoje</p><p class="font-semibold" x-text="prof.appointments_today"></p></div><div><p class="text-slate-500">Semana</p><p class="font-semibold" x-text="prof.appointments_week"></p></div><div><p class="text-slate-500">Receita</p><p class="font-semibold" x-text="formatCurrency(prof.revenue_month_cents)"></p></div></div>
+                    <a :href="'/admin/professionals/' + prof.id + '/edit'" class="block rounded-lg bg-blue-50 px-3 py-2 text-center text-sm font-semibold text-blue-700">Gerenciar profissional</a>
+                </article>
+            </template>
+            <div x-show="professionals.length === 0 && !loading && !loadError" class="p-6 text-center"><p class="text-sm text-slate-500">Nenhum profissional cadastrado.</p><a href="/admin/professionals/new" class="mt-3 inline-block text-sm font-semibold text-blue-600">Cadastrar primeiro profissional</a></div>
+        </div>
+
+        <div class="admin-table hidden md:block overflow-x-auto">
             <table class="w-full">
                 <thead class="bg-gray-50">
                     <tr class="text-left text-sm text-gray-500 border-b border-gray-100">
@@ -166,6 +178,18 @@ function professionals() {
             if (!cents) return 'R$ 0,00';
             const reais = (cents / 100).toFixed(2);
             return 'R$ ' + reais.replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        },
+
+        maskPhone(value) {
+            const digits = String(value || '').replace(/\D/g, '');
+            if (digits.length < 6) return 'Não informado';
+            return `${digits.slice(0, 4)}••••${digits.slice(-3)}`;
+        },
+
+        maskEmail(value) {
+            if (!value || !value.includes('@')) return '';
+            const [name, domain] = value.split('@');
+            return `${name.slice(0, 2)}•••@${domain}`;
         }
     }
 }
