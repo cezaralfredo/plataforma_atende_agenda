@@ -1,7 +1,7 @@
 from datetime import date, datetime, timedelta
 
 from sqlalchemy import and_, func, or_, select, text
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.admin import auth
@@ -108,6 +108,35 @@ class AdminService:
             "asaas": {"configured": bool(settings.asaas_api_key), "mode": asaas_mode},
             "mcp": {"endpoint_enabled": True},
         }
+
+    def archive_or_delete_user(self, user_id: int) -> str | None:
+        user = self.db.get(User, user_id)
+        if user is None:
+            return None
+        has_history = self.db.query(Appointment.id).filter(
+            Appointment.user_id == user_id
+        ).first() is not None
+        if has_history:
+            user.active = False
+            self.db.commit()
+            self.db.refresh(user)
+            return "archived"
+        self.db.delete(user)
+        try:
+            self.db.commit()
+        except IntegrityError as exc:
+            self.db.rollback()
+            raise ValueError("Cliente possui vínculos e não pode ser excluído") from exc
+        return "deleted"
+
+    def reactivate_user(self, user_id: int) -> User | None:
+        user = self.db.get(User, user_id)
+        if user is None:
+            return None
+        user.active = True
+        self.db.commit()
+        self.db.refresh(user)
+        return user
 
     def get_kpis(self) -> dict:
         today = date.today()
