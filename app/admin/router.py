@@ -224,8 +224,12 @@ async def appointments_page(
             .all()
         ],
         "clients": [
-            {"id": client.id, "name": client.name, "phone": client.phone}
-            for client in db.query(User).order_by(User.name).all()
+            {"id": client.id, "name": client.name, "masked_phone":
+                client.phone[:4] + "••••" + client.phone[-3:]}
+            for client in db.query(User)
+            .filter(User.active.is_(True))
+            .order_by(User.name)
+            .all()
         ],
     }
 

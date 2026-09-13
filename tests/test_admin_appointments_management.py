@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.models.user import User
 from tests.seed import seed_appointment, seed_data, seed_payment
 
 
@@ -49,6 +50,45 @@ def test_appointments_page_exposes_admin_creation_flow(
     assert "Novo agendamento" in response.text
     assert "Cadastrar novo cliente" in response.text
     assert "Excluir" in response.text
+
+
+def test_appointments_page_only_offers_active_clients(
+    anonymous_client: TestClient, db_session: Session
+):
+    entities = seed_data(db_session)
+    archived = User(name="Cliente Arquivado", phone="+5511900000000", active=False)
+    db_session.add(archived)
+    db_session.commit()
+
+    response = anonymous_client.get("/admin/appointments", headers=_admin_headers())
+
+    assert response.status_code == 200
+    assert '"phone": "' + entities["user"].phone + '"' not in response.text
+    assert "masked_phone" in response.text
+    assert "Cliente Arquivado" not in response.text
+
+
+def test_admin_cannot_create_appointment_for_archived_client(
+    anonymous_client: TestClient, db_session: Session
+):
+    entities = seed_data(db_session)
+    entities["user"].active = False
+    db_session.commit()
+
+    response = anonymous_client.post(
+        "/admin/api/appointments",
+        headers=_admin_headers(),
+        json={
+            "user_id": entities["user"].id,
+            "professional_id": entities["professional"].id,
+            "service_id": entities["service"].id,
+            "start_time": "2026-07-30T09:00:00-03:00",
+            "end_time": "2026-07-30T10:00:00-03:00",
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json() == {"detail": "Cliente arquivado não pode receber novos agendamentos."}
 
 
 def test_complete_action_returns_domain_response_instead_of_500(

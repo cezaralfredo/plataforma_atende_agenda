@@ -12,7 +12,7 @@ class UserService:
         self.repo = UserRepository(db)
 
     def find_by_phone(self, phone: str) -> User | None:
-        return self.repo.find_by_phone(phone)
+        return self.repo.find_active_by_phone(phone)
 
     def get(self, user_id: int) -> User | None:
         return self.repo.get(user_id)

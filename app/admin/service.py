@@ -759,6 +759,12 @@ class AdminService:
                 UserCreate(**data.new_client.model_dump())
             )
             user_id = client.id
+        elif user_id is not None:
+            client = self.db.get(User, user_id)
+            if client is not None and not client.active:
+                raise ValueError(
+                    "Cliente arquivado não pode receber novos agendamentos."
+                )
         appointment = AppointmentService(self.db).create(
             AppointmentCreate(
                 user_id=user_id,
@@ -776,6 +782,12 @@ class AdminService:
         if not appointment:
             return None
         values = data.model_dump(exclude_unset=True)
+        if "user_id" in values:
+            client = self.db.get(User, values["user_id"])
+            if client is not None and not client.active:
+                raise ValueError(
+                    "Cliente arquivado não pode receber novos agendamentos."
+                )
         booking_fields = {
             "user_id",
             "professional_id",
