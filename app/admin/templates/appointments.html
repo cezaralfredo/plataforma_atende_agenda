@@ -5,7 +5,14 @@
 {% block page_title %}Agendamentos{% endblock %}
 
 {% block content %}
-<div x-data="appointments()" x-init="loadAppointments()" class="space-y-6">
+<div x-data="appointments()" x-init="reload()" class="space-y-6">
+    <div x-show="loadError" x-cloak role="alert"
+         class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
+        <span x-text="loadError"></span>
+        <button type="button" @click="reload()" class="font-semibold text-red-700 hover:text-red-900">
+            Tentar novamente
+        </button>
+    </div>
     <section class="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -252,7 +259,7 @@
                             </td>
                         </tr>
                     </template>
-                    <tr x-show="appointments.length === 0 && !loading">
+                    <tr x-show="appointments.length === 0 && !loading && !loadError">
                         <td colspan="9" class="py-8 text-center text-gray-500">Nenhum agendamento encontrado</td>
                     </tr>
                     <tr x-show="loading">
@@ -313,6 +320,7 @@ function appointments() {
         pageSize: 20,
         totalPages: 1,
         loading: false,
+        loadError: '',
         filters: {
             date_from: '',
             date_to: '',
@@ -321,8 +329,13 @@ function appointments() {
             search: ''
         },
 
+        async reload() {
+            await this.loadAppointments();
+        },
+
         async loadAppointments() {
             this.loading = true;
+            this.loadError = '';
             try {
                 const params = new URLSearchParams();
                 params.append('page', this.page);
@@ -332,6 +345,7 @@ function appointments() {
                 });
 
                 const response = await adminFetch('/admin/api/appointments?' + params.toString());
+                if (!response.ok) throw new Error('appointments-load-failed');
                 const data = await response.json();
                 this.appointments = data.data;
                 this.total = data.total;
@@ -339,6 +353,7 @@ function appointments() {
                 this.totalPages = data.total_pages;
             } catch (error) {
                 console.error('Erro ao carregar agendamentos:', error);
+                this.loadError = 'Não foi possível carregar os dados. Tente novamente.';
             } finally {
                 this.loading = false;
             }

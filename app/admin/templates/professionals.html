@@ -5,7 +5,14 @@
 {% block page_title %}Profissionais{% endblock %}
 
 {% block content %}
-<div x-data="professionals()" x-init="loadProfessionals()" class="space-y-6">
+<div x-data="professionals()" x-init="reload()" class="space-y-6">
+    <div x-show="loadError" x-cloak role="alert"
+         class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
+        <span x-text="loadError"></span>
+        <button type="button" @click="reload()" class="font-semibold text-red-700 hover:text-red-900">
+            Tentar novamente
+        </button>
+    </div>
     <!-- Header with Actions -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-100 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h3 class="text-lg font-semibold text-gray-900">Profissionais Cadastrados</h3>
@@ -71,7 +78,7 @@
                             </td>
                         </tr>
                     </template>
-                    <tr x-show="professionals.length === 0 && !loading">
+                    <tr x-show="professionals.length === 0 && !loading && !loadError">
                         <td colspan="9" class="py-8 text-center text-gray-500">
                             <div class="flex flex-col items-center">
                                 <i class="fas fa-users text-4xl text-gray-300 mb-2"></i>
@@ -122,18 +129,24 @@ function professionals() {
     return {
         professionals: [],
         loading: false,
+        loadError: '',
+
+        async reload() {
+            await this.loadProfessionals();
+        },
 
         async loadProfessionals() {
             this.loading = true;
+            this.loadError = '';
             try {
                 const response = await adminFetch('/admin/professionals');
-                const html = await response.text();
-                // Parse HTML to extract data - simpler: use a separate API endpoint
-                // For now, we'll fetch from the API directly
+                await response.text();
                 const apiResponse = await adminFetch('/admin/api/professionals');
+                if (!apiResponse.ok) throw new Error('professionals-load-failed');
                 this.professionals = await apiResponse.json();
             } catch (error) {
                 console.error('Erro ao carregar profissionais:', error);
+                this.loadError = 'Não foi possível carregar os dados. Tente novamente.';
             } finally {
                 this.loading = false;
             }

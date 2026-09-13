@@ -5,7 +5,14 @@
 {% block page_title %}Pagamentos{% endblock %}
 
 {% block content %}
-<div x-data="payments()" x-init="loadPayments()" class="space-y-6">
+<div x-data="payments()" x-init="reload()" class="space-y-6">
+    <div x-show="loadError" x-cloak role="alert"
+         class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
+        <span x-text="loadError"></span>
+        <button type="button" @click="reload()" class="font-semibold text-red-700 hover:text-red-900">
+            Tentar novamente
+        </button>
+    </div>
     <!-- Filters -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
         <form id="filters-form" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
@@ -146,7 +153,7 @@
                             </td>
                         </tr>
                     </template>
-                    <tr x-show="payments.length === 0 && !loading">
+                    <tr x-show="payments.length === 0 && !loading && !loadError">
                         <td colspan="10" class="py-8 text-center text-gray-500">Nenhum pagamento encontrado</td>
                     </tr>
                     <tr x-show="loading">
@@ -191,6 +198,7 @@ function payments() {
         pageSize: 20,
         totalPages: 1,
         loading: false,
+        loadError: '',
         filters: {
             date_from: '',
             date_to: '',
@@ -199,8 +207,13 @@ function payments() {
             search: ''
         },
 
+        async reload() {
+            await this.loadPayments();
+        },
+
         async loadPayments() {
             this.loading = true;
+            this.loadError = '';
             try {
                 const params = new URLSearchParams();
                 params.append('page', this.page);
@@ -210,6 +223,7 @@ function payments() {
                 });
 
                 const response = await adminFetch('/admin/api/payments?' + params.toString());
+                if (!response.ok) throw new Error('payments-load-failed');
                 const data = await response.json();
                 this.payments = data.data;
                 this.total = data.total;
@@ -217,6 +231,7 @@ function payments() {
                 this.totalPages = data.total_pages;
             } catch (error) {
                 console.error('Erro ao carregar pagamentos:', error);
+                this.loadError = 'Não foi possível carregar os dados. Tente novamente.';
             } finally {
                 this.loading = false;
             }
