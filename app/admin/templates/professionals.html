@@ -139,8 +139,6 @@ function professionals() {
             this.loading = true;
             this.loadError = '';
             try {
-                const response = await adminFetch('/admin/professionals');
-                await response.text();
                 const apiResponse = await adminFetch('/admin/api/professionals');
                 if (!apiResponse.ok) throw new Error('professionals-load-failed');
                 this.professionals = await apiResponse.json();

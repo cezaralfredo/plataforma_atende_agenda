@@ -330,7 +330,7 @@ function appointments() {
         },
 
         async reload() {
-            await this.loadAppointments();
+            await Promise.all([this.loadAppointments(), this.loadProfessionals()]);
         },
 
         async loadAppointments() {
@@ -361,8 +361,9 @@ function appointments() {
 
         async loadProfessionals() {
             try {
-                const response = await adminFetch('/admin/professionals');
-                // Parse from HTML or use API - for now we'll skip
+                const response = await adminFetch('/admin/api/professionals');
+                if (!response.ok) throw new Error('professionals-load-failed');
+                this.professionals = await response.json();
             } catch (error) {
                 console.error('Erro ao carregar profissionais:', error);
             }

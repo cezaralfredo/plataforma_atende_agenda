@@ -180,6 +180,19 @@ def test_payment_pages_present_billing_types_in_portuguese(
 
 
 @pytest.mark.skipif(NODE is None, reason="Node.js is required to execute rendered admin JavaScript")
+def test_professionals_page_loads_its_json_endpoint_once(anonymous_client):
+    login(anonymous_client)
+    page = anonymous_client.get("/admin/professionals")
+
+    result = run_page_javascript(
+        page.text,
+        "const page = professionals(); await page.loadProfessionals();",
+    )
+
+    assert [call["url"] for call in result["calls"]] == ["/admin/api/professionals"]
+
+
+@pytest.mark.skipif(NODE is None, reason="Node.js is required to execute rendered admin JavaScript")
 @pytest.mark.parametrize("authenticated", [True, False])
 def test_admin_fetch_preserves_request_and_response_and_only_adds_csrf_to_mutations(
     anonymous_client, authenticated,
