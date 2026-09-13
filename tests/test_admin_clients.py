@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from app.admin.service import AdminService
 from app.config import settings
 from app.models.user import User
@@ -55,7 +57,7 @@ def test_admin_client_api_returns_paginated_history_summary(anonymous_client, db
     assert payload["total_pages"] == 1
     assert payload["data"][0]["appointments_total"] == 1
     assert payload["data"][0]["payments_received_total"] == 1
-    assert payload["data"][0]["last_appointment_at"] == appointment.start_time.isoformat()
+    assert datetime.fromisoformat(payload["data"][0]["last_appointment_at"]) == appointment.start_time
     assert "cpf_cnpj" not in payload["data"][0]
     assert "asaas_customer_id" not in payload["data"][0]
 
