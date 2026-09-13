@@ -277,17 +277,23 @@ function payments() {
                     if (index >= 0) this.payments[index] = result.payment;
                     this.notice = result.message;
                 } else {
-                    alert('Erro: ' + result.detail);
+                    adminNotify({type: 'error', message: result.detail});
                 }
             } catch (error) {
-                alert('Erro ao sincronizar');
+                adminNotify({type: 'error', message: 'Erro ao sincronizar.'});
             } finally {
                 this.syncingPaymentId = null;
             }
         },
 
         async refundPayment(id) {
-            if (!confirm('Tem certeza que deseja estornar este pagamento?')) return;
+            const decision = await adminConfirm({
+                title: 'Estornar pagamento',
+                message: `O estorno do pagamento #${id} será solicitado ao Asaas.`,
+                confirmLabel: 'Solicitar estorno',
+                destructive: true
+            });
+            if (!decision.confirmed) return;
             try {
                 const response = await adminFetch(`/admin/payments/${id}/action`, {
                     method: 'POST',
@@ -300,10 +306,10 @@ function payments() {
                 if (response.ok) {
                     this.loadPayments();
                 } else {
-                    alert('Erro: ' + result.detail);
+                    adminNotify({type: 'error', message: result.detail});
                 }
             } catch (error) {
-                alert('Erro ao estornar');
+                adminNotify({type: 'error', message: 'Erro ao estornar.'});
             }
         },
 

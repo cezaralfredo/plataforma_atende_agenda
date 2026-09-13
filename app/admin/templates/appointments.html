@@ -428,55 +428,84 @@ function appointments() {
         },
 
         async confirmAppointment(id) {
-            if (!confirm('Confirmar este agendamento?')) return;
+            const decision = await adminConfirm({
+                title: 'Confirmar agendamento',
+                message: `O agendamento #${id} será marcado como confirmado.`,
+                confirmLabel: 'Confirmar agendamento'
+            });
+            if (!decision.confirmed) return;
             await this.appointmentAction(id, 'confirm');
         },
 
         async completeAppointment(id) {
-            if (!confirm('Marcar este agendamento como concluído?')) return;
+            const decision = await adminConfirm({
+                title: 'Concluir agendamento',
+                message: `Confirme que o serviço do agendamento #${id} foi realizado.`,
+                confirmLabel: 'Marcar como concluído'
+            });
+            if (!decision.confirmed) return;
             await this.appointmentAction(id, 'complete');
         },
 
         async cancelAppointment(id) {
-            const notes = prompt('Motivo do cancelamento (opcional):');
-            if (notes === null) return;
-            await this.appointmentAction(id, 'cancel', notes);
+            const decision = await adminConfirm({
+                title: 'Cancelar agendamento',
+                message: `O horário do agendamento #${id} será liberado.`,
+                confirmLabel: 'Cancelar agendamento',
+                destructive: true,
+                inputLabel: 'Motivo do cancelamento',
+                inputRequired: true
+            });
+            if (!decision.confirmed) return;
+            await this.appointmentAction(id, 'cancel', decision.value);
         },
 
         async editAppointmentNotes(appointment) {
-            const notes = prompt('Observações do agendamento:', appointment.notes || '');
-            if (notes === null) return;
+            const decision = await adminConfirm({
+                title: 'Editar observações',
+                message: `Atualize as observações do agendamento #${appointment.id}.`,
+                confirmLabel: 'Salvar observações',
+                inputLabel: 'Observações',
+                value: appointment.notes || ''
+            });
+            if (!decision.confirmed) return;
             try {
                 const response = await adminFetch(`/admin/api/appointments/${appointment.id}`, {
                     method: 'PUT',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({notes})
+                    body: JSON.stringify({notes: decision.value})
                 });
                 if (!response.ok) {
                     const error = await response.json();
-                    alert('Erro: ' + (error.detail || 'Não foi possível alterar o agendamento.'));
+                    adminNotify({type: 'error', message: error.detail || 'Não foi possível alterar o agendamento.'});
                     return;
                 }
                 this.loadAppointments();
             } catch (_error) {
-                alert('Erro ao alterar o agendamento.');
+                adminNotify({type: 'error', message: 'Erro ao alterar o agendamento.'});
             }
         },
 
         async deleteAppointment(id) {
-            if (!confirm('Excluir este agendamento? Esta ação só é permitida sem pagamentos vinculados.')) return;
+            const decision = await adminConfirm({
+                title: 'Excluir agendamento',
+                message: `O agendamento #${id} será excluído somente se não possuir pagamentos vinculados.`,
+                confirmLabel: 'Excluir agendamento',
+                destructive: true
+            });
+            if (!decision.confirmed) return;
             try {
                 const response = await adminFetch(`/admin/api/appointments/${id}`, {
                     method: 'DELETE'
                 });
                 if (!response.ok) {
                     const error = await response.json();
-                    alert('Erro: ' + (error.detail || 'Não foi possível excluir o agendamento.'));
+                    adminNotify({type: 'error', message: error.detail || 'Não foi possível excluir o agendamento.'});
                     return;
                 }
                 this.loadAppointments();
             } catch (_error) {
-                alert('Erro ao excluir o agendamento.');
+                adminNotify({type: 'error', message: 'Erro ao excluir o agendamento.'});
             }
         },
 
@@ -493,10 +522,10 @@ function appointments() {
                     this.loadAppointments();
                 } else {
                     const error = await response.json();
-                    alert('Erro: ' + error.detail);
+                    adminNotify({type: 'error', message: error.detail});
                 }
             } catch (error) {
-                alert('Erro ao executar ação');
+                adminNotify({type: 'error', message: 'Erro ao executar ação.'});
             }
         },
 

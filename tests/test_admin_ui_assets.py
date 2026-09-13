@@ -1,12 +1,20 @@
 import json
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 
 from app.config import settings
 
 NODE = shutil.which("node")
+ACTIVE_MUTATION_TEMPLATES = [
+    "appointments.html",
+    "appointment_detail.html",
+    "payments.html",
+    "professional_detail.html",
+    "services.html",
+]
 
 
 def _admin_headers() -> dict[str, str]:
@@ -79,3 +87,13 @@ listeners['alpine:init']();
     )
 
     assert result.returncode == 0, result.stderr
+
+
+def test_active_admin_actions_do_not_use_native_browser_dialogs():
+    templates = Path("app/admin/templates")
+
+    for name in ACTIVE_MUTATION_TEMPLATES:
+        source = (templates / name).read_text(encoding="utf-8")
+        assert "alert(" not in source, name
+        assert "confirm(" not in source, name
+        assert "prompt(" not in source, name

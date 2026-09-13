@@ -120,7 +120,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const input = JSON.parse(fs.readFileSync(0, 'utf8'));
-const calls = [], alerts = [];
+const calls = [], alerts = [], notices = [], confirmations = [];
 const token = input.html.match(/<meta name="csrf-token" content="([^"]+)">/)?.[1];
 const response = {
     ok: input.ok ?? true, status: input.status ?? 200,
@@ -128,20 +128,29 @@ const response = {
     text: async () => '',
 };
 const context = vm.createContext({
-    Headers, URLSearchParams, console, calls, alerts, response, assert,
+    Headers, URLSearchParams, console, calls, alerts, notices, confirmations, response, assert,
     document: {querySelector: () => token ? {content: token} : null},
     fetch: (url, options = {}) => {
         calls.push({url, ...options, headers: Object.fromEntries(new Headers(options.headers))});
         return Promise.resolve(response);
     },
     alert: message => alerts.push(message), confirm: () => true, prompt: () => '09:00',
+    adminNotify: payload => notices.push(payload),
+    adminConfirm: payload => {
+        confirmations.push(payload);
+        let value = payload.value || '';
+        if (payload.inputLabel?.includes('Início')) value = '09:00';
+        if (payload.inputLabel?.includes('Fim')) value = '10:00';
+        if (payload.inputRequired && !value) value = 'Motivo de teste';
+        return Promise.resolve({confirmed: true, value});
+    },
     location: {reload() {}, href: ''},
 });
 for (const script of input.html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) {
     vm.runInContext(script[1], context);
 }
 vm.runInContext('(async () => {' + input.action + '})()', context)
-    .then(() => process.stdout.write(JSON.stringify({calls, alerts})))
+    .then(() => process.stdout.write(JSON.stringify({calls, alerts, notices, confirmations})))
     .catch(error => { console.error(error); process.exitCode = 1; });
 """
 
@@ -314,8 +323,8 @@ def test_existing_page_actions_send_session_csrf_and_same_origin(
 @pytest.mark.skipif(NODE is None, reason="Node.js is required to execute rendered admin JavaScript")
 @pytest.mark.parametrize("path,action", [
     ("/admin/appointments", "const page = appointments(); await page.createAppointment(); assert.equal(page.createError, 'Falha de domínio');"),
-    ("/admin/appointments/1", "await appointmentDetail().appointmentAction('confirm', ''); assert.equal(alerts.length, 1); assert.equal(alerts[0], 'Erro: Falha de domínio');"),
-    ("/admin/payments", "await payments().refundPayment(1); assert.equal(alerts.length, 1); assert.equal(alerts[0], 'Erro: Falha de domínio');"),
+    ("/admin/appointments/1", "await appointmentDetail().appointmentAction('confirm', ''); assert.equal(notices.length, 1); assert.equal(notices[0].message, 'Falha de domínio');"),
+    ("/admin/payments", "await payments().refundPayment(1); assert.equal(notices.length, 1); assert.equal(notices[0].message, 'Falha de domínio');"),
     ("/admin/professionals/1/edit", "const page = professionalManagement(); await page.saveProfessional(); assert.equal(page.message, 'Falha de domínio'); assert.equal(page.messageError, true);"),
     ("/admin/services", "const page = serviceCatalog([]); await page.save(); assert.equal(page.message, 'Falha de domínio'); assert.equal(page.messageError, true);"),
 ])

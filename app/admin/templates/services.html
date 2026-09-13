@@ -158,7 +158,13 @@ function serviceCatalog(initialDashboard = null) {
             finally { this.saving = false; }
         },
         async remove(service) {
-            if (!confirm(`Arquivar ou remover o serviço "${service.name}"? O histórico será preservado quando houver vínculos.`)) return;
+            const decision = await adminConfirm({
+                title: 'Arquivar ou remover serviço',
+                message: `O serviço "${service.name}" será arquivado quando houver histórico ou removido quando não possuir vínculos.`,
+                confirmLabel: 'Continuar',
+                destructive: true
+            });
+            if (!decision.confirmed) return;
             try { const result = await this.request(`/admin/api/services/${service.id}`, { method: 'DELETE' }); await this.reload(); this.message = result.outcome === 'archived' ? 'Serviço arquivado para preservar o histórico.' : 'Serviço removido.'; this.messageError = false; }
             catch (error) { this.message = error.message; this.messageError = true; }
         },

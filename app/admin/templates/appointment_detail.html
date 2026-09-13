@@ -269,20 +269,38 @@ function appointmentDetail() {
         syncingPaymentId: null,
 
         async confirmAppointment() {
-            const notes = prompt('Observações (opcional):');
-            if (notes === null) return;
-            await this.appointmentAction('confirm', notes);
+            const decision = await adminConfirm({
+                title: 'Confirmar agendamento',
+                message: 'O agendamento será marcado como confirmado.',
+                confirmLabel: 'Confirmar agendamento',
+                inputLabel: 'Observações (opcional)'
+            });
+            if (!decision.confirmed) return;
+            await this.appointmentAction('confirm', decision.value);
         },
 
         async cancelAppointment() {
-            const notes = prompt('Motivo do cancelamento (obrigatório):');
-            if (!notes) return;
-            await this.appointmentAction('cancel', notes);
+            const decision = await adminConfirm({
+                title: 'Cancelar agendamento',
+                message: 'O horário será liberado e o agendamento será cancelado.',
+                confirmLabel: 'Cancelar agendamento',
+                destructive: true,
+                inputLabel: 'Motivo do cancelamento',
+                inputRequired: true
+            });
+            if (!decision.confirmed) return;
+            await this.appointmentAction('cancel', decision.value);
         },
 
         async completeAppointment() {
-            const notes = prompt('Observações (opcional):');
-            await this.appointmentAction('complete', notes || '');
+            const decision = await adminConfirm({
+                title: 'Concluir agendamento',
+                message: 'Confirme que o serviço foi realizado.',
+                confirmLabel: 'Marcar como concluído',
+                inputLabel: 'Observações (opcional)'
+            });
+            if (!decision.confirmed) return;
+            await this.appointmentAction('complete', decision.value);
         },
 
         async appointmentAction(action, notes) {
@@ -298,10 +316,10 @@ function appointmentDetail() {
                 if (response.ok) {
                     location.reload();
                 } else {
-                    alert('Erro: ' + result.detail);
+                    adminNotify({type: 'error', message: result.detail});
                 }
             } catch (error) {
-                alert('Erro ao executar ação');
+                adminNotify({type: 'error', message: 'Erro ao executar ação.'});
             }
         },
 
@@ -321,17 +339,23 @@ function appointmentDetail() {
                     this.payment = result.payment;
                     this.notice = result.message;
                 } else {
-                    alert('Erro: ' + result.detail);
+                    adminNotify({type: 'error', message: result.detail});
                 }
             } catch (error) {
-                alert('Erro ao sincronizar');
+                adminNotify({type: 'error', message: 'Erro ao sincronizar.'});
             } finally {
                 this.syncingPaymentId = null;
             }
         },
 
         async refundPayment(paymentId) {
-            if (!confirm('Tem certeza que deseja estornar este pagamento?')) return;
+            const decision = await adminConfirm({
+                title: 'Estornar pagamento',
+                message: 'O estorno será solicitado ao Asaas e o agendamento relacionado poderá ser cancelado.',
+                confirmLabel: 'Solicitar estorno',
+                destructive: true
+            });
+            if (!decision.confirmed) return;
             try {
                 const response = await adminFetch(`/admin/payments/${paymentId}/action`, {
                     method: 'POST',
@@ -344,10 +368,10 @@ function appointmentDetail() {
                 if (response.ok) {
                     location.reload();
                 } else {
-                    alert('Erro: ' + result.detail);
+                    adminNotify({type: 'error', message: result.detail});
                 }
             } catch (error) {
-                alert('Erro ao estornar');
+                adminNotify({type: 'error', message: 'Erro ao estornar.'});
             }
         },
 
