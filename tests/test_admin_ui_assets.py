@@ -22,6 +22,21 @@ def _admin_headers() -> dict[str, str]:
     return {"X-Admin-Key": settings.admin_api_key}
 
 
+def test_admin_assets_are_served_locally(anonymous_client):
+    response = anonymous_client.get("/admin/services", headers=_admin_headers())
+    assert response.status_code == 200
+    for host in ("unpkg.com", "cdn.tailwindcss.com", "cdnjs.cloudflare.com"):
+        assert host not in response.text
+    for asset in (
+        "/admin/static/admin.css",
+        "/admin/static/vendor/fontawesome/css/all.min.css",
+        "/admin/static/vendor/fontawesome/webfonts/fa-solid-900.woff2",
+    ):
+        resource = anonymous_client.get(asset)
+        assert resource.status_code == 200
+        assert len(resource.content) > 100
+
+
 def test_admin_shell_exposes_accessible_shared_feedback(anonymous_client):
     response = anonymous_client.get("/admin/services", headers=_admin_headers())
 

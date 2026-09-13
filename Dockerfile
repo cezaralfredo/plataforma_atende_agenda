@@ -3,6 +3,14 @@
 # =============================================================================
 
 # ---- Base Stage ----
+FROM node:22-alpine AS assets
+WORKDIR /src
+COPY package.json package-lock.json tailwind.config.js ./
+RUN npm ci
+COPY app/admin ./app/admin
+COPY scripts/copy-admin-icons.cjs ./scripts/copy-admin-icons.cjs
+RUN npm run build:admin
+
 FROM python:3.11-slim AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -56,6 +64,8 @@ COPY --from=deps /usr/local/bin /usr/local/bin
 
 # Copiar código da aplicação
 COPY --from=build --chown=appuser:appgroup /app .
+COPY --from=assets --chown=appuser:appgroup /src/app/admin/static/admin.css ./app/admin/static/admin.css
+COPY --from=assets --chown=appuser:appgroup /src/app/admin/static/vendor/fontawesome ./app/admin/static/vendor/fontawesome
 RUN test -f /app/scripts/run_migrations.py
 
 # Copiar entrypoint
