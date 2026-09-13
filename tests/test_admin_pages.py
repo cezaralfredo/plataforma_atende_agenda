@@ -48,3 +48,21 @@ def test_admin_list_retry_entrypoint_exists(anonymous_client, db_session, path, 
         const page = {factory}();
         assert.equal(typeof page.reload, 'function');
     """)
+
+
+def test_admin_empty_states_and_service_lifecycle_are_unambiguous(
+    anonymous_client, db_session,
+):
+    seed_appointment(db_session, seed_data(db_session))
+    login(anonymous_client)
+
+    services = anonymous_client.get("/admin/services")
+    professionals = anonymous_client.get("/admin/professionals")
+    appointments = anonymous_client.get("/admin/appointments")
+    payments = anonymous_client.get("/admin/payments")
+
+    assert "Arquivar/remover" not in services.text
+    assert ">Arquivar<" in services.text
+    assert "Cadastre o primeiro profissional" in professionals.text
+    assert "Criar novo agendamento" in appointments.text
+    assert "Limpar filtros" in payments.text
