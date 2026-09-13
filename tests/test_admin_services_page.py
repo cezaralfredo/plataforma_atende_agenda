@@ -124,6 +124,40 @@ def test_services_dashboard_reports_catalog_health(
     ]
 
 
+def test_services_dashboard_distinguishes_similar_names_from_exact_duplicates(
+    anonymous_client: TestClient, db_session: Session
+):
+    masculine = Service(
+        name="Corte de cabelo",
+        category="Masculino",
+        price_cents=5000,
+        duration_minutes=30,
+        active=True,
+    )
+    feminine = Service(
+        name=" corte de cabelo ",
+        category="Feminino",
+        price_cents=9000,
+        duration_minutes=60,
+        active=True,
+    )
+    db_session.add_all([masculine, feminine])
+    db_session.commit()
+
+    response = anonymous_client.get(
+        "/admin/api/services/dashboard", headers=_admin_headers()
+    )
+
+    assert response.status_code == 200
+    assert response.json()["issues"] == [
+        {
+            "kind": "similar_name",
+            "label": "Corte de cabelo",
+            "service_ids": [masculine.id, feminine.id],
+        }
+    ]
+
+
 def test_services_dashboard_ignores_offerings_of_archived_professionals(
     anonymous_client: TestClient, db_session: Session
 ):

@@ -465,7 +465,7 @@ class AdminService:
             .all()
         )
         offering_service_ids = {offering.service_id for offering in active_offerings}
-        normalized_names: dict[str, list[int]] = {}
+        normalized_names: dict[str, list[Service]] = {}
         unnamed_ids: list[int] = []
 
         for service in active_services:
@@ -473,7 +473,7 @@ class AdminService:
             if not name:
                 unnamed_ids.append(service.id)
                 continue
-            normalized_names.setdefault(name.casefold(), []).append(service.id)
+            normalized_names.setdefault(name.casefold(), []).append(service)
 
         issues = []
         if unnamed_ids:
@@ -484,19 +484,35 @@ class AdminService:
                     "service_ids": unnamed_ids,
                 }
             )
-        for _normalized_name, service_ids in sorted(normalized_names.items()):
-            if len(service_ids) > 1:
+        for _normalized_name, services in sorted(normalized_names.items()):
+            if len(services) < 2:
+                continue
+            label = " ".join(services[0].name.split())
+            commercial_groups: dict[tuple[str, int, int], list[int]] = {}
+            for service in services:
+                identity = (
+                    " ".join((service.category or "").split()).casefold(),
+                    service.price_cents,
+                    service.duration_minutes,
+                )
+                commercial_groups.setdefault(identity, []).append(service.id)
+
+            for service_ids in commercial_groups.values():
+                if len(service_ids) < 2:
+                    continue
                 issues.append(
                     {
                         "kind": "duplicate",
-                        "label": " ".join(
-                            next(
-                                service.name
-                                for service in active_services
-                                if service.id == service_ids[0]
-                            ).split()
-                        ),
+                        "label": label,
                         "service_ids": service_ids,
+                    }
+                )
+            if len(commercial_groups) > 1:
+                issues.append(
+                    {
+                        "kind": "similar_name",
+                        "label": label,
+                        "service_ids": [service.id for service in services],
                     }
                 )
 
