@@ -250,6 +250,11 @@ async def appointments_page(
     })
 
 
+@router.get("/clients", response_class=HTMLResponse, dependencies=[Depends(require_admin)])
+async def clients_page(request: Request):
+    return templates.TemplateResponse(request=request, name="users.html")
+
+
 @router.get("/appointments/{appointment_id}", response_class=HTMLResponse, dependencies=[Depends(require_admin)])
 async def appointment_detail(
     request: Request,

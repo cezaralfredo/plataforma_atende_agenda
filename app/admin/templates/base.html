@@ -80,6 +80,11 @@
                         <i class="fas fa-credit-card mr-3 w-5 text-center"></i>
                         Pagamentos
                     </a>
+                    <a href="/admin/clients"
+                       class="flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors {% if request.url.path.startswith('/admin/clients') %}bg-blue-50 text-blue-700{% else %}text-slate-600 hover:bg-slate-100 hover:text-slate-900{% endif %}">
+                        <i class="fas fa-user-friends mr-3 w-5 text-center"></i>
+                        Clientes
+                    </a>
                     <a href="/admin/professionals"
                        class="flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors {% if request.url.path.startswith('/admin/professionals') %}bg-blue-50 text-blue-700{% else %}text-slate-600 hover:bg-slate-100 hover:text-slate-900{% endif %}">
                         <i class="fas fa-users mr-3 w-5 text-center"></i>

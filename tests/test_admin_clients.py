@@ -97,3 +97,17 @@ def test_admin_client_api_reports_unique_contact_conflict(anonymous_client, db_s
 
     assert response.status_code == 409
     assert response.json() == {"detail": "Telefone ou e-mail já cadastrado."}
+
+
+def test_admin_clients_page_is_in_navigation_and_hides_sensitive_identifiers(
+    anonymous_client,
+):
+    response = anonymous_client.get("/admin/clients", headers=_admin_headers())
+
+    assert response.status_code == 200
+    assert 'href="/admin/clients"' in response.text
+    assert "Gestão de Clientes" in response.text
+    assert "CPF/CNPJ" not in response.text
+    assert "ID Asaas" not in response.text
+    assert "admin-mobile-list md:hidden" in response.text
+    assert "admin-table hidden md:block" in response.text

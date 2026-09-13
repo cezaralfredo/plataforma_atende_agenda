@@ -14,6 +14,7 @@ ACTIVE_MUTATION_TEMPLATES = [
     "payments.html",
     "professional_detail.html",
     "services.html",
+    "users.html",
 ]
 
 

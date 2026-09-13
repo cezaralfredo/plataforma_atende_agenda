@@ -10,6 +10,7 @@ from tests.test_admin_login_flow import login
     ("/admin/appointments", "appointments()"),
     ("/admin/payments", "payments()"),
     ("/admin/professionals", "professionals()"),
+    ("/admin/clients", "clientsPage()"),
     (
         "/admin/services",
         "serviceCatalog({services: [], metrics: {}, issues: []})",

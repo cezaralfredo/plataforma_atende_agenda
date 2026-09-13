@@ -106,6 +106,7 @@ def test_business_mutation_requires_session_csrf_but_not_technical_key(
 @pytest.mark.parametrize("path", [
     "/admin", "/admin/appointments", "/admin/appointments/1", "/admin/payments",
     "/admin/professionals", "/admin/professionals/new", "/admin/professionals/1/edit", "/admin/services",
+    "/admin/clients",
 ])
 def test_csrf_meta_exposes_only_the_current_human_session(anonymous_client, db_session, path):
     seed_appointment(db_session, seed_data(db_session))
@@ -302,6 +303,11 @@ PAGE_ACTIONS = [
         const page = serviceCatalog([]);
         await page.reload(); await page.save(); page.editingId = 1; await page.save();
         await page.remove({id: 1, name: 'Corte'}); await page.reactivate({id: 1});
+    """, 4),
+    ("/admin/clients", """
+        const page = clientsPage();
+        await page.reload(); await page.save(); page.editingId = 1; await page.save();
+        await page.remove({id: 1, name: 'Cliente'}); await page.reactivate({id: 1, name: 'Cliente'});
     """, 4),
 ]
 
