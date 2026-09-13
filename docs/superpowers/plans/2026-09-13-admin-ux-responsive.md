@@ -41,7 +41,7 @@ assert 'aria-modal="true"' in response.text
 
 - [ ] **Step 2: Verify failure**
 
-Run: `pytest tests/test_admin_ui_assets.py -v`  
+Run: `pytest tests/test_admin_ui_assets.py -v`
 Expected: FAIL because the shared UI asset and dialog do not exist.
 
 - [ ] **Step 3: Implement the shared Alpine store and dialog markup**
@@ -61,7 +61,7 @@ Implement focus capture, `Esc`, required input validation and focus restoration.
 
 - [ ] **Step 4: Verify DOM and JavaScript tests**
 
-Run: `pytest tests/test_admin_ui_assets.py tests/test_admin_csrf.py -v`  
+Run: `pytest tests/test_admin_ui_assets.py tests/test_admin_csrf.py -v`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -98,7 +98,7 @@ for template in ACTIVE_MUTATION_TEMPLATES:
 
 - [ ] **Step 2: Verify failure**
 
-Run: `pytest tests/test_admin_ui_assets.py -k native_dialogs -v`  
+Run: `pytest tests/test_admin_ui_assets.py -k native_dialogs -v`
 Expected: FAIL on every active mutation template.
 
 - [ ] **Step 3: Migrate actions to contextual dialogs**
@@ -119,7 +119,7 @@ Use distinct copy for completion, deletion, archive, offering removal and refund
 
 - [ ] **Step 4: Verify all mutation JavaScript tests**
 
-Run: `pytest tests/test_admin_csrf.py tests/test_admin_ui_assets.py -v`  
+Run: `pytest tests/test_admin_csrf.py tests/test_admin_ui_assets.py -v`
 Expected: PASS and CSRF assertions unchanged.
 
 - [ ] **Step 5: Commit**
@@ -152,7 +152,7 @@ assert 'maskPhone(' in response.text
 
 - [ ] **Step 2: Verify failure**
 
-Run: `pytest tests/test_admin_responsive_markup.py -v`  
+Run: `pytest tests/test_admin_responsive_markup.py -v`
 Expected: FAIL because only horizontally scrollable tables exist.
 
 - [ ] **Step 3: Add compact cards with primary action and status**
@@ -173,7 +173,7 @@ maskEmail(value) {
 
 - [ ] **Step 4: Verify markup and page script tests**
 
-Run: `pytest tests/test_admin_responsive_markup.py tests/test_admin_csrf.py -v`  
+Run: `pytest tests/test_admin_responsive_markup.py tests/test_admin_csrf.py -v`
 Expected: PASS.
 
 - [ ] **Step 5: Manually verify 390 px and desktop views without mutations**
@@ -210,7 +210,7 @@ assert 'Cadastre o primeiro profissional' in professionals_page.text
 
 - [ ] **Step 2: Verify failure**
 
-Run: `pytest tests/test_admin_pages.py -k "empty or lifecycle" -v`  
+Run: `pytest tests/test_admin_pages.py -k "empty or lifecycle" -v`
 Expected: FAIL on ambiguous labels.
 
 - [ ] **Step 3: Implement contextual labels and empty-state actions**
@@ -219,7 +219,7 @@ Use the API result message to say whether the record was archived or removed. Ke
 
 - [ ] **Step 4: Verify page and service lifecycle tests**
 
-Run: `pytest tests/test_admin_pages.py tests/test_company_service_catalog.py -v`  
+Run: `pytest tests/test_admin_pages.py tests/test_company_service_catalog.py -v`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**

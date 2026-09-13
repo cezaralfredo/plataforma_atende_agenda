@@ -1,7 +1,7 @@
 # Refinamento e robustez do painel administrativo
 
-**Data:** 12 de setembro de 2026  
-**Base:** `master` no commit `41ab0ce`  
+**Data:** 12 de setembro de 2026
+**Base:** `master` no commit `41ab0ce`
 **Branch de trabalho:** `codex/admin-quality-hardening`
 
 ## Objetivo

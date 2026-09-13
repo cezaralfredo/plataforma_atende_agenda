@@ -41,7 +41,7 @@ for path in ADMIN_PAGES:
 
 - [ ] **Step 2: Verify failure**
 
-Run: `pytest tests/test_admin_ui_assets.py -k external -v`  
+Run: `pytest tests/test_admin_ui_assets.py -k external -v`
 Expected: FAIL on HTMX and Font Awesome links.
 
 - [ ] **Step 3: Remove HTMX and replace icons with local SVG references**
@@ -50,7 +50,7 @@ Use `<svg aria-hidden="true"><use href="/admin/static/icons.svg#calendar"></use>
 
 - [ ] **Step 4: Verify all admin pages are free of these external hosts**
 
-Run: `pytest tests/test_admin_ui_assets.py -k external -v`  
+Run: `pytest tests/test_admin_ui_assets.py -k external -v`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -86,7 +86,7 @@ assert 'cdn.tailwindcss.com' not in html
 
 - [ ] **Step 2: Verify failure**
 
-Run: `pytest tests/test_admin_ui_assets.py -k tailwind -v`  
+Run: `pytest tests/test_admin_ui_assets.py -k tailwind -v`
 Expected: FAIL because Tailwind uses its browser CDN.
 
 - [ ] **Step 3: Add deterministic asset build**
@@ -115,13 +115,13 @@ Copy the generated CSS into the Python build stage. Run `npm ci && npm run build
 
 - [ ] **Step 5: Verify CSS, tests and container build**
 
-Run: `npm ci && npm run build:admin-css`  
+Run: `npm ci && npm run build:admin-css`
 Expected: creates a non-empty minified `app/admin/static/admin.css`.
 
-Run: `pytest tests/test_admin_ui_assets.py -v`  
+Run: `pytest tests/test_admin_ui_assets.py -v`
 Expected: PASS.
 
-Run: `docker build -t agenda-admin-assets:test .`  
+Run: `docker build -t agenda-admin-assets:test .`
 Expected: PASS and final image contains `/app/app/admin/static/admin.css` without Node.js.
 
 - [ ] **Step 6: Commit**
@@ -157,7 +157,7 @@ assert 'rel="noopener noreferrer"' in payments_html
 
 - [ ] **Step 2: Verify failure**
 
-Run: `pytest tests/test_security_headers.py tests/test_admin_ui_assets.py -k "content_security or external_link" -v`  
+Run: `pytest tests/test_security_headers.py tests/test_admin_ui_assets.py -k "content_security or external_link" -v`
 Expected: FAIL because the strict policy and rel attributes are absent.
 
 - [ ] **Step 3: Add headers after removing inline-script dependency**
@@ -166,7 +166,7 @@ Move active inline JavaScript into local static files or apply per-response nonc
 
 - [ ] **Step 4: Verify login, admin pages and API responses**
 
-Run: `pytest tests/test_security_headers.py tests/test_authentication.py tests/test_admin_csrf.py -v`  
+Run: `pytest tests/test_security_headers.py tests/test_authentication.py tests/test_admin_csrf.py -v`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -203,7 +203,7 @@ def test_admin_pages_have_no_console_errors(authenticated_page):
 
 - [ ] **Step 2: Verify the browser job is initially absent or failing**
 
-Run: `pytest tests/browser/test_admin_smoke.py -v`  
+Run: `pytest tests/browser/test_admin_smoke.py -v`
 Expected: FAIL until Playwright and the disposable app fixture are configured.
 
 - [ ] **Step 3: Add isolated browser fixtures and responsive assertions**
@@ -216,16 +216,16 @@ Install the pinned Chromium browser, run smoke tests and upload traces/screensho
 
 - [ ] **Step 5: Run supported release verification**
 
-Run: `ruff check app tests`  
+Run: `ruff check app tests`
 Expected: PASS.
 
-Run: `pytest -q` under Python 3.11  
+Run: `pytest -q` under Python 3.11
 Expected: all unit and integration tests PASS.
 
-Run: `pytest tests/browser -v`  
+Run: `pytest tests/browser -v`
 Expected: all browser tests PASS.
 
-Run: `docker build -t agenda-admin-final:test .`  
+Run: `docker build -t agenda-admin-final:test .`
 Expected: PASS.
 
 - [ ] **Step 6: Commit**

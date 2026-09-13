@@ -45,7 +45,7 @@ result = run_page_javascript(page.text, """
 
 - [ ] **Step 2: Run the focused test and verify failure**
 
-Run: `pytest tests/test_admin_csrf.py -k billing_type -v`  
+Run: `pytest tests/test_admin_csrf.py -k billing_type -v`
 Expected: FAIL because `formatBillingType` is not defined.
 
 - [ ] **Step 3: Implement presentation-only normalization**
@@ -65,7 +65,7 @@ Use the function in the payment table and appointment detail instead of renderin
 
 - [ ] **Step 4: Verify focused and related tests**
 
-Run: `pytest tests/test_admin_csrf.py tests/test_admin_payments.py -v`  
+Run: `pytest tests/test_admin_csrf.py tests/test_admin_payments.py -v`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -102,7 +102,7 @@ result = run_page_javascript(response.text, """
 
 - [ ] **Step 2: Verify the tests fail on the current empty/error ambiguity**
 
-Run: `pytest tests/test_admin_csrf.py tests/test_admin_pages.py -k "load or retry" -v`  
+Run: `pytest tests/test_admin_csrf.py tests/test_admin_pages.py -k "load or retry" -v`
 Expected: FAIL because pages do not expose `loadError` and retry controls.
 
 - [ ] **Step 3: Add page-local request state**
@@ -125,7 +125,7 @@ Ensure every `adminFetch` checks `response.ok` before parsing JSON. Render skele
 
 - [ ] **Step 4: Verify focused tests and all admin JavaScript tests**
 
-Run: `pytest tests/test_admin_csrf.py tests/test_admin_pages.py -v`  
+Run: `pytest tests/test_admin_csrf.py tests/test_admin_pages.py -v`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -161,7 +161,7 @@ assert payload['mcp'] == {'endpoint_enabled': True}
 
 - [ ] **Step 2: Verify failure**
 
-Run: `pytest tests/test_admin_system_status.py -v`  
+Run: `pytest tests/test_admin_system_status.py -v`
 Expected: FAIL with 404 for `/admin/api/system-status`.
 
 - [ ] **Step 3: Implement truthful status reporting**
@@ -170,7 +170,7 @@ Run a lightweight `SELECT 1` for the database, derive the Asaas mode from `setti
 
 - [ ] **Step 4: Verify status and dashboard tests**
 
-Run: `pytest tests/test_admin_system_status.py tests/test_admin_pages.py -k "status or dashboard" -v`  
+Run: `pytest tests/test_admin_system_status.py tests/test_admin_pages.py -k "status or dashboard" -v`
 Expected: PASS, including a simulated database failure rendered as unavailable.
 
 - [ ] **Step 5: Commit**
@@ -200,7 +200,7 @@ assert [call["url"] for call in result["calls"]] == ["/admin/api/professionals"]
 
 - [ ] **Step 2: Verify failure**
 
-Run: `pytest tests/test_admin_csrf.py -k professionals -v`  
+Run: `pytest tests/test_admin_csrf.py -k professionals -v`
 Expected: FAIL because `/admin/professionals` is fetched before the API.
 
 - [ ] **Step 3: Remove the HTML fetch and dead parser comments**
@@ -217,7 +217,7 @@ Use the same endpoint to populate the appointment filter where required.
 
 - [ ] **Step 4: Verify the focused tests**
 
-Run: `pytest tests/test_admin_csrf.py -k professionals -v`  
+Run: `pytest tests/test_admin_csrf.py -k professionals -v`
 Expected: PASS with one API call per load.
 
 - [ ] **Step 5: Commit**
@@ -253,7 +253,7 @@ assert response.json() == {
 
 - [ ] **Step 2: Verify failure**
 
-Run: `pytest tests/test_admin_payments.py -k refresh -v`  
+Run: `pytest tests/test_admin_payments.py -k refresh -v`
 Expected: FAIL because the route does not return `changed` and the normalized payment payload.
 
 - [ ] **Step 3: Return a structured action result and update one row**
@@ -269,7 +269,7 @@ Disable only the active synchronization button and clear it in `finally`.
 
 - [ ] **Step 4: Verify route and JavaScript behavior**
 
-Run: `pytest tests/test_admin_payments.py tests/test_admin_csrf.py -k "payment or refresh" -v`  
+Run: `pytest tests/test_admin_payments.py tests/test_admin_csrf.py -k "payment or refresh" -v`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -304,7 +304,7 @@ Also assert exact commercial duplicates remain `duplicate`.
 
 - [ ] **Step 2: Verify failure**
 
-Run: `pytest tests/test_admin_services_page.py -k "duplicate or similar" -v`  
+Run: `pytest tests/test_admin_services_page.py -k "duplicate or similar" -v`
 Expected: FAIL because all equal names are classified as duplicates.
 
 - [ ] **Step 3: Group by commercial identity**
@@ -322,7 +322,7 @@ Render `Nomes semelhantes — confira a denominação` separately from `Possíve
 
 - [ ] **Step 4: Verify catalog and regression tests**
 
-Run: `pytest tests/test_admin_services_page.py tests/test_company_service_catalog.py -v`  
+Run: `pytest tests/test_admin_services_page.py tests/test_company_service_catalog.py -v`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -342,17 +342,17 @@ git commit -m "fix(admin): distinguish similar services from duplicates"
 
 - [ ] **Step 1: Run static checks**
 
-Run: `ruff check app tests`  
+Run: `ruff check app tests`
 Expected: PASS.
 
 - [ ] **Step 2: Run the full suite in the supported environment**
 
-Run: `pytest -q` under Python 3.11.  
+Run: `pytest -q` under Python 3.11.
 Expected: all tests PASS.
 
 - [ ] **Step 3: Validate formatting and scope**
 
-Run: `git diff --check origin/master...HEAD`  
+Run: `git diff --check origin/master...HEAD`
 Expected: no whitespace errors.
 
 - [ ] **Step 4: Commit plan progress only if checkbox state changed**

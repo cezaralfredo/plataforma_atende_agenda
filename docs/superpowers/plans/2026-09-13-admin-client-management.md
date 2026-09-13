@@ -43,7 +43,7 @@ assert service.get_user(linked.id).active is False
 
 - [ ] **Step 2: Verify failure**
 
-Run: `pytest tests/test_admin_clients.py -k lifecycle -v`  
+Run: `pytest tests/test_admin_clients.py -k lifecycle -v`
 Expected: FAIL because `active` and lifecycle methods do not exist.
 
 - [ ] **Step 3: Add the model field, migration and transactional rules**
@@ -56,7 +56,7 @@ Count appointments before deletion. Archive when count is non-zero; delete only 
 
 - [ ] **Step 4: Verify lifecycle and migration tests**
 
-Run: `pytest tests/test_admin_clients.py tests/test_migrations.py -v`  
+Run: `pytest tests/test_admin_clients.py tests/test_migrations.py -v`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -90,7 +90,7 @@ assert response.json()['data'][0]['payments_received_total'] == 1
 
 - [ ] **Step 2: Verify failure**
 
-Run: `pytest tests/test_admin_clients.py tests/test_admin_csrf.py -k clients -v`  
+Run: `pytest tests/test_admin_clients.py tests/test_admin_csrf.py -k clients -v`
 Expected: FAIL with 404 for the new API.
 
 - [ ] **Step 3: Implement schemas, joined aggregate query and mutation routes**
@@ -99,7 +99,7 @@ Use correlated aggregate subqueries or grouped outer joins so the endpoint does 
 
 - [ ] **Step 4: Verify API, authorization and query-count behavior**
 
-Run: `pytest tests/test_admin_clients.py tests/test_admin_csrf.py -k clients -v`  
+Run: `pytest tests/test_admin_clients.py tests/test_admin_csrf.py -k clients -v`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -135,7 +135,7 @@ assert 'admin-mobile-list md:hidden' in page.text
 
 - [ ] **Step 2: Verify failure**
 
-Run: `pytest tests/test_admin_clients.py tests/test_admin_responsive_markup.py -k clients -v`  
+Run: `pytest tests/test_admin_clients.py tests/test_admin_responsive_markup.py -k clients -v`
 Expected: FAIL because the route and menu item are absent.
 
 - [ ] **Step 3: Build list, filters, summary, create/edit modal and history summary**
@@ -144,7 +144,7 @@ Do not show CPF/CNPJ or Asaas id in the list. Show full contact only in the edit
 
 - [ ] **Step 4: Verify rendering, script and mobile tests**
 
-Run: `pytest tests/test_admin_clients.py tests/test_admin_responsive_markup.py tests/test_admin_csrf.py -k clients -v`  
+Run: `pytest tests/test_admin_clients.py tests/test_admin_responsive_markup.py tests/test_admin_csrf.py -k clients -v`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -180,7 +180,7 @@ assert create_with_archived_client.status_code == 409
 
 - [ ] **Step 2: Verify failure**
 
-Run: `pytest tests/test_admin_appointments_management.py -k client -v`  
+Run: `pytest tests/test_admin_appointments_management.py -k client -v`
 Expected: FAIL because archived-state filtering is not implemented.
 
 - [ ] **Step 3: Use one client source for selection and creation**
@@ -189,7 +189,7 @@ Return active clients in the appointment options, keep inline new-client creatio
 
 - [ ] **Step 4: Verify appointment and client regressions**
 
-Run: `pytest tests/test_admin_appointments_management.py tests/test_admin_clients.py tests/test_mcp_clientes.py -v`  
+Run: `pytest tests/test_admin_appointments_management.py tests/test_admin_clients.py tests/test_mcp_clientes.py -v`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
