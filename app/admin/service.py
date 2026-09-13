@@ -1,9 +1,11 @@
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, or_, select, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.admin import auth
+from app.config import Settings
 from app.models.admin_user import AdminUser
 from app.models.appointment import Appointment
 from app.models.availability import Availability
@@ -90,6 +92,22 @@ class AdminUserService:
 class AdminService:
     def __init__(self, db: Session):
         self.db = db
+
+    def get_system_status(self, settings: Settings) -> dict:
+        try:
+            self.db.execute(text("SELECT 1"))
+            database_status = "connected"
+        except SQLAlchemyError:
+            self.db.rollback()
+            database_status = "unavailable"
+
+        asaas_mode = "sandbox" if "sandbox" in settings.asaas_base_url.lower() else "production"
+        return {
+            "api": {"status": "online"},
+            "database": {"status": database_status},
+            "asaas": {"configured": bool(settings.asaas_api_key), "mode": asaas_mode},
+            "mcp": {"endpoint_enabled": True},
+        }
 
     def get_kpis(self) -> dict:
         today = date.today()

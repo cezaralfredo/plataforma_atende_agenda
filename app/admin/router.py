@@ -17,6 +17,7 @@ from app.admin.schemas import (
     AdminProfessionalOfferingUpsert,
     AdminServiceCatalogCreate,
     AdminServiceCatalogUpdate,
+    AdminSystemStatus,
     AppointmentAction,
     PaymentAction,
 )
@@ -617,6 +618,15 @@ async def delete_admin_appointment(
 async def api_kpis(db: Session = Depends(get_db)):
     service = AdminService(db)
     return service.get_kpis()
+
+
+@router.get(
+    "/api/system-status",
+    response_model=AdminSystemStatus,
+    dependencies=[Depends(require_admin)],
+)
+async def api_system_status(request: Request, db: Session = Depends(get_db)):
+    return AdminService(db).get_system_status(request.app.state.settings)
 
 
 @router.get("/api/appointments", dependencies=[Depends(require_admin)])

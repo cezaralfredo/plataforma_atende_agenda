@@ -37,6 +37,26 @@ class AdminKPIs(BaseModel):
     users_total: int
 
 
+class AdminSystemComponentStatus(BaseModel):
+    status: Literal["online", "connected", "unavailable"]
+
+
+class AdminAsaasStatus(BaseModel):
+    configured: bool
+    mode: Literal["sandbox", "production"]
+
+
+class AdminMCPStatus(BaseModel):
+    endpoint_enabled: bool
+
+
+class AdminSystemStatus(BaseModel):
+    api: AdminSystemComponentStatus
+    database: AdminSystemComponentStatus
+    asaas: AdminAsaasStatus
+    mcp: AdminMCPStatus
+
+
 class AdminAppointment(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
