@@ -100,7 +100,7 @@ def test_company_catalog_migration_consolidates_equal_services_and_preserves_lin
         )
 
     command.stamp(config, "8d3f6a1c5b7e")
-    command.upgrade(config, "head")
+    command.upgrade(config, "9f2a4c6e8b1d")
 
     columns = {column["name"] for column in inspect(engine).get_columns("services")}
     assignment_columns = {

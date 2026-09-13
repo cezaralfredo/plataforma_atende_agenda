@@ -33,8 +33,8 @@ def test_admin_migration_upgrade_restart_and_downgrade_on_sqlite(tmp_path, monke
         )
         command.stamp(config, "7e1c3a9d4b6f")
         original_tables = set(inspect(engine).get_table_names())
-        command.upgrade(config, "head")
-        command.upgrade(config, "head")
+        command.upgrade(config, "8d3f6a1c5b7e")
+        command.upgrade(config, "8d3f6a1c5b7e")
         assert set(inspect(engine).get_table_names()) == original_tables | {"admin_accounts"}
 
         with engine.begin() as connection:
