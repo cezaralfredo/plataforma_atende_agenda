@@ -6,6 +6,8 @@
 
 {% block content %}
 <div x-data="appointmentDetail()" class="space-y-6">
+    <div x-show="notice" x-cloak role="status"
+         class="rounded-lg border border-green-200 bg-green-50 p-4 text-green-800" x-text="notice"></div>
     <!-- Header -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-100 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -189,8 +191,10 @@
                             </template>
                             <div class="border-t border-gray-100 pt-3 space-y-2">
                                 <button @click="refreshPayment(payment.id)"
-                                        class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition-colors">
-                                    <i class="fas fa-sync-alt mr-2"></i> Sincronizar com Asaas
+                                        :disabled="syncingPaymentId === payment.id"
+                                        class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-wait">
+                                    <i class="fas fa-sync-alt mr-2"></i>
+                                    <span x-text="syncingPaymentId === payment.id ? 'Sincronizando...' : 'Sincronizar com Asaas'"></span>
                                 </button>
                                 <template x-if="payment.status === 'received' || payment.status === 'confirmed'">
                                     <button @click="refundPayment(payment.id)"
@@ -261,6 +265,8 @@ function appointmentDetail() {
         professional: {{ detail.professional | tojson }},
         service: {{ detail.service | tojson }},
         payment: {{ detail.payment | tojson }},
+        notice: '',
+        syncingPaymentId: null,
 
         async confirmAppointment() {
             const notes = prompt('Observações (opcional):');
@@ -300,6 +306,8 @@ function appointmentDetail() {
         },
 
         async refreshPayment(paymentId) {
+            this.syncingPaymentId = paymentId;
+            this.notice = '';
             try {
                 const response = await adminFetch(`/admin/payments/${paymentId}/action`, {
                     method: 'POST',
@@ -309,9 +317,16 @@ function appointmentDetail() {
                     body: JSON.stringify({ action: 'refresh' })
                 });
                 const result = await response.json();
-                alert(result.message || 'Sincronização solicitada');
+                if (response.ok) {
+                    this.payment = result.payment;
+                    this.notice = result.message;
+                } else {
+                    alert('Erro: ' + result.detail);
+                }
             } catch (error) {
                 alert('Erro ao sincronizar');
+            } finally {
+                this.syncingPaymentId = null;
             }
         },
 

@@ -20,6 +20,7 @@ from app.admin.schemas import (
     AdminSystemStatus,
     AppointmentAction,
     PaymentAction,
+    PaymentActionResult,
 )
 from app.admin.service import AdminService
 from app.database import get_db
@@ -322,7 +323,11 @@ async def payments_page(
     })
 
 
-@router.post("/payments/{payment_id}/action", dependencies=[Depends(require_admin_mutation)])
+@router.post(
+    "/payments/{payment_id}/action",
+    response_model=PaymentActionResult,
+    dependencies=[Depends(require_admin_mutation)],
+)
 async def payment_action(
     payment_id: int,
     action: PaymentAction,
@@ -331,6 +336,8 @@ async def payment_action(
     if not db.query(Payment.id).filter(Payment.id == payment_id).first():
         raise HTTPException(status_code=404, detail="Pagamento não encontrado")
 
+    current_payment = db.get(Payment, payment_id)
+    previous_status = current_payment.status
     service = PaymentService(db)
     try:
         if action.action == "refresh":
@@ -342,7 +349,25 @@ async def payment_action(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    return {"id": payment.id, "status": payment.status}
+    status_labels = {
+        "pending": "pendente",
+        "confirmed": "confirmado",
+        "received": "recebido",
+        "overdue": "vencido",
+        "refunded": "estornado",
+        "cancelled": "cancelado",
+    }
+    changed = previous_status != payment.status
+    status_label = status_labels.get(payment.status, payment.status)
+    if action.action == "refresh":
+        prefix = "Pagamento sincronizado" if changed else "Pagamento já estava atualizado"
+        message = f"{prefix}: {status_label}."
+    else:
+        message = f"Pagamento estornado: {status_label}."
+    serialized = AdminService(db).get_payment(payment.id)
+    if serialized is None:
+        raise HTTPException(status_code=404, detail="Pagamento não encontrado")
+    return {"message": message, "changed": changed, "payment": serialized}
 
 
 @router.get("/professionals", response_class=HTMLResponse, dependencies=[Depends(require_admin)])

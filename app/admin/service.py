@@ -324,28 +324,45 @@ class AdminService:
 
         results = query.all()
 
-        payments = []
-        for row in results:
-            pay, client_name, client_phone, prof_name, svc_name, apt_start = row
-            payments.append({
-                "id": pay.id,
-                "appointment_id": pay.appointment_id,
-                "asaas_payment_id": pay.asaas_payment_id,
-                "amount_cents": pay.amount_cents,
-                "billing_type": pay.billing_type,
-                "status": pay.status,
-                "invoice_url": pay.invoice_url,
-                "received_at": pay.received_at,
-                "created_at": pay.created_at,
-                "updated_at": pay.updated_at,
-                "client_name": client_name,
-                "client_phone": client_phone,
-                "professional_name": prof_name,
-                "service_name": svc_name,
-                "appointment_start": apt_start,
-            })
+        payments = [self._serialize_payment_row(row) for row in results]
 
         return payments, total
+
+    def get_payment(self, payment_id: int) -> dict | None:
+        row = self.db.query(
+            Payment,
+            User.name.label("client_name"),
+            User.phone.label("client_phone"),
+            Professional.name.label("professional_name"),
+            Service.name.label("service_name"),
+            Appointment.start_time.label("appointment_start"),
+        ).join(Appointment, Payment.appointment_id == Appointment.id).outerjoin(
+            User, Appointment.user_id == User.id
+        ).outerjoin(Professional, Appointment.professional_id == Professional.id).outerjoin(
+            Service, Appointment.service_id == Service.id
+        ).filter(Payment.id == payment_id).first()
+        return self._serialize_payment_row(row) if row else None
+
+    @staticmethod
+    def _serialize_payment_row(row) -> dict:
+        pay, client_name, client_phone, prof_name, svc_name, apt_start = row
+        return {
+            "id": pay.id,
+            "appointment_id": pay.appointment_id,
+            "asaas_payment_id": pay.asaas_payment_id,
+            "amount_cents": pay.amount_cents,
+            "billing_type": pay.billing_type,
+            "status": pay.status,
+            "invoice_url": pay.invoice_url,
+            "received_at": pay.received_at,
+            "created_at": pay.created_at,
+            "updated_at": pay.updated_at,
+            "client_name": client_name,
+            "client_phone": client_phone,
+            "professional_name": prof_name,
+            "service_name": svc_name,
+            "appointment_start": apt_start,
+        }
 
     def list_professionals(self) -> list[dict]:
         today = date.today()

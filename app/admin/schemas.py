@@ -198,3 +198,9 @@ class AppointmentAction(BaseModel):
 
 class PaymentAction(BaseModel):
     action: Literal["refresh", "refund"]
+
+
+class PaymentActionResult(BaseModel):
+    message: str
+    changed: bool
+    payment: AdminPayment

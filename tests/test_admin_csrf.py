@@ -20,8 +20,8 @@ MUTATIONS = [
     ("PUT", "/admin/api/appointments/1", {"notes": "CSRF validado"}, 200, {"notes": "CSRF validado"}),
     ("DELETE", "/admin/api/appointments/1", None, 204, None),
     ("POST", "/admin/appointments/1/action", {"action": "confirm"}, 200, {"status": "confirmed"}),
-    ("POST", "/admin/payments/1/action", {"action": "refresh"}, 200, {"id": 1, "status": "confirmed"}),
-    ("POST", "/admin/payments/1/action", {"action": "refund"}, 200, {"id": 1, "status": "refunded"}),
+    ("POST", "/admin/payments/1/action", {"action": "refresh"}, 200, {"changed": True}),
+    ("POST", "/admin/payments/1/action", {"action": "refund"}, 200, {"changed": True}),
     ("POST", "/admin/api/professionals", {"name": "Novo profissional", "phone": "11955556666"},
      201, {"name": "Novo profissional"}),
     ("PUT", "/admin/api/professionals/1", {"name": "Nome atualizado"}, 200, {"name": "Nome atualizado"}),
@@ -124,7 +124,7 @@ const calls = [], alerts = [];
 const token = input.html.match(/<meta name="csrf-token" content="([^"]+)">/)?.[1];
 const response = {
     ok: input.ok ?? true, status: input.status ?? 200,
-    json: async () => ({id: 1, outcome: 'archived', data: [], detail: 'Falha de domínio', message: 'Atualizado'}),
+    json: async () => input.json ?? ({id: 1, outcome: 'archived', data: [], detail: 'Falha de domínio', message: 'Atualizado'}),
     text: async () => '',
 };
 const context = vm.createContext({
@@ -190,6 +190,36 @@ def test_professionals_page_loads_its_json_endpoint_once(anonymous_client):
     )
 
     assert [call["url"] for call in result["calls"]] == ["/admin/api/professionals"]
+
+
+@pytest.mark.skipif(NODE is None, reason="Node.js is required to execute rendered admin JavaScript")
+def test_payments_page_updates_only_the_synchronized_row(anonymous_client):
+    login(anonymous_client)
+    page = anonymous_client.get("/admin/payments")
+    payment = {
+        "id": 1,
+        "appointment_id": 1,
+        "amount_cents": 5000,
+        "billing_type": "pix",
+        "status": "confirmed",
+        "created_at": "2026-09-13T10:00:00Z",
+        "updated_at": "2026-09-13T10:01:00Z",
+    }
+
+    run_page_javascript(page.text, """
+        const page = payments();
+        page.payments = [{id: 1, status: 'pending'}, {id: 2, status: 'received'}];
+        await page.refreshPayment(1);
+        assert.equal(page.payments[0].status, 'confirmed');
+        assert.equal(page.payments[1].status, 'received');
+        assert.equal(page.notice, 'Pagamento sincronizado: confirmado.');
+        assert.equal(page.syncingPaymentId, null);
+        assert.equal(alerts.length, 0);
+    """, json={
+        "message": "Pagamento sincronizado: confirmado.",
+        "changed": True,
+        "payment": payment,
+    })
 
 
 @pytest.mark.skipif(NODE is None, reason="Node.js is required to execute rendered admin JavaScript")

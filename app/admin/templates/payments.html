@@ -13,6 +13,8 @@
             Tentar novamente
         </button>
     </div>
+    <div x-show="notice" x-cloak role="status"
+         class="rounded-lg border border-green-200 bg-green-50 p-4 text-green-800" x-text="notice"></div>
     <!-- Filters -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
         <form id="filters-form" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
@@ -140,8 +142,9 @@
                                         </a>
                                     </template>
                                     <button @click="refreshPayment(pay.id)"
-                                            class="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
-                                        Sincronizar
+                                            :disabled="syncingPaymentId === pay.id"
+                                            class="text-indigo-600 hover:text-indigo-800 text-sm font-medium disabled:opacity-50 disabled:cursor-wait"
+                                            x-text="syncingPaymentId === pay.id ? 'Sincronizando...' : 'Sincronizar'">
                                     </button>
                                     <template x-if="pay.status === 'received' || pay.status === 'confirmed'">
                                         <button @click="refundPayment(pay.id)"
@@ -199,6 +202,8 @@ function payments() {
         totalPages: 1,
         loading: false,
         loadError: '',
+        notice: '',
+        syncingPaymentId: null,
         filters: {
             date_from: '',
             date_to: '',
@@ -256,6 +261,8 @@ function payments() {
         },
 
         async refreshPayment(id) {
+            this.syncingPaymentId = id;
+            this.notice = '';
             try {
                 const response = await adminFetch(`/admin/payments/${id}/action`, {
                     method: 'POST',
@@ -266,12 +273,16 @@ function payments() {
                 });
                 const result = await response.json();
                 if (response.ok) {
-                    alert(result.message || 'Sincronização solicitada. Use o endpoint da API para sincronizar com Asaas.');
+                    const index = this.payments.findIndex(item => item.id === id);
+                    if (index >= 0) this.payments[index] = result.payment;
+                    this.notice = result.message;
                 } else {
                     alert('Erro: ' + result.detail);
                 }
             } catch (error) {
                 alert('Erro ao sincronizar');
+            } finally {
+                this.syncingPaymentId = null;
             }
         },
 
