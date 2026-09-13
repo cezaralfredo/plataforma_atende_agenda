@@ -156,6 +156,30 @@ def run_page_javascript(html, action, **options):
 
 
 @pytest.mark.skipif(NODE is None, reason="Node.js is required to execute rendered admin JavaScript")
+@pytest.mark.parametrize("path,factory", [
+    ("/admin/payments", "payments"),
+    ("/admin/appointments/1", "appointmentDetail"),
+])
+def test_payment_pages_present_billing_types_in_portuguese(
+    anonymous_client, db_session, path, factory,
+):
+    seed_appointment(db_session, seed_data(db_session))
+    login(anonymous_client)
+
+    page = anonymous_client.get(path)
+
+    assert page.status_code == 200
+    run_page_javascript(page.text, f"""
+        const page = {factory}();
+        assert.equal(page.formatBillingType('undefined'), 'A definir');
+        assert.equal(page.formatBillingType(null), 'A definir');
+        assert.equal(page.formatBillingType('pix'), 'PIX');
+        assert.equal(page.formatBillingType('boleto'), 'Boleto');
+        assert.equal(page.formatBillingType('credit_card'), 'Cartão de crédito');
+    """)
+
+
+@pytest.mark.skipif(NODE is None, reason="Node.js is required to execute rendered admin JavaScript")
 @pytest.mark.parametrize("authenticated", [True, False])
 def test_admin_fetch_preserves_request_and_response_and_only_adds_csrf_to_mutations(
     anonymous_client, authenticated,

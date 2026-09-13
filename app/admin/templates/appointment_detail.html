@@ -163,7 +163,7 @@
                             </div>
                             <div>
                                 <label class="block text-sm text-gray-500">Tipo</label>
-                                <p class="font-medium text-gray-900" x-text="payment.billing_type"></p>
+                                <p class="font-medium text-gray-900" x-text="formatBillingType(payment.billing_type)"></p>
                             </div>
                             <div>
                                 <label class="block text-sm text-gray-500">Valor</label>
@@ -372,6 +372,16 @@ function appointmentDetail() {
                 'cancelled': 'Cancelado'
             };
             return labels[status] || status;
+        },
+
+        formatBillingType(value) {
+            const normalized = String(value || '').trim().toLowerCase();
+            const labels = {
+                'pix': 'PIX',
+                'boleto': 'Boleto',
+                'credit_card': 'Cartão de crédito'
+            };
+            return labels[normalized] || 'A definir';
         }
     }
 }

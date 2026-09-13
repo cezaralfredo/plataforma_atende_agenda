@@ -119,7 +119,7 @@
                             </td>
                             <td class="py-3 px-4 text-sm text-gray-900" x-text="pay.professional_name || 'N/A'"></td>
                             <td class="py-3 px-4 text-sm text-gray-900" x-text="pay.service_name || 'N/A'"></td>
-                            <td class="py-3 px-4 text-sm text-gray-900" x-text="pay.billing_type"></td>
+                            <td class="py-3 px-4 text-sm text-gray-900" x-text="formatBillingType(pay.billing_type)"></td>
                             <td class="py-3 px-4 text-sm font-medium text-gray-900" x-text="formatCurrency(pay.amount_cents)"></td>
                             <td class="py-3 px-4">
                                 <span class="status-badge" :class="'payment-' + pay.status" x-text="formatPaymentStatus(pay.status)"></span>
@@ -305,6 +305,16 @@ function payments() {
                 'cancelled': 'Cancelado'
             };
             return labels[status] || status;
+        },
+
+        formatBillingType(value) {
+            const normalized = String(value || '').trim().toLowerCase();
+            const labels = {
+                'pix': 'PIX',
+                'boleto': 'Boleto',
+                'credit_card': 'Cartão de crédito'
+            };
+            return labels[normalized] || 'A definir';
         }
     }
 }
