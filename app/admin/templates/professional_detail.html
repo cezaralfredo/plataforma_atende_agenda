@@ -69,7 +69,7 @@
                 {% for slot in management.availability %}
                 <div class="flex items-center justify-between gap-3 bg-gray-50 rounded-lg px-3 py-2 text-sm">
                     <span>
-                        {% if slot.specific_date %}{{ slot.specific_date.strftime('%d/%m/%Y') }}{% else %}Dia {{ slot.day_of_week + 1 }}{% endif %}
+                        {% if slot.specific_date %}{{ slot.specific_date.strftime('%d/%m/%Y') }}{% else %}{{ ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo'][slot.day_of_week] }}{% endif %}
                         · {{ slot.start_time.strftime('%H:%M') }}–{{ slot.end_time.strftime('%H:%M') }}
                     </span>
                     <div class="flex gap-3">
@@ -95,7 +95,6 @@
         <section class="bg-white rounded-lg shadow-sm border border-gray-100 p-5">
             <h4 class="font-semibold text-gray-900">Serviços oferecidos</h4>
             <p class="mt-1 text-xs text-gray-500">Preço e duração são definidos pela empresa no catálogo de Serviços. Aqui você configura apenas a comissão deste profissional.</p>
-            <p class="text-sm text-gray-500 mt-1">Defina preço, duração e comissão para este profissional.</p>
             <div class="mt-4 space-y-2">
                 {% for offering in management.offerings %}
                 <div class="bg-gray-50 rounded-lg px-3 py-2">
@@ -116,7 +115,7 @@
                 <select x-model="offeringForm.service_id" required class="col-span-2 px-3 py-2 border border-gray-300 rounded-lg text-sm">
                     <option value="">Selecione um serviço do catálogo</option>
                     {% for service in catalog %}
-                    <option value="{{ service.id }}">{{ service.name }}</option>
+                    <option value="{{ service.id }}">{{ service|service_option_label }}</option>
                     {% endfor %}
                 </select>
                 <input type="number" min="0" max="100" step="0.01" x-model="offeringForm.commission_percent" required placeholder="Comissão %" class="col-span-2 px-3 py-2 border border-gray-300 rounded-lg text-sm">
