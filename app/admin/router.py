@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.admin.auth_service import authenticate_admin, change_admin_password, verify_password
+from app.admin.presentation import service_option_label
 from app.admin.schemas import (
     AdminAppointmentCreate,
     AdminAppointmentUpdate,
@@ -45,6 +46,7 @@ from app.services.professional_service import ProfessionalService
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 templates = Jinja2Templates(directory="app/admin/templates")
+templates.env.filters["service_option_label"] = service_option_label
 
 
 async def _access_form(request: Request) -> dict[str, str]:
@@ -217,7 +219,7 @@ async def appointments_page(
             if professional["active"]
         ],
         "services": [
-            {"id": service.id, "name": service.name}
+            {"id": service.id, "name": service.name, "label": service_option_label(service)}
             for service in db.query(Service)
             .filter(Service.active.is_(True))
             .order_by(Service.name)

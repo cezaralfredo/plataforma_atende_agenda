@@ -6,6 +6,9 @@
 
 {% block content %}
 <div x-data="professionals()" x-init="reload()" class="space-y-6">
+    <div x-show="loading" role="status" aria-live="polite" class="p-4 text-sm text-gray-500">
+        Carregando profissionais...
+    </div>
     <div x-show="loadError" x-cloak role="alert"
          class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
         <span x-text="loadError"></span>
@@ -140,7 +143,7 @@
 function professionals() {
     return {
         professionals: [],
-        loading: false,
+        loading: true,
         loadError: '',
 
         async reload() {
