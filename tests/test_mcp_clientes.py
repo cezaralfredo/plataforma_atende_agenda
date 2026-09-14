@@ -141,6 +141,18 @@ class TestMCPClientes:
         text = resp.json()["result"]["content"][0]["text"]
         assert "não encontrado" in text
 
+    def test_buscar_cliente_arquivado_nao_o_expoe(self, client: TestClient, db_session: Session):
+        entities = seed_data(db_session)
+        entities["user"].active = False
+        db_session.commit()
+
+        resp = _mcp_call(client, "buscar_cliente_por_telefone", {
+            "phone": entities["user"].phone,
+        })
+
+        assert resp.status_code == 200
+        assert "não encontrado" in resp.json()["result"]["content"][0]["text"]
+
     def test_atualizar_cliente(self, client: TestClient, db_session: Session):
         entities = seed_data(db_session)
         resp = _mcp_call(client, "atualizar_cliente", {

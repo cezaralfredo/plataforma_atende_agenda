@@ -20,8 +20,8 @@ MUTATIONS = [
     ("PUT", "/admin/api/appointments/1", {"notes": "CSRF validado"}, 200, {"notes": "CSRF validado"}),
     ("DELETE", "/admin/api/appointments/1", None, 204, None),
     ("POST", "/admin/appointments/1/action", {"action": "confirm"}, 200, {"status": "confirmed"}),
-    ("POST", "/admin/payments/1/action", {"action": "refresh"}, 200, {"id": 1, "status": "confirmed"}),
-    ("POST", "/admin/payments/1/action", {"action": "refund"}, 200, {"id": 1, "status": "refunded"}),
+    ("POST", "/admin/payments/1/action", {"action": "refresh"}, 200, {"changed": True}),
+    ("POST", "/admin/payments/1/action", {"action": "refund"}, 200, {"changed": True}),
     ("POST", "/admin/api/professionals", {"name": "Novo profissional", "phone": "11955556666"},
      201, {"name": "Novo profissional"}),
     ("PUT", "/admin/api/professionals/1", {"name": "Nome atualizado"}, 200, {"name": "Nome atualizado"}),
@@ -43,6 +43,12 @@ MUTATIONS = [
     ("PUT", "/admin/api/services/1", {"name": "Serviço atualizado"}, 200, {"name": "Serviço atualizado"}),
     ("DELETE", "/admin/api/services/1", None, 200, {"outcome": "archived"}),
     ("POST", "/admin/api/services/1/reactivate", None, 200, {"active": True}),
+    ("POST", "/admin/api/clients", {
+        "name": "Novo cliente", "phone": "11988887777", "email": "novo@example.com",
+    }, 201, {"name": "Novo cliente"}),
+    ("PUT", "/admin/api/clients/1", {"name": "Cliente atualizado"}, 200, {"name": "Cliente atualizado"}),
+    ("DELETE", "/admin/api/clients/1", None, 200, {"outcome": "archived"}),
+    ("POST", "/admin/api/clients/1/reactivate", None, 200, {"active": True}),
 ]
 
 
@@ -69,7 +75,10 @@ def test_business_mutation_requires_session_csrf_but_not_technical_key(
         monkeypatch.setattr(AsaasClient, "get_payment", AsyncMock(return_value={"status": "CONFIRMED"}))
         monkeypatch.setattr(AsaasClient, "refund_payment", AsyncMock(return_value={"status": "REFUNDED"}))
     if path.endswith("/reactivate"):
-        entities["service"].active = False
+        if "/clients/" in path:
+            entities["user"].active = False
+        else:
+            entities["service"].active = False
     db_session.commit()
 
     if auth_method == "session":
@@ -97,6 +106,7 @@ def test_business_mutation_requires_session_csrf_but_not_technical_key(
 @pytest.mark.parametrize("path", [
     "/admin", "/admin/appointments", "/admin/appointments/1", "/admin/payments",
     "/admin/professionals", "/admin/professionals/new", "/admin/professionals/1/edit", "/admin/services",
+    "/admin/clients",
 ])
 def test_csrf_meta_exposes_only_the_current_human_session(anonymous_client, db_session, path):
     seed_appointment(db_session, seed_data(db_session))
@@ -120,28 +130,37 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const input = JSON.parse(fs.readFileSync(0, 'utf8'));
-const calls = [], alerts = [];
+const calls = [], alerts = [], notices = [], confirmations = [];
 const token = input.html.match(/<meta name="csrf-token" content="([^"]+)">/)?.[1];
 const response = {
     ok: input.ok ?? true, status: input.status ?? 200,
-    json: async () => ({id: 1, outcome: 'archived', data: [], detail: 'Falha de domínio', message: 'Atualizado'}),
+    json: async () => input.json ?? ({id: 1, outcome: 'archived', data: [], detail: 'Falha de domínio', message: 'Atualizado'}),
     text: async () => '',
 };
 const context = vm.createContext({
-    Headers, URLSearchParams, console, calls, alerts, response, assert,
+    Headers, URLSearchParams, console, calls, alerts, notices, confirmations, response, assert,
     document: {querySelector: () => token ? {content: token} : null},
     fetch: (url, options = {}) => {
         calls.push({url, ...options, headers: Object.fromEntries(new Headers(options.headers))});
         return Promise.resolve(response);
     },
     alert: message => alerts.push(message), confirm: () => true, prompt: () => '09:00',
+    adminNotify: payload => notices.push(payload),
+    adminConfirm: payload => {
+        confirmations.push(payload);
+        let value = payload.value || '';
+        if (payload.inputLabel?.includes('Início')) value = '09:00';
+        if (payload.inputLabel?.includes('Fim')) value = '10:00';
+        if (payload.inputRequired && !value) value = 'Motivo de teste';
+        return Promise.resolve({confirmed: true, value});
+    },
     location: {reload() {}, href: ''},
 });
 for (const script of input.html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) {
     vm.runInContext(script[1], context);
 }
 vm.runInContext('(async () => {' + input.action + '})()', context)
-    .then(() => process.stdout.write(JSON.stringify({calls, alerts})))
+    .then(() => process.stdout.write(JSON.stringify({calls, alerts, notices, confirmations})))
     .catch(error => { console.error(error); process.exitCode = 1; });
 """
 
@@ -153,6 +172,73 @@ def run_page_javascript(html, action, **options):
     )
     assert result.returncode == 0, result.stderr
     return json.loads(result.stdout)
+
+
+@pytest.mark.skipif(NODE is None, reason="Node.js is required to execute rendered admin JavaScript")
+@pytest.mark.parametrize("path,factory", [
+    ("/admin/payments", "payments"),
+    ("/admin/appointments/1", "appointmentDetail"),
+])
+def test_payment_pages_present_billing_types_in_portuguese(
+    anonymous_client, db_session, path, factory,
+):
+    seed_appointment(db_session, seed_data(db_session))
+    login(anonymous_client)
+
+    page = anonymous_client.get(path)
+
+    assert page.status_code == 200
+    run_page_javascript(page.text, f"""
+        const page = {factory}();
+        assert.equal(page.formatBillingType('undefined'), 'A definir');
+        assert.equal(page.formatBillingType(null), 'A definir');
+        assert.equal(page.formatBillingType('pix'), 'PIX');
+        assert.equal(page.formatBillingType('boleto'), 'Boleto');
+        assert.equal(page.formatBillingType('credit_card'), 'Cartão de crédito');
+    """)
+
+
+@pytest.mark.skipif(NODE is None, reason="Node.js is required to execute rendered admin JavaScript")
+def test_professionals_page_loads_its_json_endpoint_once(anonymous_client):
+    login(anonymous_client)
+    page = anonymous_client.get("/admin/professionals")
+
+    result = run_page_javascript(
+        page.text,
+        "const page = professionals(); await page.loadProfessionals();",
+    )
+
+    assert [call["url"] for call in result["calls"]] == ["/admin/api/professionals"]
+
+
+@pytest.mark.skipif(NODE is None, reason="Node.js is required to execute rendered admin JavaScript")
+def test_payments_page_updates_only_the_synchronized_row(anonymous_client):
+    login(anonymous_client)
+    page = anonymous_client.get("/admin/payments")
+    payment = {
+        "id": 1,
+        "appointment_id": 1,
+        "amount_cents": 5000,
+        "billing_type": "pix",
+        "status": "confirmed",
+        "created_at": "2026-09-13T10:00:00Z",
+        "updated_at": "2026-09-13T10:01:00Z",
+    }
+
+    run_page_javascript(page.text, """
+        const page = payments();
+        page.payments = [{id: 1, status: 'pending'}, {id: 2, status: 'received'}];
+        await page.refreshPayment(1);
+        assert.equal(page.payments[0].status, 'confirmed');
+        assert.equal(page.payments[1].status, 'received');
+        assert.equal(page.notice, 'Pagamento sincronizado: confirmado.');
+        assert.equal(page.syncingPaymentId, null);
+        assert.equal(alerts.length, 0);
+    """, json={
+        "message": "Pagamento sincronizado: confirmado.",
+        "changed": True,
+        "payment": payment,
+    })
 
 
 @pytest.mark.skipif(NODE is None, reason="Node.js is required to execute rendered admin JavaScript")
@@ -218,6 +304,11 @@ PAGE_ACTIONS = [
         await page.reload(); await page.save(); page.editingId = 1; await page.save();
         await page.remove({id: 1, name: 'Corte'}); await page.reactivate({id: 1});
     """, 4),
+    ("/admin/clients", """
+        const page = clientsPage();
+        await page.reload(); await page.save(); page.editingId = 1; await page.save();
+        await page.remove({id: 1, name: 'Cliente'}); await page.reactivate({id: 1, name: 'Cliente'});
+    """, 4),
 ]
 
 
@@ -247,8 +338,8 @@ def test_existing_page_actions_send_session_csrf_and_same_origin(
 @pytest.mark.skipif(NODE is None, reason="Node.js is required to execute rendered admin JavaScript")
 @pytest.mark.parametrize("path,action", [
     ("/admin/appointments", "const page = appointments(); await page.createAppointment(); assert.equal(page.createError, 'Falha de domínio');"),
-    ("/admin/appointments/1", "await appointmentDetail().appointmentAction('confirm', ''); assert.equal(alerts.length, 1); assert.equal(alerts[0], 'Erro: Falha de domínio');"),
-    ("/admin/payments", "await payments().refundPayment(1); assert.equal(alerts.length, 1); assert.equal(alerts[0], 'Erro: Falha de domínio');"),
+    ("/admin/appointments/1", "await appointmentDetail().appointmentAction('confirm', ''); assert.equal(notices.length, 1); assert.equal(notices[0].message, 'Falha de domínio');"),
+    ("/admin/payments", "await payments().refundPayment(1); assert.equal(notices.length, 1); assert.equal(notices[0].message, 'Falha de domínio');"),
     ("/admin/professionals/1/edit", "const page = professionalManagement(); await page.saveProfessional(); assert.equal(page.message, 'Falha de domínio'); assert.equal(page.messageError, true);"),
     ("/admin/services", "const page = serviceCatalog([]); await page.save(); assert.equal(page.message, 'Falha de domínio'); assert.equal(page.messageError, true);"),
 ])

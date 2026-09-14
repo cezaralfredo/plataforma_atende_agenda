@@ -69,6 +69,9 @@ hermes/
 scripts/*
 !scripts/backup.sh
 !scripts/run_migrations.py
+!scripts/copy-admin-icons.cjs
+node_modules/
+.worktrees/
 
 # Nginx config (já montado como volume)
 nginx/

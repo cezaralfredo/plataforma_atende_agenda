@@ -10,3 +10,9 @@ class UserRepository(BaseRepository):
 
     def find_by_phone(self, phone: str):
         return self.db.query(User).filter(User.phone == phone).first()
+
+    def find_active_by_phone(self, phone: str):
+        return self.db.query(User).filter(
+            User.phone == phone,
+            User.active.is_(True),
+        ).first()

@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, func
+from sqlalchemy import Boolean, DateTime, String, func, true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -16,6 +16,9 @@ class User(Base):
     whatsapp_number: Mapped[str] = mapped_column(String(20), nullable=True, index=True)
     cpf_cnpj: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
     asaas_customer_id: Mapped[str] = mapped_column(String(50), nullable=True)
+    active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=true()
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

@@ -177,7 +177,13 @@ function professionalManagement() {
             }
         },
         async archiveProfessional() {
-            if (!confirm('Arquivar ou excluir este profissional?')) return;
+            const decision = await adminConfirm({
+                title: 'Arquivar profissional',
+                message: 'O profissional será arquivado para preservar o histórico ou excluído quando não possuir vínculos.',
+                confirmLabel: 'Continuar',
+                destructive: true
+            });
+            if (!decision.confirmed) return;
             try {
                 const result = await this.request(`/admin/api/professionals/${professionalId}`, 'DELETE');
                 this.showMessage(result.outcome === 'archived' ? 'Profissional arquivado.' : 'Profissional excluído.');
@@ -199,19 +205,29 @@ function professionalManagement() {
             }
         },
         async editAvailability(id, start, end) {
-            const newStart = prompt('Início (HH:MM):', start);
-            if (newStart === null) return;
-            const newEnd = prompt('Fim (HH:MM):', end);
-            if (newEnd === null) return;
+            const startDecision = await adminConfirm({
+                title: 'Alterar início do horário', message: 'Informe o novo horário de início.',
+                confirmLabel: 'Continuar', inputLabel: 'Início (HH:MM)', inputRequired: true, value: start
+            });
+            if (!startDecision.confirmed) return;
+            const endDecision = await adminConfirm({
+                title: 'Alterar fim do horário', message: 'Informe o novo horário de término.',
+                confirmLabel: 'Salvar horário', inputLabel: 'Fim (HH:MM)', inputRequired: true, value: end
+            });
+            if (!endDecision.confirmed) return;
             try {
-                await this.request(`/admin/api/professionals/${professionalId}/availability/${id}`, 'PUT', {start_time: newStart, end_time: newEnd});
+                await this.request(`/admin/api/professionals/${professionalId}/availability/${id}`, 'PUT', {start_time: startDecision.value, end_time: endDecision.value});
                 location.reload();
             } catch (error) {
                 this.showMessage(error.message, true);
             }
         },
         async deleteAvailability(id) {
-            if (!confirm('Excluir este horário?')) return;
+            const decision = await adminConfirm({
+                title: 'Excluir horário', message: 'Este período deixará de estar disponível para novos agendamentos.',
+                confirmLabel: 'Excluir horário', destructive: true
+            });
+            if (!decision.confirmed) return;
             try {
                 await this.request(`/admin/api/professionals/${professionalId}/availability/${id}`, 'DELETE');
                 location.reload();
@@ -231,7 +247,12 @@ function professionalManagement() {
             }
         },
         async removeOffering(serviceId) {
-            if (!confirm('Remover este serviço do profissional?')) return;
+            const decision = await adminConfirm({
+                title: 'Remover serviço do profissional',
+                message: 'O serviço continuará no catálogo da empresa, mas não poderá mais ser agendado com este profissional.',
+                confirmLabel: 'Remover vínculo', destructive: true
+            });
+            if (!decision.confirmed) return;
             try {
                 await this.request(`/admin/api/professionals/${professionalId}/services/${serviceId}`, 'DELETE');
                 location.reload();

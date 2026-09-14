@@ -52,8 +52,11 @@ class AppointmentService:
     def _validate_booking(
         self, data: AppointmentCreate, exclude_appointment_id: int | None = None
     ) -> tuple[datetime, datetime, ProfessionalService]:
-        if not self.repo.db.get(User, data.user_id):
+        client = self.repo.db.get(User, data.user_id)
+        if not client:
             raise ValueError("Cliente não encontrado")
+        if not client.active:
+            raise ValueError("Cliente arquivado não pode receber novos agendamentos.")
         professional = self.repo.db.get(Professional, data.professional_id)
         if not professional or not professional.active:
             raise ValueError("Profissional não encontrado ou inativo")

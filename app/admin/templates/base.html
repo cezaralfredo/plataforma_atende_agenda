@@ -18,31 +18,10 @@
         }
     </script>
     <title>{% block title %}Admin - Agenda Atende{% endblock %}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="/admin/static/admin.css" rel="stylesheet">
+    <script defer src="/admin/static/admin-ui.js"></script>
     <script defer src="/admin/static/vendor/alpine.min.js"></script>
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <style>
-        .htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
-        .htmx-request .htmx-indicator { opacity: 1; }
-        .htmx-request.htmx-indicator { opacity: 1; }
-        [x-cloak] { display: none !important; }
-        .sidebar { transition: transform 0.3s ease-in-out; }
-        .status-badge {
-            @apply px-2 py-1 text-xs font-medium rounded-full;
-        }
-        .status-pending { @apply bg-yellow-100 text-yellow-800; }
-        .status-confirmed { @apply bg-green-100 text-green-800; }
-        .status-completed { @apply bg-blue-100 text-blue-800; }
-        .status-cancelled { @apply bg-red-100 text-red-800; }
-        .status-awaiting_payment { @apply bg-orange-100 text-orange-800; }
-        .payment-pending { @apply bg-yellow-100 text-yellow-800; }
-        .payment-confirmed { @apply bg-blue-100 text-blue-800; }
-        .payment-received { @apply bg-green-100 text-green-800; }
-        .payment-overdue { @apply bg-red-100 text-red-800; }
-        .payment-refunded { @apply bg-gray-100 text-gray-800; }
-        .payment-cancelled { @apply bg-red-100 text-red-800; }
-    </style>
+    <link href="/admin/static/vendor/fontawesome/css/all.min.css" rel="stylesheet">
     {% block head %}{% endblock %}
 </head>
 <body class="bg-gray-50 min-h-screen" x-data="{ sidebarOpen: false }">
@@ -78,6 +57,11 @@
                        class="flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors {% if request.url.path.startswith('/admin/payments') %}bg-blue-50 text-blue-700{% else %}text-slate-600 hover:bg-slate-100 hover:text-slate-900{% endif %}">
                         <i class="fas fa-credit-card mr-3 w-5 text-center"></i>
                         Pagamentos
+                    </a>
+                    <a href="/admin/clients"
+                       class="flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors {% if request.url.path.startswith('/admin/clients') %}bg-blue-50 text-blue-700{% else %}text-slate-600 hover:bg-slate-100 hover:text-slate-900{% endif %}">
+                        <i class="fas fa-user-friends mr-3 w-5 text-center"></i>
+                        Clientes
                     </a>
                     <a href="/admin/professionals"
                        class="flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors {% if request.url.path.startswith('/admin/professionals') %}bg-blue-50 text-blue-700{% else %}text-slate-600 hover:bg-slate-100 hover:text-slate-900{% endif %}">
@@ -151,6 +135,47 @@
          x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
          class="fixed inset-0 z-40 bg-slate-950/40 lg:hidden"
          @click="sidebarOpen = false"></div>
+
+    <div x-show="$store.adminUi.notice" x-cloak role="status" aria-live="polite"
+         class="fixed right-4 top-4 z-[70] flex max-w-sm items-start gap-3 rounded-xl border bg-white p-4 shadow-xl"
+         :class="$store.adminUi.notice?.type === 'error' ? 'border-red-200 text-red-800' : 'border-emerald-200 text-emerald-800'">
+        <span class="flex-1" x-text="$store.adminUi.notice?.message"></span>
+        <button type="button" @click="$store.adminUi.dismissNotice()" aria-label="Fechar mensagem"
+                class="rounded p-1 text-slate-500 hover:bg-slate-100">&times;</button>
+    </div>
+
+    <div x-show="$store.adminUi.dialog" x-cloak
+         class="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/50 p-4"
+         @keydown.escape.window="$store.adminUi.cancel()"
+         @keydown.tab="$store.adminUi.trapFocus($event)"
+         @click.self="$store.adminUi.cancel()">
+        <section data-admin-dialog role="dialog" aria-modal="true" aria-labelledby="admin-dialog-title"
+                 class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <h2 id="admin-dialog-title" class="text-lg font-bold text-slate-900"
+                x-text="$store.adminUi.dialog?.title"></h2>
+            <p class="mt-2 text-sm leading-6 text-slate-600" x-text="$store.adminUi.dialog?.message"></p>
+            <div x-show="$store.adminUi.dialog?.inputLabel" class="mt-4">
+                <label for="admin-dialog-input" class="mb-1 block text-sm font-medium text-slate-700"
+                       x-text="$store.adminUi.dialog?.inputLabel"></label>
+                <textarea id="admin-dialog-input" data-admin-dialog-input rows="3"
+                          x-model="$store.adminUi.inputValue"
+                          :aria-invalid="Boolean($store.adminUi.inputError)"
+                          class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"></textarea>
+                <p x-show="$store.adminUi.inputError" class="mt-1 text-sm text-red-600"
+                   x-text="$store.adminUi.inputError"></p>
+            </div>
+            <div class="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button type="button" @click="$store.adminUi.cancel()"
+                        class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                    Voltar
+                </button>
+                <button type="button" data-admin-dialog-confirm @click="$store.adminUi.accept()"
+                        class="rounded-lg px-4 py-2 text-sm font-semibold text-white"
+                        :class="$store.adminUi.dialog?.destructive ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'"
+                        x-text="$store.adminUi.dialog?.confirmLabel"></button>
+            </div>
+        </section>
+    </div>
 
     {% block scripts %}{% endblock %}
 </body>

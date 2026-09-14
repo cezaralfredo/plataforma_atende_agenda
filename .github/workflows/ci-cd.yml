@@ -40,6 +40,18 @@ jobs:
           python-version: "3.11"
           cache: "pip"
 
+      - name: Set up frontend asset builder
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Verify reproducible local assets
+        run: |
+          npm ci --ignore-scripts
+          npm run build:admin
+          git diff --exit-code -- app/admin/static/admin.css app/admin/static/vendor/fontawesome
+
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
 

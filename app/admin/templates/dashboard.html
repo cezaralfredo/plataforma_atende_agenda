@@ -5,7 +5,17 @@
 {% block page_title %}Dashboard{% endblock %}
 
 {% block content %}
-<div x-data="dashboard()" x-init="loadKPIs()" class="space-y-6">
+<div x-data="dashboard()" x-init="reload()" class="space-y-6">
+    <div x-show="loadError" x-cloak role="alert"
+         class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
+        <span x-text="loadError"></span>
+        <button type="button" @click="reload()" class="font-semibold text-red-700 hover:text-red-900">
+            Tentar novamente
+        </button>
+    </div>
+    <div x-show="loading" x-cloak class="rounded-lg border border-blue-100 bg-blue-50 p-4 text-blue-700">
+        Carregando indicadores...
+    </div>
     <!-- KPI Cards -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
         <div class="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
@@ -172,7 +182,7 @@
                                 <td class="py-3 px-4 text-sm font-medium text-gray-900" x-text="formatCurrency(prof.revenue_month_cents)"></td>
                             </tr>
                         </template>
-                        <tr x-show="professionals.length === 0">
+                        <tr x-show="professionals.length === 0 && !loading && !loadError">
                             <td colspan="5" class="py-8 text-center text-gray-500">Nenhum profissional cadastrado</td>
                         </tr>
                     </tbody>
@@ -186,25 +196,29 @@
             <h3 class="text-lg font-semibold text-gray-900">Status do Sistema</h3>
         </div>
         <div class="p-4 grid grid-cols-1 sm:grid-cols-4 gap-4 text-center">
-            <div class="p-4 bg-green-50 rounded-lg">
-                <i class="fas fa-server text-green-600 text-3xl mb-2"></i>
+            <div class="p-4 rounded-lg" :class="systemCardClass(systemStatus.api.status === 'online')">
+                <i class="fas fa-server text-3xl mb-2" :class="systemTextClass(systemStatus.api.status === 'online')"></i>
                 <p class="text-sm text-gray-500">API</p>
-                <p class="font-bold text-green-600">Online</p>
+                <p class="font-bold" :class="systemTextClass(systemStatus.api.status === 'online')"
+                   x-text="systemStatus.api.status === 'online' ? 'Online' : 'Indisponível'"></p>
             </div>
-            <div class="p-4 bg-green-50 rounded-lg">
-                <i class="fas fa-database text-green-600 text-3xl mb-2"></i>
+            <div class="p-4 rounded-lg" :class="systemCardClass(systemStatus.database.status === 'connected')">
+                <i class="fas fa-database text-3xl mb-2" :class="systemTextClass(systemStatus.database.status === 'connected')"></i>
                 <p class="text-sm text-gray-500">PostgreSQL</p>
-                <p class="font-bold text-green-600">Conectado</p>
+                <p class="font-bold" :class="systemTextClass(systemStatus.database.status === 'connected')"
+                   x-text="systemStatus.database.status === 'connected' ? 'Conectado' : 'Indisponível'"></p>
             </div>
-            <div class="p-4 bg-green-50 rounded-lg">
-                <i class="fas fa-exchange-alt text-green-600 text-3xl mb-2"></i>
+            <div class="p-4 rounded-lg" :class="systemCardClass(systemStatus.asaas.configured)">
+                <i class="fas fa-exchange-alt text-3xl mb-2" :class="systemTextClass(systemStatus.asaas.configured)"></i>
                 <p class="text-sm text-gray-500">Asaas</p>
-                <p class="font-bold text-green-600">Sandbox</p>
+                <p class="font-bold" :class="systemTextClass(systemStatus.asaas.configured)"
+                   x-text="asaasStatusLabel()"></p>
             </div>
-            <div class="p-4 bg-green-50 rounded-lg">
-                <i class="fas fa-robot text-green-600 text-3xl mb-2"></i>
-                <p class="text-sm text-gray-500">Hermes/MCP</p>
-                <p class="font-bold text-green-600">Disponível</p>
+            <div class="p-4 rounded-lg" :class="systemCardClass(systemStatus.mcp.endpoint_enabled)">
+                <i class="fas fa-robot text-3xl mb-2" :class="systemTextClass(systemStatus.mcp.endpoint_enabled)"></i>
+                <p class="text-sm text-gray-500">MCP</p>
+                <p class="font-bold" :class="systemTextClass(systemStatus.mcp.endpoint_enabled)"
+                   x-text="systemStatus.mcp.endpoint_enabled ? 'Endpoint habilitado' : 'Desabilitado'"></p>
             </div>
         </div>
     </div>
@@ -215,17 +229,40 @@ function dashboard() {
     return {
         kpis: {},
         professionals: [],
+        loading: false,
+        loadError: '',
+        systemStatus: {
+            api: {status: 'unavailable'},
+            database: {status: 'unavailable'},
+            asaas: {configured: false, mode: 'sandbox'},
+            mcp: {endpoint_enabled: false}
+        },
+
+        async reload() {
+            await this.loadKPIs();
+        },
 
         async loadKPIs() {
+            this.loading = true;
+            this.loadError = '';
             try {
                 const response = await adminFetch('/admin/api/kpis');
+                if (!response.ok) throw new Error('kpis-load-failed');
                 this.kpis = await response.json();
 
                 // Load professionals for overview
                 const profsResponse = await adminFetch('/admin/api/professionals?limit=5');
+                if (!profsResponse.ok) throw new Error('professionals-load-failed');
                 this.professionals = await profsResponse.json();
+
+                const statusResponse = await adminFetch('/admin/api/system-status');
+                if (!statusResponse.ok) throw new Error('system-status-load-failed');
+                this.systemStatus = await statusResponse.json();
             } catch (error) {
                 console.error('Erro ao carregar KPIs:', error);
+                this.loadError = 'Não foi possível carregar os dados. Tente novamente.';
+            } finally {
+                this.loading = false;
             }
         },
 
@@ -233,6 +270,19 @@ function dashboard() {
             if (!cents) return 'R$ 0,00';
             const reais = (cents / 100).toFixed(2);
             return 'R$ ' + reais.replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        },
+
+        systemCardClass(available) {
+            return available ? 'bg-green-50' : 'bg-red-50';
+        },
+
+        systemTextClass(available) {
+            return available ? 'text-green-600' : 'text-red-600';
+        },
+
+        asaasStatusLabel() {
+            const mode = this.systemStatus.asaas.mode === 'production' ? 'Produção' : 'Sandbox';
+            return this.systemStatus.asaas.configured ? `Configurado · ${mode}` : `Não configurado · ${mode}`;
         }
     }
 }

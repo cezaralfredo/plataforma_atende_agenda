@@ -6,6 +6,8 @@
 
 {% block content %}
 <div x-data="appointmentDetail()" class="space-y-6">
+    <div x-show="notice" x-cloak role="status"
+         class="rounded-lg border border-green-200 bg-green-50 p-4 text-green-800" x-text="notice"></div>
     <!-- Header -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-100 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -163,7 +165,7 @@
                             </div>
                             <div>
                                 <label class="block text-sm text-gray-500">Tipo</label>
-                                <p class="font-medium text-gray-900" x-text="payment.billing_type"></p>
+                                <p class="font-medium text-gray-900" x-text="formatBillingType(payment.billing_type)"></p>
                             </div>
                             <div>
                                 <label class="block text-sm text-gray-500">Valor</label>
@@ -189,8 +191,10 @@
                             </template>
                             <div class="border-t border-gray-100 pt-3 space-y-2">
                                 <button @click="refreshPayment(payment.id)"
-                                        class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition-colors">
-                                    <i class="fas fa-sync-alt mr-2"></i> Sincronizar com Asaas
+                                        :disabled="syncingPaymentId === payment.id"
+                                        class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-wait">
+                                    <i class="fas fa-sync-alt mr-2"></i>
+                                    <span x-text="syncingPaymentId === payment.id ? 'Sincronizando...' : 'Sincronizar com Asaas'"></span>
                                 </button>
                                 <template x-if="payment.status === 'received' || payment.status === 'confirmed'">
                                     <button @click="refundPayment(payment.id)"
@@ -261,22 +265,42 @@ function appointmentDetail() {
         professional: {{ detail.professional | tojson }},
         service: {{ detail.service | tojson }},
         payment: {{ detail.payment | tojson }},
+        notice: '',
+        syncingPaymentId: null,
 
         async confirmAppointment() {
-            const notes = prompt('Observações (opcional):');
-            if (notes === null) return;
-            await this.appointmentAction('confirm', notes);
+            const decision = await adminConfirm({
+                title: 'Confirmar agendamento',
+                message: 'O agendamento será marcado como confirmado.',
+                confirmLabel: 'Confirmar agendamento',
+                inputLabel: 'Observações (opcional)'
+            });
+            if (!decision.confirmed) return;
+            await this.appointmentAction('confirm', decision.value);
         },
 
         async cancelAppointment() {
-            const notes = prompt('Motivo do cancelamento (obrigatório):');
-            if (!notes) return;
-            await this.appointmentAction('cancel', notes);
+            const decision = await adminConfirm({
+                title: 'Cancelar agendamento',
+                message: 'O horário será liberado e o agendamento será cancelado.',
+                confirmLabel: 'Cancelar agendamento',
+                destructive: true,
+                inputLabel: 'Motivo do cancelamento',
+                inputRequired: true
+            });
+            if (!decision.confirmed) return;
+            await this.appointmentAction('cancel', decision.value);
         },
 
         async completeAppointment() {
-            const notes = prompt('Observações (opcional):');
-            await this.appointmentAction('complete', notes || '');
+            const decision = await adminConfirm({
+                title: 'Concluir agendamento',
+                message: 'Confirme que o serviço foi realizado.',
+                confirmLabel: 'Marcar como concluído',
+                inputLabel: 'Observações (opcional)'
+            });
+            if (!decision.confirmed) return;
+            await this.appointmentAction('complete', decision.value);
         },
 
         async appointmentAction(action, notes) {
@@ -292,14 +316,16 @@ function appointmentDetail() {
                 if (response.ok) {
                     location.reload();
                 } else {
-                    alert('Erro: ' + result.detail);
+                    adminNotify({type: 'error', message: result.detail});
                 }
             } catch (error) {
-                alert('Erro ao executar ação');
+                adminNotify({type: 'error', message: 'Erro ao executar ação.'});
             }
         },
 
         async refreshPayment(paymentId) {
+            this.syncingPaymentId = paymentId;
+            this.notice = '';
             try {
                 const response = await adminFetch(`/admin/payments/${paymentId}/action`, {
                     method: 'POST',
@@ -309,14 +335,27 @@ function appointmentDetail() {
                     body: JSON.stringify({ action: 'refresh' })
                 });
                 const result = await response.json();
-                alert(result.message || 'Sincronização solicitada');
+                if (response.ok) {
+                    this.payment = result.payment;
+                    this.notice = result.message;
+                } else {
+                    adminNotify({type: 'error', message: result.detail});
+                }
             } catch (error) {
-                alert('Erro ao sincronizar');
+                adminNotify({type: 'error', message: 'Erro ao sincronizar.'});
+            } finally {
+                this.syncingPaymentId = null;
             }
         },
 
         async refundPayment(paymentId) {
-            if (!confirm('Tem certeza que deseja estornar este pagamento?')) return;
+            const decision = await adminConfirm({
+                title: 'Estornar pagamento',
+                message: 'O estorno será solicitado ao Asaas e o agendamento relacionado poderá ser cancelado.',
+                confirmLabel: 'Solicitar estorno',
+                destructive: true
+            });
+            if (!decision.confirmed) return;
             try {
                 const response = await adminFetch(`/admin/payments/${paymentId}/action`, {
                     method: 'POST',
@@ -329,10 +368,10 @@ function appointmentDetail() {
                 if (response.ok) {
                     location.reload();
                 } else {
-                    alert('Erro: ' + result.detail);
+                    adminNotify({type: 'error', message: result.detail});
                 }
             } catch (error) {
-                alert('Erro ao estornar');
+                adminNotify({type: 'error', message: 'Erro ao estornar.'});
             }
         },
 
@@ -372,6 +411,16 @@ function appointmentDetail() {
                 'cancelled': 'Cancelado'
             };
             return labels[status] || status;
+        },
+
+        formatBillingType(value) {
+            const normalized = String(value || '').trim().toLowerCase();
+            const labels = {
+                'pix': 'PIX',
+                'boleto': 'Boleto',
+                'credit_card': 'Cartão de crédito'
+            };
+            return labels[normalized] || 'A definir';
         }
     }
 }

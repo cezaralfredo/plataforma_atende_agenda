@@ -5,7 +5,14 @@
 {% block page_title %}Profissionais{% endblock %}
 
 {% block content %}
-<div x-data="professionals()" x-init="loadProfessionals()" class="space-y-6">
+<div x-data="professionals()" x-init="reload()" class="space-y-6">
+    <div x-show="loadError" x-cloak role="alert"
+         class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
+        <span x-text="loadError"></span>
+        <button type="button" @click="reload()" class="font-semibold text-red-700 hover:text-red-900">
+            Tentar novamente
+        </button>
+    </div>
     <!-- Header with Actions -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-100 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h3 class="text-lg font-semibold text-gray-900">Profissionais Cadastrados</h3>
@@ -19,7 +26,19 @@
 
     <!-- Table -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-        <div class="overflow-x-auto">
+        <div class="admin-mobile-list md:hidden divide-y divide-slate-100">
+            <template x-for="prof in professionals" :key="prof.id">
+                <article class="space-y-3 p-4">
+                    <div class="flex items-start justify-between gap-3"><div><p class="font-semibold text-slate-900" x-text="prof.name"></p><p class="text-sm text-slate-500" x-text="prof.services_count + ' serviço(s)'"></p></div><span class="status-badge" :class="prof.active ? 'status-confirmed' : 'status-cancelled'" x-text="prof.active ? 'Ativo' : 'Inativo'"></span></div>
+                    <div class="text-sm text-slate-600"><p x-text="maskPhone(prof.phone)"></p><p x-text="maskEmail(prof.email)"></p></div>
+                    <div class="grid grid-cols-3 gap-2 border-t border-slate-100 pt-3 text-center text-xs"><div><p class="text-slate-500">Hoje</p><p class="font-semibold" x-text="prof.appointments_today"></p></div><div><p class="text-slate-500">Semana</p><p class="font-semibold" x-text="prof.appointments_week"></p></div><div><p class="text-slate-500">Receita</p><p class="font-semibold" x-text="formatCurrency(prof.revenue_month_cents)"></p></div></div>
+                    <a :href="'/admin/professionals/' + prof.id + '/edit'" class="block rounded-lg bg-blue-50 px-3 py-2 text-center text-sm font-semibold text-blue-700">Gerenciar profissional</a>
+                </article>
+            </template>
+            <div x-show="professionals.length === 0 && !loading && !loadError" class="p-6 text-center"><p class="text-sm text-slate-500">Nenhum profissional cadastrado.</p><a href="/admin/professionals/new" class="mt-3 inline-block text-sm font-semibold text-blue-600">Cadastre o primeiro profissional</a></div>
+        </div>
+
+        <div class="admin-table hidden md:block overflow-x-auto">
             <table class="w-full">
                 <thead class="bg-gray-50">
                     <tr class="text-left text-sm text-gray-500 border-b border-gray-100">
@@ -71,14 +90,14 @@
                             </td>
                         </tr>
                     </template>
-                    <tr x-show="professionals.length === 0 && !loading">
+                    <tr x-show="professionals.length === 0 && !loading && !loadError">
                         <td colspan="9" class="py-8 text-center text-gray-500">
                             <div class="flex flex-col items-center">
                                 <i class="fas fa-users text-4xl text-gray-300 mb-2"></i>
                                 <p>Nenhum profissional cadastrado</p>
                                 <a href="/admin/professionals/new"
                                    class="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
-                                    Cadastrar primeiro profissional
+                                    Cadastre o primeiro profissional
                                 </a>
                             </div>
                         </td>
@@ -122,18 +141,22 @@ function professionals() {
     return {
         professionals: [],
         loading: false,
+        loadError: '',
+
+        async reload() {
+            await this.loadProfessionals();
+        },
 
         async loadProfessionals() {
             this.loading = true;
+            this.loadError = '';
             try {
-                const response = await adminFetch('/admin/professionals');
-                const html = await response.text();
-                // Parse HTML to extract data - simpler: use a separate API endpoint
-                // For now, we'll fetch from the API directly
                 const apiResponse = await adminFetch('/admin/api/professionals');
+                if (!apiResponse.ok) throw new Error('professionals-load-failed');
                 this.professionals = await apiResponse.json();
             } catch (error) {
                 console.error('Erro ao carregar profissionais:', error);
+                this.loadError = 'Não foi possível carregar os dados. Tente novamente.';
             } finally {
                 this.loading = false;
             }
@@ -155,6 +178,18 @@ function professionals() {
             if (!cents) return 'R$ 0,00';
             const reais = (cents / 100).toFixed(2);
             return 'R$ ' + reais.replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        },
+
+        maskPhone(value) {
+            const digits = String(value || '').replace(/\D/g, '');
+            if (digits.length < 6) return 'Não informado';
+            return `${digits.slice(0, 4)}••••${digits.slice(-3)}`;
+        },
+
+        maskEmail(value) {
+            if (!value || !value.includes('@')) return '';
+            const [name, domain] = value.split('@');
+            return `${name.slice(0, 2)}•••@${domain}`;
         }
     }
 }

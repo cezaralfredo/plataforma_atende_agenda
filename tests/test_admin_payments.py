@@ -93,8 +93,38 @@ def test_admin_refresh_reads_real_provider_status(
 
     assert response.status_code == 200
     assert get_payment.await_count == 1
+    payload = response.json()
+    assert payload["message"] == "Pagamento sincronizado: confirmado."
+    assert payload["changed"] is True
+    assert payload["payment"]["id"] == payment.id
+    assert payload["payment"]["status"] == "confirmed"
     db_session.refresh(payment)
     assert payment.status == "confirmed"
+
+
+def test_admin_refresh_reports_when_provider_status_did_not_change(
+    anonymous_client: TestClient,
+    db_session: Session,
+    monkeypatch,
+):
+    entities = seed_data(db_session)
+    appointment = seed_appointment(db_session, entities)
+    payment = seed_payment(db_session, appointment)
+    monkeypatch.setattr(
+        AsaasClient,
+        "get_payment",
+        AsyncMock(return_value={"id": payment.asaas_payment_id, "status": "PENDING"}),
+    )
+
+    response = anonymous_client.post(
+        f"/admin/payments/{payment.id}/action",
+        json={"action": "refresh"},
+        headers=_admin_headers(),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["message"] == "Pagamento já estava atualizado: pendente."
+    assert response.json()["changed"] is False
 
 
 def test_admin_payment_action_rejects_unknown_action(
