@@ -1,8 +1,14 @@
 
+from datetime import datetime
+
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.models.appointment import Appointment
+from app.models.notification_log import NotificationLog
+from app.models.payment import Payment
 from app.models.user import User
 from tests.seed import seed_appointment, seed_data, seed_payment
 
@@ -140,3 +146,90 @@ def test_admin_cannot_delete_appointment_with_payment(
 
     assert response.status_code == 409
     assert "pagamento" in response.json()["detail"].lower()
+
+
+@pytest.mark.parametrize("status", ["overdue", "cancelled"])
+def test_admin_can_delete_unpaid_terminal_payment_appointment(
+    anonymous_client: TestClient, db_session: Session, status: str
+):
+    appointment = seed_appointment(db_session, seed_data(db_session))
+    payment = seed_payment(db_session, appointment)
+    appointment.status = "cancelled"
+    payment.status = status
+    db_session.add(NotificationLog(appointment_id=appointment.id, type="payment_overdue"))
+    db_session.commit()
+    appointment_id, payment_id = appointment.id, payment.id
+
+    response = anonymous_client.delete(
+        f"/admin/api/appointments/{appointment_id}", headers=_admin_headers()
+    )
+
+    assert response.status_code == 204
+    db_session.expire_all()
+    assert db_session.get(Appointment, appointment_id) is None
+    assert db_session.get(Payment, payment_id) is None
+    assert db_session.query(NotificationLog).count() == 0
+
+
+@pytest.mark.parametrize("status", ["pending", "received", "confirmed", "refunded"])
+def test_admin_preserves_protected_payments(
+    anonymous_client: TestClient, db_session: Session, status: str
+):
+    appointment = seed_appointment(db_session, seed_data(db_session))
+    payment = seed_payment(db_session, appointment)
+    appointment.status = "cancelled"
+    payment.status = status
+    db_session.commit()
+    response = anonymous_client.delete(
+        f"/admin/api/appointments/{appointment.id}", headers=_admin_headers()
+    )
+    assert response.status_code == 409
+    assert db_session.get(Payment, payment.id) is not None
+
+
+def test_admin_preserves_overdue_payment_with_receipt_history(
+    anonymous_client: TestClient, db_session: Session
+):
+    appointment = seed_appointment(db_session, seed_data(db_session))
+    payment = seed_payment(db_session, appointment)
+    appointment.status = "cancelled"
+    payment.status = "overdue"
+    payment.received_at = datetime.now()
+    db_session.commit()
+    response = anonymous_client.delete(
+        f"/admin/api/appointments/{appointment.id}", headers=_admin_headers()
+    )
+    assert response.status_code == 409
+
+
+@pytest.mark.parametrize("appointment_status", ["confirmed", "completed"])
+def test_admin_preserves_confirmed_or_completed_with_overdue_charge(
+    anonymous_client: TestClient, db_session: Session, appointment_status: str
+):
+    appointment = seed_appointment(db_session, seed_data(db_session))
+    payment = seed_payment(db_session, appointment)
+    appointment.status = appointment_status
+    payment.status = "overdue"
+    db_session.commit()
+    response = anonymous_client.delete(
+        f"/admin/api/appointments/{appointment.id}", headers=_admin_headers()
+    )
+    assert response.status_code == 409
+    assert db_session.get(Payment, payment.id) is not None
+
+
+def test_admin_checks_all_payments_before_deleting(
+    anonymous_client: TestClient, db_session: Session
+):
+    appointment = seed_appointment(db_session, seed_data(db_session))
+    payment = seed_payment(db_session, appointment)
+    appointment.status = "cancelled"
+    payment.status = "overdue"
+    db_session.add(Payment(appointment_id=appointment.id, amount_cents=5000,
+                           billing_type="pix", status="received"))
+    db_session.commit()
+    response = anonymous_client.delete(
+        f"/admin/api/appointments/{appointment.id}", headers=_admin_headers()
+    )
+    assert response.status_code == 409
+    assert db_session.query(Payment).count() == 2
