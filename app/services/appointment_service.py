@@ -4,6 +4,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.business_time import as_business_time
+from app.models.appointment import Appointment
+from app.models.notification_log import NotificationLog
 from app.models.payment import Payment
 from app.models.professional import Professional
 from app.models.professional_service import ProfessionalService
@@ -210,15 +212,40 @@ class AppointmentService:
         return appointment
 
     def delete(self, appointment_id: int):
-        appointment = self.get(appointment_id)
+        db = self.repo.db
+        appointment = db.query(Appointment).filter(
+            Appointment.id == appointment_id
+        ).with_for_update().first()
         if not appointment:
             return False
-        if self.repo.db.query(Payment.id).filter(
-            Payment.appointment_id == appointment_id
-        ).first():
-            raise ValueError("Não é possível excluir um agendamento com pagamento")
         if appointment.status in {"confirmed", "completed"}:
             raise ValueError(
                 "Não é possível excluir um agendamento confirmado ou concluído"
             )
-        return self.repo.delete(appointment_id)
+        payments = db.query(Payment).filter(
+            Payment.appointment_id == appointment_id
+        ).with_for_update().all()
+        if any(
+            payment.status not in {"overdue", "cancelled"}
+            or payment.received_at is not None
+            for payment in payments
+        ):
+            raise ValueError(
+                "Não é possível excluir: há pagamento pendente ou histórico financeiro. "
+                "Somente cobranças vencidas ou canceladas, sem recebimento, permitem exclusão."
+            )
+        try:
+            db.query(NotificationLog).filter(
+                NotificationLog.appointment_id == appointment_id
+            ).delete(synchronize_session="fetch")
+            db.query(Payment).filter(
+                Payment.appointment_id == appointment_id
+            ).delete(synchronize_session="fetch")
+            db.query(Appointment).filter(
+                Appointment.id == appointment_id
+            ).delete(synchronize_session="fetch")
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+        return True
