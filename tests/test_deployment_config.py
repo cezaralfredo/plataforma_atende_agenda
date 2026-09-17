@@ -100,39 +100,14 @@ def test_ci_does_not_claim_an_automatic_production_deploy():
     assert jobs["build"]["needs"] == "test"
 
 
-def test_portainer_neon_stack_has_only_the_external_database_api():
-    compose = _yaml("docker-compose.portainer-neon.yml")
-    assert set(compose["services"]) == {"api", "mcp-gateway"}
-    assert "volumes" not in compose
-
-
-def test_portainer_neon_stack_requires_traceable_image_and_database_config():
-    compose = _yaml("docker-compose.portainer-neon.yml")
+def test_portainer_npm_stack_has_local_postgres_and_api():
+    compose = _yaml("docker-compose.portainer-npm.yml")
+    assert set(compose["services"]) == {"api", "postgres"}
+    assert "agenda_db_data" in compose["volumes"]
+    postgres = compose["services"]["postgres"]
+    assert postgres["image"] == "postgres:16-alpine"
     api = compose["services"]["api"]
-    environment = api["environment"]
-    assert "${IMAGE_TAG:?Defina IMAGE_TAG no Portainer}" in api["image"]
-    assert environment["DATABASE_URL"] == (
-        "${DATABASE_URL:?Defina DATABASE_URL no Portainer}"
-    )
-    assert environment["APP_TIMEZONE"] == "${APP_TIMEZONE:-America/Sao_Paulo}"
-    assert environment["DEBUG"] == "false"
-
-    source = Path("docker-compose.portainer-neon.yml").read_text(encoding="utf-8")
-    assert "postgresql://" not in source
-    assert "postgresql+psycopg://" not in source
-    assert ":latest" not in api["image"]
-
-
-def test_portainer_neon_stack_uses_only_the_existing_proxy_network():
-    compose = _yaml("docker-compose.portainer-neon.yml")
-    api = compose["services"]["api"]
-    assert set(api["networks"]) == {"npm"}
-    assert api["networks"]["npm"]["aliases"] == ["agenda-api"]
-    assert "ports" not in api
-    assert compose["networks"]["npm"] == {
-        "external": True,
-        "name": "${NPM_NETWORK:-nginx-proxy_default}",
-    }
+    assert "agenda_db_internal" in api["networks"]
 
 
 def test_shipped_compose_defaults_use_the_current_asaas_production_endpoint():
@@ -149,6 +124,5 @@ def test_shipped_compose_defaults_use_the_current_asaas_production_endpoint():
 
     assert defaults == {
         "docker-compose.nginx.yml": current_endpoint,
-        "docker-compose.portainer-neon.yml": current_endpoint,
         "docker-compose.portainer-npm.yml": current_endpoint,
     }

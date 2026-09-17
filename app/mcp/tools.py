@@ -7,6 +7,7 @@ from app.schemas.appointment import AppointmentCreate, AppointmentUpdate
 from app.schemas.user import UserCreate, UserUpdate
 from app.services.appointment_service import AppointmentService
 from app.services.availability_service import AvailabilityService
+from app.services.asaas_client import AsaasIntegrationError
 from app.services.payment_service import PaymentService
 from app.services.service_service import ServiceService
 from app.services.user_service import UserService
@@ -35,6 +36,7 @@ TOOL_DEFINITIONS = [
                 "phone": {"type": "string", "description": "Número de telefone no formato 55XXXXXXXXXXX"},
                 "email": {"type": "string", "description": "Email do cliente (opcional)"},
                 "whatsapp_number": {"type": "string", "description": "Número do WhatsApp no formato 55XXXXXXXXXXX (opcional)"},
+                "cpf_cnpj": {"type": "string", "description": "CPF ou CNPJ do cliente (opcional, apenas números ou formatado)"},
             },
             "required": ["name", "phone"],
         },
@@ -50,6 +52,7 @@ TOOL_DEFINITIONS = [
                 "phone": {"type": "string", "description": "Telefone (opcional)"},
                 "email": {"type": "string", "description": "Email (opcional)"},
                 "whatsapp_number": {"type": "string", "description": "WhatsApp (opcional)"},
+                "cpf_cnpj": {"type": "string", "description": "CPF ou CNPJ (opcional)"},
             },
             "required": ["user_id"],
         },
@@ -181,6 +184,7 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
                 phone=arguments["phone"],
                 email=arguments.get("email"),
                 whatsapp_number=arguments.get("whatsapp_number"),
+                cpf_cnpj=arguments.get("cpf_cnpj"),
             )
             user = user_service.create(user_create)
             return {
@@ -194,7 +198,7 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
 
         elif name == "atualizar_cliente":
             user_service = UserService(db)
-            fields = {"name", "phone", "email", "whatsapp_number"}
+            fields = {"name", "phone", "email", "whatsapp_number", "cpf_cnpj"}
             user_update = UserUpdate(
                 **{key: arguments[key] for key in fields if key in arguments}
             )
@@ -325,7 +329,7 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
                 "content": [{"type": "text", "text": f"Ferramenta desconhecida: {name}"}],
             }
 
-    except ValueError as e:
+    except (ValueError, AsaasIntegrationError) as e:
         return {
             "isError": True,
             "content": [{"type": "text", "text": str(e)}],
@@ -373,11 +377,13 @@ def _format_servicos(services, include_professional: bool = True) -> str:
 
 
 def _format_cliente(user) -> str:
-    whatsapp = user.whatsapp_number or "-"
+    whatsapp = getattr(user, "whatsapp_number", None) or "-"
+    cpf = getattr(user, "cpf_cnpj", None) or "-"
     return (
         f"  ID: {user.id}\n"
         f"  Nome: {user.name}\n"
         f"  Telefone: {user.phone}\n"
+        f"  CPF/CNPJ: {cpf}\n"
         f"  Email: {user.email or '-'}\n"
         f"  WhatsApp: {whatsapp}"
     )

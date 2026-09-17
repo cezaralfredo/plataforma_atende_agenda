@@ -2,7 +2,7 @@
 
 > Operação endurecida: aplique migrações antes do tráfego, configure `APP_TIMEZONE`, valide `/ready` e implante também a imagem `-backup`. API e métricas usam Bearer; o painel usa Basic.
 
-Use `docker-compose.portainer-npm.yml` para criar uma nova Stack. Esta é a variante com PostgreSQL local, feita para um Docker comum (sem Swarm) e para o Nginx Proxy Manager já instalado no ambiente. Para a topologia com PostgreSQL externo no Neon, siga [DEPLOY_PORTAINER_NEON.md](DEPLOY_PORTAINER_NEON.md).
+Use `docker-compose.portainer-npm.yml` para criar uma nova Stack. Esta é a configuração com PostgreSQL local, feita para um Docker comum (sem Swarm) e para o Nginx Proxy Manager já instalado no ambiente.
 
 ## Variáveis da Stack
 

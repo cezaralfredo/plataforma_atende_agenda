@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+import logging
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -12,6 +13,8 @@ from app.database import get_db
 from app.models.payment import Payment
 from app.models.webhook_event import WebhookEvent
 from app.services.payment_state_service import apply_payment_state
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
@@ -65,8 +68,16 @@ async def asaas_webhook(request: Request, db: Session = Depends(get_db)):
         .first()
     )
     if not payment:
-        db.commit()
-        return {"status": "ignored", "reason": "payment_not_found"}
+        db.rollback()
+        logger.warning(
+            "Webhook received for unknown or in-flight payment %s (event %s). Rolling back event receipt to allow retry.",
+            asaas_payment_id,
+            event_id,
+        )
+        raise HTTPException(
+            status_code=404,
+            detail=f"Payment {asaas_payment_id} not yet available in local store; retry deferred",
+        )
 
     new_status = STATUS_MAP.get(event)
     if new_status:

@@ -62,7 +62,7 @@ def require_admin(
         raise HTTPException(status_code=403, detail="Admin access denied")
 
     username, password = _decode_basic_credentials(request)
-    if username and hmac.compare_digest(password, settings.admin_api_key):
+    if password and hmac.compare_digest(password, settings.admin_api_key):
         return
     raise HTTPException(
         status_code=401,

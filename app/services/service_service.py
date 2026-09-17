@@ -19,22 +19,36 @@ class ServiceService:
     def get(self, service_id: int):
         return self.repo.get(service_id)
 
-    def list(self, professional_id: int | None = None, category: str | None = None, skip: int = 0, limit: int = 100):
+    def list(
+        self,
+        professional_id: int | None = None,
+        category: str | None = None,
+        skip: int = 0,
+        limit: int = 100,
+        include_inactive: bool = False,
+    ):
         if professional_id is not None:
-            return self.repo.list_by_professional(professional_id)
+            return self.repo.list_by_professional(professional_id, include_inactive=include_inactive)
         if category is not None:
-            return self.repo.list_by_category(category)
-        # Quando sem filtro, carrega o relacionamento professional para incluir o nome
-        return self.repo.list_with_professional(skip=skip, limit=limit)
+            return self.repo.list_by_category(category, include_inactive=include_inactive)
+        return self.repo.list_with_professional(skip=skip, limit=limit, include_inactive=include_inactive)
 
     def update(self, service_id: int, data: ServiceUpdate):
         return self.repo.update(service_id, **data.model_dump(exclude_unset=True))
 
     def delete(self, service_id: int):
+        service = self.get(service_id)
+        if not service:
+            return False
         if self.repo.db.query(Appointment.id).filter(
             Appointment.service_id == service_id
         ).first():
-            raise RelatedRecordsError(
-                "Serviço possui agendamentos e não pode ser excluído"
-            )
+            # Soft delete to preserve historical appointments without database errors
+            service.active = False
+            self.repo.db.commit()
+            return True
         return self.repo.delete(service_id)
+
+
+# Backward compatibility alias
+ServiceCatalogService = ServiceService

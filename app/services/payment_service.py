@@ -14,6 +14,7 @@ from app.services.asaas_client import (
     AsaasUncertainResultError,
 )
 from app.services.payment_state_service import apply_payment_state
+from app.utils.sanitizers import clean_digits
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,14 @@ class PaymentService:
         if not user:
             raise ValueError("Usuário não encontrado")
 
+        user_cpf = clean_digits(getattr(user, "cpf_cnpj", None))
+
         if user.asaas_customer_id:
+            if user_cpf:
+                try:
+                    await self.asaas.update_customer(user.asaas_customer_id, cpf_cnpj=user_cpf)
+                except Exception as e:
+                    logger.warning("Could not sync CPF to existing Asaas customer %s: %s", user.asaas_customer_id, e)
             return user.asaas_customer_id
 
         external_reference = f"user:{user.id}"
@@ -54,8 +62,9 @@ class PaymentService:
             try:
                 customer = await self.asaas.create_customer(
                     name=user.name,
-                    phone=user.phone,
+                    phone=clean_digits(user.phone),
                     email=user.email,
+                    cpf_cnpj=user_cpf,
                     external_reference=external_reference,
                 )
             except AsaasUncertainResultError:
@@ -70,6 +79,11 @@ class PaymentService:
                 f"Asaas customer {external_reference} has no id"
             )
         user.asaas_customer_id = customer_id
+        if user_cpf and not customer.get("cpfCnpj"):
+            try:
+                await self.asaas.update_customer(customer_id, cpf_cnpj=user_cpf)
+            except Exception as e:
+                logger.warning("Could not sync CPF to Asaas customer %s: %s", customer_id, e)
         self.db.flush()
         return customer_id
 
@@ -85,6 +99,15 @@ class PaymentService:
         return matches[0] if matches else None
 
     @staticmethod
+    def _appointment_price_cents(appointment: Appointment) -> int:
+        snapshot = getattr(appointment, "service_price_cents", None)
+        if snapshot is not None and snapshot >= 500:
+            return snapshot
+        if not appointment.service:
+            raise ValueError("Agendamento sem serviço")
+        return appointment.service.price_cents
+
+    @staticmethod
     def _payment_from_asaas(
         appointment: Appointment,
         payload: dict,
@@ -97,7 +120,7 @@ class PaymentService:
         return Payment(
             appointment_id=appointment.id,
             asaas_payment_id=payment_id,
-            amount_cents=appointment.service.price_cents,
+            amount_cents=PaymentService._appointment_price_cents(appointment),
             billing_type=billing_type,
             status=(
                 ASAAS_STATUS_MAP.get(remote_status, "pending")
@@ -150,9 +173,10 @@ class PaymentService:
         if active_payment:
             return active_payment
 
-        if not appointment.service:
-            raise ValueError("Agendamento sem serviço")
-        value_cents = appointment.service.price_cents
+        value_cents = self._appointment_price_cents(appointment)
+        if hasattr(appointment, "service_price_cents") and appointment.service_price_cents != value_cents:
+            appointment.service_price_cents = value_cents
+            self.db.flush()
         if amount_cents is not None and amount_cents != value_cents:
             raise ValueError("Charge amount must match the service price")
 

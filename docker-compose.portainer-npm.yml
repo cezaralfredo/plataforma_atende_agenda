@@ -2,25 +2,6 @@
 # Não publique portas: no NPM, crie um Proxy Host para agenda-api:8000.
 # Defina as variáveis abaixo na tela Environment variables da Stack.
 services:
-  mcp-gateway:
-    build:
-      context: .
-      dockerfile: mcp_gateway/Dockerfile
-    restart: unless-stopped
-    environment:
-      API_BASE_URL: http://api:8000
-      API_KEY: ${API_KEY:?Defina API_KEY no Portainer}
-      GATEWAY_KEY: ${MCP_GATEWAY_KEY:?Defina MCP_GATEWAY_KEY no Portainer}
-    expose:
-      - "8080"
-    networks:
-      agenda_internal:
-      npm:
-        aliases:
-          - mcp-gateway
-    depends_on:
-      - api
-
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -29,47 +10,52 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no Portainer}
       POSTGRES_DB: agenda_atende
     volumes:
-      - agenda_pgdata:/var/lib/postgresql/data
-      - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+      - agenda_db_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U agenda_user -d agenda_atende"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
       retries: 5
     networks:
-      - agenda_internal
+      - agenda_db_internal
 
   api:
-    image: ${REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY:-cezaralfredo/plataforma_atende_agenda}:latest
+    image: ${REGISTRY:-ghcr.io}/${GITHUB_REPOSITORY:-cezaralfredo/plataforma_atende_agenda}:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql+psycopg://agenda_user:__POSTGRES_PASSWORD__@postgres:5432/agenda_atende
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no Portainer}
+      DATABASE_URL: postgresql+psycopg://agenda_user:${POSTGRES_PASSWORD}@postgres:5432/agenda_atende
       API_KEY: ${API_KEY:?Defina API_KEY no Portainer}
       ADMIN_API_KEY: ${ADMIN_API_KEY:?Defina ADMIN_API_KEY no Portainer}
+      ADMIN_USERNAME: "admin"
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:?Defina ADMIN_SESSION_SECRET no Portainer}
+      ADMIN_RECOVERY_KEY: ${ADMIN_RECOVERY_KEY:?Defina ADMIN_RECOVERY_KEY no Portainer}
       APP_NAME: ${APP_NAME:-Agenda Atende}
+      APP_TIMEZONE: ${APP_TIMEZONE:-America/Sao_Paulo}
       DEBUG: "false"
       ASAAS_API_KEY: ${ASAAS_API_KEY:?Defina ASAAS_API_KEY no Portainer}
       ASAAS_BASE_URL: ${ASAAS_BASE_URL:-https://api.asaas.com/v3}
       ASAAS_WEBHOOK_TOKEN: ${ASAAS_WEBHOOK_TOKEN:?Defina ASAAS_WEBHOOK_TOKEN no Portainer}
-      SEED_DATA: "false"
     depends_on:
       postgres:
         condition: service_healthy
     expose:
       - "8000"
     networks:
-      agenda_internal:
       npm:
         aliases:
           - agenda-api
+      mcp_internal:
+      agenda_db_internal:
 
 volumes:
-  agenda_pgdata:
+  agenda_db_data:
 
 networks:
-  agenda_internal:
-    driver: bridge
   npm:
     external: true
     name: ${NPM_NETWORK:-nginx-proxy_default}
+  mcp_internal:
+    external: true
+    name: ${AGENDA_MCP_NETWORK:-agenda_mcp_internal}
+  agenda_db_internal:
+    driver: bridge

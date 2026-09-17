@@ -387,8 +387,7 @@ WebhookEvent (tabela de idempotência para webhooks)
 
 ## Deploy com Portainer
 
-- Para a variante com PostgreSQL local e Nginx Proxy Manager, siga [DEPLOY_PORTAINER_NPM.md](DEPLOY_PORTAINER_NPM.md).
-- Para a topologia com PostgreSQL externo no Neon, siga [DEPLOY_PORTAINER_NEON.md](DEPLOY_PORTAINER_NEON.md).
+- Para o deploy com PostgreSQL local e Nginx Proxy Manager, siga [DEPLOY_PORTAINER_NPM.md](DEPLOY_PORTAINER_NPM.md).
 
 ## Licença
 

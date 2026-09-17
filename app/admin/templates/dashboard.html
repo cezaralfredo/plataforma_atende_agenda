@@ -274,9 +274,8 @@ function dashboard() {
                 this.kpis = await response.json();
 
                 // Load professionals for overview
-                const profsResponse = await fetch('/admin/professionals');
-                // We'll parse from the HTML or use a separate endpoint
-                // For now, use a simple approach
+                const profsResponse = await fetch('/admin/api/professionals');
+                this.professionals = await profsResponse.json();
             } catch (error) {
                 console.error('Erro ao carregar KPIs:', error);
             }
