@@ -1,7 +1,8 @@
 # ─────────────────────────────────────────────────────────────
-# Perfil: Financeiro
-# Especialista em pagamentos. Cria cobranças no Asaas,
-# monitora confirmações, gerencia estornos.
+# Perfil: Financeiro [LEGADO / MIGRADO]
+# ATENÇÃO: As cobranças e reconciliações periódicas com Asaas
+# foram migradas para o n8n (n8n/workflows/subagente_financeiro.json).
+# O Hermes utiliza o perfil 'orquestrador' como inteligência conversacional.
 # ─────────────────────────────────────────────────────────────
 
 name: financeiro

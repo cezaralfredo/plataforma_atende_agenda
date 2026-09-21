@@ -12,19 +12,16 @@ gateway:
     X-Gateway-Key: "${MCP_GATEWAY_KEY}"  # Defina no ambiente
 
 # Perfis disponíveis
+# Subagentes (agendador, financeiro, notificador) foram migrados para o n8n.
+# O Hermes atua unicamente como a inteligência conversacional no WhatsApp (orquestrador).
 profiles:
   - orquestrador
-  - agendador
-  - financeiro
-  - notificador
 
 # Configuração de logging
 logging:
   level: "INFO"
   format: "json"
 
-# Configuração do Kanban (se usar)
+# Kanban (desativado - toda a automação e filas de background são gerenciadas pelo n8n)
 kanban:
-  backend: "memory"  # ou "redis", "postgres"
-  # redis:
-  #   url: "redis://localhost:6379/0"
+  enabled: false

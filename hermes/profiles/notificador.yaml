@@ -1,7 +1,8 @@
 # ─────────────────────────────────────────────────────────────
-# Perfil: Notificador
-# Envia mensagens aos clientes via WhatsApp:
-# confirmações, lembretes, avisos de cancelamento.
+# Perfil: Notificador [LEGADO / MIGRADO]
+# ATENÇÃO: As notificações automáticas e lembretes foram migrados
+# para o n8n (notificacao_pagamento_hermes.json e subagente_lembretes.json).
+# O Hermes utiliza o perfil 'orquestrador' como inteligência conversacional.
 # ─────────────────────────────────────────────────────────────
 
 name: notificador

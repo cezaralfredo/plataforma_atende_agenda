@@ -1,7 +1,8 @@
 # ─────────────────────────────────────────────────────────────
-# Perfil: Agendador
-# Especialista em agenda. Consulta disponibilidade no MCP,
-# cria reservas, valida horários.
+# Perfil: Agendador [LEGADO / MIGRADO]
+# ATENÇÃO: As tarefas e automações de agendamento foram migradas
+# para o n8n (n8n/workflows/orquestrador_agendamentos.json).
+# O Hermes utiliza o perfil 'orquestrador' como inteligência conversacional.
 # ─────────────────────────────────────────────────────────────
 
 name: agendador
