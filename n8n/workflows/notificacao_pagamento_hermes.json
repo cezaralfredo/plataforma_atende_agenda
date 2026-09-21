@@ -1,0 +1,93 @@
+{
+  "name": "Confirmação de Pagamento - Notificação Hermes WhatsApp",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "pagamento-confirmado",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-node-1",
+      "name": "Webhook Pagamento Confirmado",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [180, 300],
+      "webhookId": "pagamento-confirmado"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"status\": \"received\",\n  \"dispatched\": true\n}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-webhook-node-1",
+      "name": "Responder 200 OK à API",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [420, 180]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extrai e prepara os dados recebidos da API Agenda Atende\nconst body = $input.first().json.body || $input.first().json;\n\nconst client = body.client || {};\nconst appointment = body.appointment || {};\nconst service = body.service || {};\nconst professional = body.professional || {};\n\n// Telefone WhatsApp de destino\nlet phone = client.whatsapp_number || client.phone || \"\";\nphone = phone.replace(/\\D/g, \"\"); // apenas números\nif (phone.length === 10 || phone.length === 11) {\n  phone = \"55\" + phone; // prefixo Brasil se necessário\n}\n\n// Mensagem formatada enviada pela API\nconst message = body.formatted_message || `Olá, ${client.name || 'Cliente'}! Seu pagamento foi confirmado com sucesso. Sua reserva #${body.appointment_id || ''} está garantida!`;\n\nreturn [{\n  json: {\n    appointment_id: body.appointment_id,\n    payment_id: body.payment_id,\n    client_name: client.name,\n    phone: phone,\n    service_name: service.name,\n    professional_name: professional.name,\n    start_time: appointment.start_time,\n    message: message\n  }\n}];"
+      },
+      "id": "code-node-extract",
+      "name": "Formatar Dados & Destinatário",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 420]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.HERMES_API_URL || 'http://hermes:8000/send-message' }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"phone\": \"{{ $json.phone }}\",\n  \"message\": {{ JSON.stringify($json.message) }},\n  \"context\": {\n    \"event\": \"payment.confirmed\",\n    \"appointment_id\": {{ $json.appointment_id }}\n  }\n}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "http-send-hermes",
+      "name": "Enviar Mensagem via Hermes WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 420]
+    }
+  ],
+  "connections": {
+    "Webhook Pagamento Confirmado": {
+      "main": [
+        [
+          {
+            "node": "Responder 200 OK à API",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Formatar Dados & Destinatário",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatar Dados & Destinatário": {
+      "main": [
+        [
+          {
+            "node": "Enviar Mensagem via Hermes WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

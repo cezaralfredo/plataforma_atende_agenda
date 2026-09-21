@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from tests.seed import seed_appointment, seed_data
+from tests.seed import seed_appointment, seed_data, seed_payment
 
 
 def test_awaiting_payment_expires_and_releases_slot(
@@ -53,3 +53,23 @@ def test_confirm_is_idempotent(client: TestClient, db_session: Session):
 
     assert response.status_code == 200
     assert response.json()["status"] == "confirmed"
+
+
+def test_expire_reservations_does_not_cancel_paid_reservation(db_session: Session):
+    from app.repositories.appointment_repo import AppointmentRepository
+
+    entities = seed_data(db_session)
+    appointment = seed_appointment(db_session, entities)
+    appointment.status = "awaiting_payment"
+    appointment.expires_at = datetime.now() - timedelta(minutes=5)
+    payment = seed_payment(db_session, appointment)
+    payment.status = "received"
+    db_session.commit()
+
+    repo = AppointmentRepository(db_session)
+    expired = repo.expire_reservations(datetime.now())
+
+    db_session.refresh(appointment)
+    assert expired == 0
+    assert appointment.status == "confirmed"
+

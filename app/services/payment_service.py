@@ -48,11 +48,6 @@ class PaymentService:
         user_cpf = clean_digits(getattr(user, "cpf_cnpj", None))
 
         if user.asaas_customer_id:
-            if user_cpf:
-                try:
-                    await self.asaas.update_customer(user.asaas_customer_id, cpf_cnpj=user_cpf)
-                except Exception as e:
-                    logger.warning("Could not sync CPF to existing Asaas customer %s: %s", user.asaas_customer_id, e)
             return user.asaas_customer_id
 
         external_reference = f"user:{user.id}"
@@ -152,7 +147,27 @@ class PaymentService:
     ) -> Payment:
         self.appointment_repo.expire_reservations(datetime.now(UTC))
         self.db.flush()
-        appointment = self._locked_appointment_query(appointment_id).first()
+
+        # Fast path: check for existing active payment locally
+        existing = self.payment_repo.list_by_appointment(appointment_id)
+        active_payment = next(
+            (payment for payment in existing if payment.status in {"pending", "received", "confirmed"}),
+            None,
+        )
+        if active_payment:
+            return active_payment
+
+        # Pre-check appointment without holding pessimistic row locks during external network calls
+        appointment = (
+            self.db.query(Appointment)
+            .options(
+                joinedload(Appointment.service),
+                joinedload(Appointment.professional),
+                joinedload(Appointment.user),
+            )
+            .filter(Appointment.id == appointment_id)
+            .first()
+        )
 
         if not appointment:
             raise ValueError("Agendamento não encontrado")
@@ -164,14 +179,6 @@ class PaymentService:
         asaas_billing_type = billing_type.upper()
         if asaas_billing_type not in {"PIX", "BOLETO", "CREDIT_CARD", "UNDEFINED"}:
             raise ValueError("Invalid billing type")
-
-        existing = self.payment_repo.list_by_appointment(appointment_id)
-        active_payment = next(
-            (payment for payment in existing if payment.status in {"pending", "received", "confirmed"}),
-            None,
-        )
-        if active_payment:
-            return active_payment
 
         value_cents = self._appointment_price_cents(appointment)
         if hasattr(appointment, "service_price_cents") and appointment.service_price_cents != value_cents:
@@ -209,17 +216,33 @@ class PaymentService:
                 if remote_payment is None:
                     raise
 
+        # Now acquire row lock to commit the payment record locally in milliseconds
+        locked_appointment = self._locked_appointment_query(appointment_id).first()
+        if not locked_appointment:
+            raise ValueError("Agendamento não encontrado")
+
+        # Double check if someone created a payment concurrently
+        existing_now = self.payment_repo.list_by_appointment(appointment_id)
+        concurrent_payment = next(
+            (p for p in existing_now if p.status in {"pending", "received", "confirmed"}),
+            None,
+        )
+        if concurrent_payment:
+            return concurrent_payment
+
         payment = self._payment_from_asaas(
-            appointment,
+            locked_appointment,
             remote_payment,
             billing_type,
         )
         self.db.add(payment)
-        appointment.status = (
+        locked_appointment.status = (
             "confirmed"
             if payment.status in {"received", "confirmed"}
             else "awaiting_payment"
         )
+        if locked_appointment.status == "awaiting_payment":
+            locked_appointment.expires_at = datetime.now(UTC) + timedelta(hours=24)
         self.db.commit()
         self.db.refresh(payment)
         return payment
@@ -291,3 +314,21 @@ class PaymentService:
 
     def get_payment_by_appointment(self, appointment_id: int) -> Payment | None:
         return self.db.query(Payment).filter(Payment.appointment_id == appointment_id).first()
+
+    def list_unnotified_confirmed(self) -> list[Appointment]:
+        """Retorna agendamentos confirmados cujo cliente ainda não foi notificado."""
+        return (
+            self.db.query(Appointment)
+            .options(
+                joinedload(Appointment.user),
+                joinedload(Appointment.service),
+                joinedload(Appointment.professional),
+                joinedload(Appointment.payments),
+            )
+            .filter(
+                Appointment.status == "confirmed",
+                Appointment.notified_at.is_(None),
+            )
+            .order_by(Appointment.created_at.desc())
+            .all()
+        )

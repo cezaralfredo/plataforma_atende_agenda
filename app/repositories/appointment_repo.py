@@ -1,9 +1,10 @@
 from datetime import datetime
 
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.appointment import Appointment
+from app.models.payment import Payment
 from app.repositories.base import BaseRepository
 
 
@@ -52,11 +53,26 @@ class AppointmentRepository(BaseRepository):
         return query.all()
 
     def expire_reservations(self, now: datetime) -> int:
-        return self.db.query(Appointment).filter(
+        paid_appointment_ids = (
+            select(Payment.appointment_id)
+            .where(Payment.status.in_(["received", "confirmed"]))
+            .scalar_subquery()
+        )
+        self.db.query(Appointment).filter(
             Appointment.status.in_(self.ACTIVE_WHILE_UNEXPIRED),
-            Appointment.expires_at.is_not(None),
-            Appointment.expires_at <= now,
-        ).update({"status": "cancelled"}, synchronize_session=False)
+            Appointment.id.in_(paid_appointment_ids),
+        ).update({"status": "confirmed"}, synchronize_session=False)
+
+        return (
+            self.db.query(Appointment)
+            .filter(
+                Appointment.status.in_(self.ACTIVE_WHILE_UNEXPIRED),
+                Appointment.expires_at.is_not(None),
+                Appointment.expires_at <= now,
+                ~Appointment.id.in_(paid_appointment_ids),
+            )
+            .update({"status": "cancelled"}, synchronize_session=False)
+        )
 
     def expire_pending(self, now: datetime) -> int:
         return self.expire_reservations(now)

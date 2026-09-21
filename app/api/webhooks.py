@@ -10,8 +10,10 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
+from app.models.notification_log import NotificationLog
 from app.models.payment import Payment
 from app.models.webhook_event import WebhookEvent
+from app.services.notification_service import NotificationService
 from app.services.payment_state_service import apply_payment_state
 
 logger = logging.getLogger(__name__)
@@ -80,8 +82,34 @@ async def asaas_webhook(request: Request, db: Session = Depends(get_db)):
         )
 
     new_status = STATUS_MAP.get(event)
+    should_notify = False
+    appointment_id = None
+    payment_id = payment.id
+
     if new_status:
         apply_payment_state(payment, new_status, datetime.now(UTC))
+        if new_status in {"received", "confirmed"} and payment.appointment and payment.appointment.status == "confirmed":
+            should_notify = True
+            appointment_id = payment.appointment_id
+            logger.info(
+                "Payment %s (%s) confirmed for appointment %s - pending customer notification",
+                payment.id,
+                payment.asaas_payment_id,
+                payment.appointment_id,
+            )
+            try:
+                db.add(
+                    NotificationLog(
+                        appointment_id=payment.appointment_id,
+                        type="payment_received",
+                    )
+                )
+            except Exception as e:
+                logger.warning("Could not create NotificationLog for webhook: %s", e)
     db.commit()
+
+    if should_notify and appointment_id:
+        notification_service = NotificationService(db)
+        await notification_service.dispatch_payment_confirmed(appointment_id, payment_id)
 
     return {"status": "ok"}

@@ -14,7 +14,33 @@ class AdminService:
     def __init__(self, db: Session):
         self.db = db
 
+    def reconcile_paid_appointments(self) -> int:
+        """Reconcile appointments that have confirmed/received payments to 'confirmed' status,
+        unless they were explicitly cancelled by an admin with '[Admin] Cancelado'.
+        """
+        paid_subquery = (
+            select(Payment.appointment_id)
+            .where(Payment.status.in_(["received", "confirmed"]))
+            .scalar_subquery()
+        )
+        updated = (
+            self.db.query(Appointment)
+            .filter(
+                Appointment.status.in_(["pending", "awaiting_payment", "cancelled"]),
+                Appointment.id.in_(paid_subquery),
+                or_(
+                    Appointment.notes.is_(None),
+                    ~Appointment.notes.contains("[Admin] Cancelado"),
+                ),
+            )
+            .update({"status": "confirmed"}, synchronize_session=False)
+        )
+        if updated:
+            self.db.commit()
+        return updated
+
     def get_kpis(self) -> dict:
+        self.reconcile_paid_appointments()
         today = date.today()
         week_ago = today - timedelta(days=7)
         month_ago = today - timedelta(days=30)
@@ -104,6 +130,7 @@ class AdminService:
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list[dict], int]:
+        self.reconcile_paid_appointments()
         latest_payment_id = (
             select(func.max(Payment.id))
             .where(Payment.appointment_id == Appointment.id)
@@ -313,11 +340,17 @@ class AdminService:
             if notes:
                 apt.notes = (apt.notes or "") + f"\n[Admin] Cancelado: {notes}"
         elif action == "confirm":
-            if apt.status != "pending":
-                return {"error": "Só é possível confirmar agendamentos pendentes"}
+            if apt.status == "completed":
+                return {"error": "Não é possível confirmar agendamento já concluído"}
             apt.status = "confirmed"
             if notes:
                 apt.notes = (apt.notes or "") + f"\n[Admin] Confirmado: {notes}"
+        elif action == "complete":
+            if apt.status != "confirmed":
+                return {"error": "Só é possível concluir agendamentos confirmados"}
+            apt.status = "completed"
+            if notes:
+                apt.notes = (apt.notes or "") + f"\n[Admin] Concluído: {notes}"
         else:
             return {"error": "Ação inválida"}
 
@@ -331,6 +364,7 @@ class AdminService:
         }
 
     def get_appointment_detail(self, appointment_id: int) -> dict | None:
+        self.reconcile_paid_appointments()
         latest_payment_id = (
             select(func.max(Payment.id))
             .where(Payment.appointment_id == Appointment.id)

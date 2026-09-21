@@ -221,7 +221,7 @@
                     <h4 class="font-semibold text-gray-900">Ações</h4>
                 </div>
                 <div class="p-4 space-y-3">
-                    <template x-if="appointment.status === 'pending'">
+                    <template x-if="appointment.status === 'pending' || appointment.status === 'awaiting_payment'">
                         <button @click="confirmAppointment()"
                                 class="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center">
                             <i class="fas fa-check mr-2"></i> Confirmar Agendamento
@@ -241,10 +241,16 @@
                             <i class="fas fa-check-double mr-2"></i> Marcar Concluído
                         </button>
                     </template>
-                    <template x-if="appointment.status === 'cancelled' || appointment.status === 'completed'">
+                    <template x-if="appointment.status === 'cancelled'">
+                        <button @click="confirmAppointment()"
+                                class="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center">
+                            <i class="fas fa-undo mr-2"></i> Reativar / Confirmar Agendamento
+                        </button>
+                    </template>
+                    <template x-if="appointment.status === 'completed'">
                         <div class="text-center py-4 text-gray-500">
                             <i class="fas fa-lock text-xl mb-2"></i>
-                            <p>Agendamento finalizado - ações não disponíveis</p>
+                            <p>Agendamento finalizado - concluído</p>
                         </div>
                     </template>
                 </div>

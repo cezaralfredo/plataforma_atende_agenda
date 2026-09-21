@@ -64,3 +64,68 @@ def test_admin_rejects_zero_page(anonymous_client: TestClient):
         headers={"Authorization": f"Basic {credentials}"},
     )
     assert response.status_code == 422
+
+
+def test_reconcile_paid_appointments_updates_cancelled_to_confirmed(db_session: Session):
+    entities = seed_data(db_session)
+    appointment = seed_appointment(db_session, entities)
+    appointment.status = "cancelled"
+    db_session.add(
+        Payment(
+            appointment_id=appointment.id,
+            asaas_payment_id="pay_rec_1",
+            amount_cents=5000,
+            billing_type="pix",
+            status="received",
+        )
+    )
+    db_session.commit()
+
+    rows, total = AdminService(db_session).list_appointments()
+    assert total == 1
+    assert rows[0]["status"] == "confirmed"
+    assert rows[0]["payment_status"] == "received"
+
+    db_session.refresh(appointment)
+    assert appointment.status == "confirmed"
+
+
+def test_reconcile_paid_appointments_preserves_explicit_admin_cancellation(db_session: Session):
+    entities = seed_data(db_session)
+    appointment = seed_appointment(db_session, entities)
+    appointment.status = "cancelled"
+    appointment.notes = "[Admin] Cancelado: Cliente solicitou cancelamento formal"
+    db_session.add(
+        Payment(
+            appointment_id=appointment.id,
+            asaas_payment_id="pay_rec_2",
+            amount_cents=5000,
+            billing_type="pix",
+            status="received",
+        )
+    )
+    db_session.commit()
+
+    rows, total = AdminService(db_session).list_appointments()
+    assert total == 1
+    assert rows[0]["status"] == "cancelled"
+
+    db_session.refresh(appointment)
+    assert appointment.status == "cancelled"
+
+
+def test_admin_can_reactivate_and_confirm_cancelled_appointment(db_session: Session):
+    entities = seed_data(db_session)
+    appointment = seed_appointment(db_session, entities)
+    appointment.status = "cancelled"
+    db_session.commit()
+
+    admin_service = AdminService(db_session)
+    result = admin_service.appointment_action(appointment.id, "confirm", notes="Reativado após verificar pagamento")
+
+    assert result["status"] == "confirmed"
+    assert "[Admin] Confirmado: Reativado após verificar pagamento" in result["notes"]
+
+    db_session.refresh(appointment)
+    assert appointment.status == "confirmed"
+

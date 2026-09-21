@@ -20,6 +20,9 @@ REGISTRY=ghcr.io
 GITHUB_REPOSITORY=cezaralfredo/plataforma_atende_agenda
 NPM_NETWORK=nginx-proxy_default
 
+# Notificação Automática (n8n / Hermes / WhatsApp)
+N8N_WEBHOOK_URL=http://147.224.215.151:5678/webhook/pagamento-confirmado
+
 # MCP Gateway (para Hermes externo)
 MCP_GATEWAY_KEY=chave-forte-para-gateway-hermes
 ```
@@ -63,6 +66,16 @@ Para o painel administrativo em `https://api.seudominio.com/admin`, use autentic
 2. Perfis Hermes em `hermes/profiles/` já usam toolset `gateway` (não `mcp_tools`).
 
 3. Execute: `hermes run --profile orquestrador`
+
+## n8n (Orquestrador de Fluxos e Subagentes)
+
+1. Para subir o n8n no Portainer, crie uma Stack chamada `n8n` usando [docker-compose.n8n.yml](docker-compose.n8n.yml).
+2. O n8n fica acessível internamente diretamente pelo endereço `http://147.224.215.151:5678`.
+3. Na stack `agenda_atende`, defina a variável de ambiente:
+   ```env
+   N8N_WEBHOOK_URL=http://147.224.215.151:5678/webhook/pagamento-confirmado
+   ```
+4. Importe os workflows disponíveis na pasta `n8n/workflows/` (ex: `notificacao_pagamento_hermes.json`).
 
 ## Limitações deliberadas
 

@@ -118,7 +118,7 @@
                                        class="text-blue-600 hover:text-blue-800 text-sm font-medium">
                                         Ver
                                     </a>
-                                    <template x-if="apt.status === 'pending'">
+                                    <template x-if="apt.status === 'pending' || apt.status === 'awaiting_payment'">
                                         <button @click="confirmAppointment(apt.id)"
                                                 class="text-green-600 hover:text-green-800 text-sm font-medium">
                                             Confirmar
@@ -132,6 +132,13 @@
                                         <button @click="cancelAppointment(apt.id)"
                                                 class="text-red-600 hover:text-red-800 text-sm font-medium">
                                             Cancelar
+                                        </button>
+                                    </template>
+                                    <template x-if="apt.status === 'cancelled'">
+                                        <button @click="confirmAppointment(apt.id)"
+                                                class="text-green-600 hover:text-green-800 text-sm font-medium"
+                                                title="Reativar e confirmar agendamento">
+                                            Reativar
                                         </button>
                                     </template>
                                 </div>

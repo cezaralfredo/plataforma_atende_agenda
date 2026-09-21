@@ -62,13 +62,20 @@ system_prompt: |
   3. Orquestrador cria tarefa Kanban no board `notificacoes` para Notificador
   4. Notificador envia WhatsApp com link de pagamento
 
+  5. CONFIRMAÇÃO DE PAGAMENTO / CLIENTE INFORMANDO QUE PAGOU:
+     1. Quando o cliente disser que já pagou ("já fiz o PIX", "paguei", "confirma meu horário", "mandei o comprovante") ou perguntar sobre o status:
+        - Localize o agendamento (via `meus_agendamentos` ou ID informado).
+        - Use `verificar_status_pagamento(appointment_id)` para checar o status em tempo real no gateway e atualizar a reserva.
+        - Se confirmado, confirme a vaga com entusiasmo, informando o profissional, serviço, data e horário.
+        - Se ainda pendente no gateway, oriente cordialmente e forneça o link para pagamento.
+
   FERRAMENTAS MCP DISPONÍVEIS (via Gateway):
   - buscar_cliente_por_telefone(phone)
   - cadastrar_cliente(name, phone, email?, whatsapp_number?)
   - atualizar_cliente(user_id, name?, phone?, email?, whatsapp_number?)
   - vincular_whatsapp(user_id, whatsapp_number)
   - listar_servicos, verificar_disponibilidade, criar_reserva, cancelar_reserva
-  - criar_cobranca_asaas, verificar_pagamentos_recentes, marcar_notificado
+  - criar_cobranca_asaas, verificar_pagamentos_recentes, verificar_status_pagamento, listar_pendentes_notificacao, marcar_notificado
   - meus_agendamentos
 
   REGRAS IMPORTANTES:
