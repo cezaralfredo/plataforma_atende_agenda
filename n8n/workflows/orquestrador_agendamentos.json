@@ -17,7 +17,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Extrai os dados enviados pelo Hermes\nconst body = $input.first().json.body || $input.first().json;\n\nreturn [{\n  json: {\n    client_name: body.client_name || body.name,\n    phone: String(body.phone || body.whatsapp_number || '').replace(/\\D/g, ''),\n    professional_id: parseInt(body.professional_id),\n    service_id: parseInt(body.service_id),\n    start_time: body.start_time,\n    end_time: body.end_time,\n    notes: body.notes || 'Agendado via Hermes WhatsApp'\n  }\n}];"
+        "jsCode": "// Extrai os dados enviados pelo Hermes\nconst body = $input.first().json.body || $input.first().json;\n\nreturn [{\n  json: {\n    client_name: body.client_name || body.name,\n    phone: String(body.phone || body.whatsapp_number || '').replace(/\\D/g, ''),\n    cpf_cnpj: body.cpf_cnpj ? String(body.cpf_cnpj).replace(/\\D/g, '') : null,\n    professional_id: parseInt(body.professional_id),\n    service_id: parseInt(body.service_id),\n    start_time: body.start_time,\n    end_time: body.end_time,\n    notes: body.notes || 'Agendado via Hermes WhatsApp'\n  }\n}];"
       },
       "id": "code-validate-params",
       "name": "Validar Parâmetros",
@@ -72,7 +72,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"jsonrpc\": \"2.0\",\n  \"id\": \"cadastrar_user\",\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"cadastrar_cliente\",\n    \"arguments\": {\n      \"name\": \"{{ $('Validar Parâmetros').first().json.client_name }}\",\n      \"phone\": \"{{ $('Validar Parâmetros').first().json.phone }}\",\n      \"whatsapp_number\": \"{{ $('Validar Parâmetros').first().json.phone }}\"\n    }\n  }\n}",
+        "jsonBody": "={\n  \"jsonrpc\": \"2.0\",\n  \"id\": \"cadastrar_user\",\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"cadastrar_cliente\",\n    \"arguments\": {\n      \"name\": \"{{ $('Validar Parâmetros').first().json.client_name }}\",\n      \"phone\": \"{{ $('Validar Parâmetros').first().json.phone }}\",\n      \"whatsapp_number\": \"{{ $('Validar Parâmetros').first().json.phone }}\",\n      \"cpf_cnpj\": \"{{ $('Validar Parâmetros').first().json.cpf_cnpj || '' }}\"\n    }\n  }\n}",
         "options": {}
       },
       "id": "http-create-user",

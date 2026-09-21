@@ -196,6 +196,7 @@ TOOL_DEFINITIONS = [
             "properties": {
                 "client_name": {"type": "string", "description": "Nome completo do cliente"},
                 "phone": {"type": "string", "description": "Número do WhatsApp no formato 55XXXXXXXXXXX"},
+                "cpf_cnpj": {"type": "string", "description": "CPF ou CNPJ do cliente (apenas números ou formatado) para emissão de cobrança no Asaas (opcional/recomendado)"},
                 "professional_id": {"type": "integer", "description": "ID do profissional"},
                 "service_id": {"type": "integer", "description": "ID do serviço"},
                 "start_time": {"type": "string", "description": "Horário início (ISO 8601, ex: 2026-09-25T14:00:00)"},
@@ -545,6 +546,7 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
             payload = {
                 "client_name": arguments["client_name"],
                 "phone": arguments["phone"],
+                "cpf_cnpj": arguments.get("cpf_cnpj"),
                 "professional_id": arguments["professional_id"],
                 "service_id": arguments["service_id"],
                 "start_time": arguments["start_time"],
@@ -580,8 +582,14 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
                         name=arguments["client_name"],
                         phone=arguments["phone"],
                         whatsapp_number=arguments["phone"],
+                        cpf_cnpj=arguments.get("cpf_cnpj"),
                     )
                 )
+            elif arguments.get("cpf_cnpj") and not user.cpf_cnpj:
+                try:
+                    user_service.update(user.id, UserUpdate(cpf_cnpj=arguments.get("cpf_cnpj")))
+                except Exception as e:
+                    logger.warning("Não foi possível atualizar CPF no fallback: %s", e)
             appointment_service = AppointmentService(db)
             appointment = appointment_service.create(
                 AppointmentCreate(

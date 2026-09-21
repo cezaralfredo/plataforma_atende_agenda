@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}Clientes - Admin Agenda Atende{% endblock %}
+{% block page_title %}Gestão de Clientes{% endblock %}
+{% block content %}
+<div x-data="clientsPage()" x-init="reload()" class="space-y-6">
+  <header class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <p class="text-sm text-slate-600">Cadastre clientes e acompanhe o relacionamento, dados cadastrais e emissão de cobranças.</p>
+    <button type="button" @click="openCreate()" class="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors shadow-sm"><i class="fas fa-user-plus mr-2"></i>Novo cliente</button>
+  </header>
+  <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div class="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+      <div><h3 class="font-bold text-slate-900">Clientes cadastrados</h3><p class="text-sm text-slate-500"><span x-text="total"></span> cliente(s) encontrado(s)</p></div>
+      <div class="flex flex-col gap-2 sm:flex-row">
+        <input x-model.trim="search" @keydown.enter.prevent="page=1; reload()" type="search" placeholder="Buscar nome, CPF, telefone ou e-mail" class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <select x-model="status" @change="page=1; reload()" class="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"><option value="active">Ativos</option><option value="archived">Arquivados</option><option value="all">Todos</option></select>
+        <button type="button" @click="page=1; reload()" class="rounded-lg border border-slate-300 bg-slate-50 px-4 py-2 text-sm font-semibold hover:bg-slate-100">Buscar</button>
+      </div>
+    </div>
+    <div x-show="loading" class="p-10 text-center text-sm text-slate-500"><i class="fas fa-circle-notch mr-2 animate-spin"></i>Carregando clientes...</div>
+    <div x-show="loadError && !loading" x-cloak class="m-5 rounded-lg border border-red-200 bg-red-50 p-5 text-center"><p class="text-sm text-red-700" x-text="loadError"></p><button type="button" @click="reload()" class="mt-3 text-sm font-semibold text-red-700 underline">Tentar novamente</button></div>
+    <div x-show="!loading && !loadError" x-cloak>
+      <div class="admin-mobile-list md:hidden divide-y divide-slate-100">
+        <template x-for="client in clients" :key="client.id"><article class="space-y-3 p-4" :class="client.active?'':'bg-slate-50'">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="font-semibold text-slate-900" x-text="client.name"></p>
+              <p class="text-xs font-mono font-medium text-blue-700 bg-blue-50 inline-block px-1.5 py-0.5 rounded mt-0.5" x-show="client.cpf_cnpj" x-text="'CPF/CNPJ: ' + formatCpfCnpj(client.cpf_cnpj)"></p>
+              <p class="text-sm text-slate-500 mt-1" x-text="maskPhone(client.phone)"></p>
+              <p class="text-xs text-slate-500" x-text="maskEmail(client.email)"></p>
+            </div>
+            <span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="client.active?'bg-emerald-100 text-emerald-700':'bg-slate-200 text-slate-600'" x-text="client.active?'Ativo':'Arquivado'"></span>
+          </div>
+          <div class="grid grid-cols-3 gap-2 text-sm"><div><p class="text-xs text-slate-500">Agendamentos</p><p class="font-semibold" x-text="client.appointments_total"></p></div><div><p class="text-xs text-slate-500">Pagamentos recebidos</p><p class="font-semibold" x-text="client.payments_received_total"></p></div><div><p class="text-xs text-slate-500">Último</p><p class="font-semibold" x-text="formatDate(client.last_appointment_at)"></p></div></div>
+          <div class="flex gap-4 border-t border-slate-100 pt-3 text-sm font-semibold"><button x-show="client.active" @click="openEdit(client)" class="text-blue-600 hover:underline">Editar</button><button x-show="client.active" @click="remove(client)" class="text-red-600 hover:underline">Arquivar</button><button x-show="!client.active" @click="reactivate(client)" class="text-emerald-600 hover:underline">Reativar</button></div>
+        </article></template>
+      </div>
+      <div class="admin-table hidden md:block overflow-x-auto"><table class="min-w-full divide-y divide-slate-200">
+        <thead class="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500"><tr><th class="px-5 py-3">Cliente</th><th class="px-5 py-3">CPF / CNPJ</th><th class="px-5 py-3">Contato protegido</th><th class="px-5 py-3">Agendamentos</th><th class="px-5 py-3">Pagamentos recebidos</th><th class="px-5 py-3">Último agendamento</th><th class="px-5 py-3">Status</th><th class="px-5 py-3 text-right">Gestão</th></tr></thead>
+        <tbody class="divide-y divide-slate-100 text-sm"><template x-for="client in clients" :key="client.id"><tr :class="client.active?'':'bg-slate-50 text-slate-400'"><td class="px-5 py-4 font-semibold text-slate-900" x-text="client.name"></td><td class="px-5 py-4 font-mono text-xs text-slate-600" x-text="formatCpfCnpj(client.cpf_cnpj)"></td><td class="px-5 py-4"><p x-text="maskPhone(client.phone)"></p><p class="text-xs text-slate-500" x-text="maskEmail(client.email)"></p></td><td class="px-5 py-4" x-text="client.appointments_total"></td><td class="px-5 py-4" x-text="client.payments_received_total"></td><td class="px-5 py-4" x-text="formatDate(client.last_appointment_at)"></td><td class="px-5 py-4" x-text="client.active?'Ativo':'Arquivado'"></td><td class="px-5 py-4 text-right"><div class="inline-flex gap-3"><button x-show="client.active" @click="openEdit(client)" class="font-medium text-blue-600 hover:underline">Editar</button><button x-show="client.active" @click="remove(client)" class="font-medium text-red-600 hover:underline">Arquivar</button><button x-show="!client.active" @click="reactivate(client)" class="font-medium text-emerald-600 hover:underline">Reativar</button></div></td></tr></template></tbody>
+      </table></div>
+      <div x-show="clients.length===0" class="px-5 py-14 text-center"><p class="font-semibold text-slate-700">Nenhum cliente neste filtro</p><p class="mt-1 text-sm text-slate-500">Ajuste a busca ou cadastre o primeiro cliente.</p><button type="button" @click="openCreate()" class="mt-4 text-sm font-semibold text-blue-600">Cadastrar cliente</button></div>
+      <div x-show="totalPages>1" class="flex items-center justify-between border-t px-5 py-4 text-sm"><button @click="previousPage()" :disabled="page<=1" class="font-semibold text-blue-600 disabled:text-slate-300">Anterior</button><span>Página <span x-text="page"></span> de <span x-text="totalPages"></span></span><button @click="nextPage()" :disabled="page>=totalPages" class="font-semibold text-blue-600 disabled:text-slate-300">Próxima</button></div>
+    </div>
+  </section>
+  <div x-show="formOpen" x-cloak class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 p-4" @keydown.escape.window="formOpen=false"><div class="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl" @click.outside="formOpen=false">
+    <div class="mb-5 flex justify-between"><h3 class="text-lg font-bold" x-text="editingId?'Editar cliente':'Novo cliente'"></h3><button type="button" @click="formOpen=false" aria-label="Fechar"><i class="fas fa-times"></i></button></div>
+    <form class="space-y-4" @submit.prevent="save()">
+      <label class="block text-sm font-medium text-slate-700">Nome completo
+        <input x-model.trim="form.name" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </label>
+      <label class="block text-sm font-medium text-slate-700">CPF / CNPJ <span class="text-xs text-slate-500 font-normal">(necessário para cobrança Asaas)</span>
+        <input x-model.trim="form.cpf_cnpj" placeholder="000.000.000-00 ou apenas números" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </label>
+      <label class="block text-sm font-medium text-slate-700">Telefone
+        <input x-model.trim="form.phone" required inputmode="tel" placeholder="(11) 99999-9999" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </label>
+      <label class="block text-sm font-medium text-slate-700">WhatsApp <span class="text-xs text-slate-500 font-normal">(se diferente do telefone)</span>
+        <input x-model.trim="form.whatsapp_number" inputmode="tel" placeholder="5511999999999" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </label>
+      <label class="block text-sm font-medium text-slate-700">E-mail
+        <input x-model.trim="form.email" type="email" placeholder="cliente@exemplo.com" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </label>
+      <div class="flex justify-end gap-3 pt-2">
+        <button type="button" @click="formOpen=false" class="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800">Cancelar</button>
+        <button type="submit" :disabled="saving" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700" x-text="saving?'Salvando...':'Salvar'"></button>
+      </div>
+    </form>
+  </div></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function clientsPage(){return{
+  clients:[],total:0,page:1,pageSize:20,totalPages:0,search:'',status:'active',loading:false,loadError:'',formOpen:false,editingId:null,saving:false,
+  form:{name:'',cpf_cnpj:'',phone:'',email:'',whatsapp_number:''},
+  formatCpfCnpj(value){
+    if(!value) return '-';
+    const digits = String(value).replace(/\D/g, '');
+    if(digits.length === 11) return `${digits.slice(0,3)}.${digits.slice(3,6)}.${digits.slice(6,9)}-${digits.slice(9)}`;
+    if(digits.length === 14) return `${digits.slice(0,2)}.${digits.slice(2,5)}.${digits.slice(5,8)}/${digits.slice(8,12)}-${digits.slice(12)}`;
+    return value;
+  },
+  maskPhone(value){const digits=String(value||'').replace(/\D/g,'');return digits.length<6?'Não informado':`${digits.slice(0,4)}••••${digits.slice(-3)}`},
+  maskEmail(value){if(!value||!value.includes('@'))return '';const [name,domain]=value.split('@');return `${name.slice(0,2)}•••@${domain}`},
+  formatDate(value){return value?new Intl.DateTimeFormat('pt-BR').format(new Date(value)):'Nenhum'},
+  async request(url,options={}){
+    const headers = {'Content-Type':'application/json', ...(options.headers||{})};
+    const response = typeof adminFetch === 'function' ? await adminFetch(url,{...options, headers}) : await fetch(url,{...options, headers});
+    if(!response.ok){
+      const body=await response.json().catch(()=>({}));
+      throw new Error(body.detail||'Não foi possível concluir a operação.');
+    }
+    return response.status===204?null:response.json();
+  },
+  async reload(){
+    this.loading=true;this.loadError='';
+    try{
+      const query=new URLSearchParams({page:this.page,page_size:this.pageSize,status:this.status});
+      if(this.search)query.set('search',this.search);
+      const result=await this.request(`/admin/api/clients?${query}`);
+      this.clients=result.data||[];
+      this.total=result.total||0;
+      this.totalPages=result.total_pages||0;
+    }catch(error){
+      this.clients=[];
+      this.loadError=error.message;
+    }finally{
+      this.loading=false;
+    }
+  },
+  openCreate(){
+    this.editingId=null;
+    this.form={name:'',cpf_cnpj:'',phone:'',email:'',whatsapp_number:''};
+    this.formOpen=true;
+  },
+  openEdit(client){
+    this.editingId=client.id;
+    this.form={name:client.name,cpf_cnpj:client.cpf_cnpj||'',phone:client.phone,email:client.email||'',whatsapp_number:client.whatsapp_number||''};
+    this.formOpen=true;
+  },
+  notify(type, message){
+    if(typeof adminNotify === 'function'){
+      adminNotify({type, message});
+    } else {
+      alert(message);
+    }
+  },
+  async save(){
+    this.saving=true;
+    try{
+      await this.request(this.editingId?`/admin/api/clients/${this.editingId}`:'/admin/api/clients',{method:this.editingId?'PUT':'POST',body:JSON.stringify(this.form)});
+      this.formOpen=false;
+      await this.reload();
+      this.notify('success', 'Cliente salvo com sucesso.');
+    }catch(error){
+      this.notify('error', error.message);
+    }finally{
+      this.saving=false;
+    }
+  },
+  async remove(client){
+    let confirmed = false;
+    if(typeof adminConfirm === 'function'){
+      const decision = await adminConfirm({title:'Arquivar cliente',message:`Deseja arquivar ${client.name}? Se não houver histórico, o cadastro será removido definitivamente.`,confirmLabel:'Continuar',tone:'danger'});
+      confirmed = decision.confirmed;
+    } else {
+      confirmed = confirm(`Deseja arquivar ${client.name}?`);
+    }
+    if(!confirmed) return;
+    try{
+      const result=await this.request(`/admin/api/clients/${client.id}`,{method:'DELETE'});
+      await this.reload();
+      this.notify('success', result.outcome==='deleted'?'Cliente sem histórico removido.':'Cliente arquivado; o histórico foi preservado.');
+    }catch(error){
+      this.notify('error', error.message);
+    }
+  },
+  async reactivate(client){
+    try{
+      await this.request(`/admin/api/clients/${client.id}/reactivate`,{method:'POST'});
+      await this.reload();
+      this.notify('success', `${client.name} foi reativado.`);
+    }catch(error){
+      this.notify('error', error.message);
+    }
+  },
+  previousPage(){if(this.page>1){this.page--;this.reload()}},
+  nextPage(){if(this.page<this.totalPages){this.page++;this.reload()}}
+}}
+</script>
+{% endblock %}

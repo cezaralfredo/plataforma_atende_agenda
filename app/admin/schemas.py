@@ -1,8 +1,9 @@
-from datetime import date, datetime
+from datetime import date, datetime, time
+from decimal import Decimal
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class AppointmentStatus(str, Enum):
@@ -34,6 +35,26 @@ class AdminKPIs(BaseModel):
     professionals_active: int
     professionals_total: int
     users_total: int
+
+
+class AdminSystemComponentStatus(BaseModel):
+    status: Literal["online", "connected", "unavailable"]
+
+
+class AdminAsaasStatus(BaseModel):
+    configured: bool
+    mode: Literal["sandbox", "production"]
+
+
+class AdminMCPStatus(BaseModel):
+    endpoint_enabled: bool
+
+
+class AdminSystemStatus(BaseModel):
+    api: AdminSystemComponentStatus
+    database: AdminSystemComponentStatus
+    asaas: AdminAsaasStatus
+    mcp: AdminMCPStatus
 
 
 class AdminAppointment(BaseModel):
@@ -110,10 +131,106 @@ class AdminFilters(BaseModel):
     page_size: int = 20
 
 
+class AdminClientCreate(BaseModel):
+    name: str
+    phone: str
+    email: str | None = None
+    whatsapp_number: str | None = None
+    cpf_cnpj: str | None = None
+
+
+class AdminClientUpdate(BaseModel):
+    name: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    whatsapp_number: str | None = None
+    cpf_cnpj: str | None = None
+
+
+class AdminClientSummary(BaseModel):
+    id: int
+    name: str
+    phone: str
+    email: str | None = None
+    whatsapp_number: str | None = None
+    cpf_cnpj: str | None = None
+    active: bool
+    appointments_total: int
+    payments_received_total: int
+    last_appointment_at: datetime | None = None
+
+
+class AdminClientPage(BaseModel):
+    data: list[AdminClientSummary]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
+class AdminAppointmentCreate(BaseModel):
+    user_id: int | None = None
+    new_client: AdminClientCreate | None = None
+    professional_id: int
+    service_id: int
+    start_time: datetime
+    end_time: datetime
+    notes: str | None = None
+
+    @model_validator(mode="after")
+    def validate_client_source(self):
+        if (self.user_id is None) == (self.new_client is None):
+            raise ValueError("Informe um cliente existente ou cadastre um novo cliente")
+        return self
+
+
+class AdminAppointmentUpdate(BaseModel):
+    user_id: int | None = None
+    professional_id: int | None = None
+    service_id: int | None = None
+    start_time: datetime | None = None
+    end_time: datetime | None = None
+    notes: str | None = None
+
+
+class AdminProfessionalOfferingUpsert(BaseModel):
+    service_id: int
+    commission_percent: Decimal = Decimal("10.00")
+
+
+class AdminAvailabilityInput(BaseModel):
+    day_of_week: int | None = None
+    start_time: time | None = None
+    end_time: time | None = None
+    specific_date: date | None = None
+
+
+class AdminServiceCatalogCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    description: str | None = None
+    category: str | None = Field(default=None, max_length=100)
+    price_cents: int = Field(ge=0)
+    duration_minutes: int = Field(gt=0)
+
+
+class AdminServiceCatalogUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    description: str | None = None
+    category: str | None = Field(default=None, max_length=100)
+    price_cents: int | None = Field(default=None, ge=0)
+    duration_minutes: int | None = Field(default=None, gt=0)
+
+
 class AppointmentAction(BaseModel):
-    action: str  # cancel, confirm
+    action: Literal["cancel", "confirm", "complete"]
     notes: str | None = None
 
 
 class PaymentAction(BaseModel):
     action: Literal["refresh", "refund"]
+
+
+class PaymentActionResult(BaseModel):
+    message: str
+    changed: bool
+    payment: AdminPayment
