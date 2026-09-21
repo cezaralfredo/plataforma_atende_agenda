@@ -35,7 +35,7 @@ services:
       ASAAS_API_KEY: ${ASAAS_API_KEY:?Defina ASAAS_API_KEY no Portainer}
       ASAAS_BASE_URL: ${ASAAS_BASE_URL:-https://api.asaas.com/v3}
       ASAAS_WEBHOOK_TOKEN: ${ASAAS_WEBHOOK_TOKEN:?Defina ASAAS_WEBHOOK_TOKEN no Portainer}
-      N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL:-}
+      N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://n8n:5678/webhook/pagamento-confirmado}
       HERMES_WEBHOOK_URL: ${HERMES_WEBHOOK_URL:-}
       NOTIFICATION_WEBHOOK_TOKEN: ${NOTIFICATION_WEBHOOK_TOKEN:-}
     depends_on:
@@ -50,8 +50,34 @@ services:
       mcp_internal:
       agenda_db_internal:
 
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: agenda_n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=${N8N_HOST:-147.224.215.151}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=${N8N_PROTOCOL:-http}
+      - NODE_ENV=production
+      - WEBHOOK_URL=${WEBHOOK_URL:-http://147.224.215.151:5678/}
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE:-America/Sao_Paulo}
+      - TZ=${TZ:-America/Sao_Paulo}
+      - N8N_DEFAULT_BINARY_DATA_MODE=filesystem
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=168
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - npm
+      - mcp_internal
+      - agenda_db_internal
+
 volumes:
   agenda_db_data:
+  n8n_data:
 
 networks:
   npm:

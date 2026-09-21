@@ -102,12 +102,15 @@ def test_ci_does_not_claim_an_automatic_production_deploy():
 
 def test_portainer_npm_stack_has_local_postgres_and_api():
     compose = _yaml("docker-compose.portainer-npm.yml")
-    assert set(compose["services"]) == {"api", "postgres"}
+    assert {"api", "postgres", "n8n"}.issubset(set(compose["services"]))
     assert "agenda_db_data" in compose["volumes"]
+    assert "n8n_data" in compose["volumes"]
     postgres = compose["services"]["postgres"]
     assert postgres["image"] == "postgres:16-alpine"
     api = compose["services"]["api"]
     assert "agenda_db_internal" in api["networks"]
+    n8n = compose["services"]["n8n"]
+    assert "5678:5678" in n8n["ports"]
 
 
 def test_shipped_compose_defaults_use_the_current_asaas_production_endpoint():
