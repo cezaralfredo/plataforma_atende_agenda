@@ -1,8 +1,10 @@
 import logging
 from datetime import datetime
 
+import httpx
 from sqlalchemy.orm import Session, joinedload
 
+from app.config import settings
 from app.models.appointment import Appointment
 from app.models.notification_log import NotificationLog
 from app.schemas.appointment import AppointmentCreate, AppointmentUpdate
@@ -182,6 +184,35 @@ TOOL_DEFINITIONS = [
             "type": "object",
             "properties": {
                 "appointment_id": {"type": "integer", "description": "ID do agendamento"},
+            },
+            "required": ["appointment_id"],
+        },
+    },
+    {
+        "name": "solicitar_agendamento_orquestrador_n8n",
+        "description": "Aciona o Orquestrador central do n8n para criar o agendamento completo (busca/cadastra cliente, valida disponibilidade, cria reserva e gera cobrança PIX no Asaas) e retorna o link de pagamento e código PIX.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "client_name": {"type": "string", "description": "Nome completo do cliente"},
+                "phone": {"type": "string", "description": "Número do WhatsApp no formato 55XXXXXXXXXXX"},
+                "professional_id": {"type": "integer", "description": "ID do profissional"},
+                "service_id": {"type": "integer", "description": "ID do serviço"},
+                "start_time": {"type": "string", "description": "Horário início (ISO 8601, ex: 2026-09-25T14:00:00)"},
+                "end_time": {"type": "string", "description": "Horário fim (ISO 8601, ex: 2026-09-25T14:30:00)"},
+                "notes": {"type": "string", "description": "Observações (opcional)"},
+            },
+            "required": ["client_name", "phone", "professional_id", "service_id", "start_time", "end_time"],
+        },
+    },
+    {
+        "name": "solicitar_cancelamento_n8n",
+        "description": "Aciona o Subagente de Cancelamento do n8n para cancelar a reserva, liberar o horário na agenda e disparar a notificação de cancelamento.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "appointment_id": {"type": "integer", "description": "ID do agendamento"},
+                "phone": {"type": "string", "description": "Número de WhatsApp do cliente (opcional)"},
             },
             "required": ["appointment_id"],
         },
@@ -504,6 +535,107 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
                         }
                     ]
                 }
+
+        elif name == "solicitar_agendamento_orquestrador_n8n":
+            n8n_base = getattr(settings, "n8n_webhook_url", "").replace("/webhook/pagamento-confirmado", "")
+            if not n8n_base:
+                n8n_base = "http://n8n:5678"
+            n8n_url = f"{n8n_base}/webhook/agendamento/criar"
+
+            payload = {
+                "client_name": arguments["client_name"],
+                "phone": arguments["phone"],
+                "professional_id": arguments["professional_id"],
+                "service_id": arguments["service_id"],
+                "start_time": arguments["start_time"],
+                "end_time": arguments["end_time"],
+                "notes": arguments.get("notes", "Agendado via Hermes WhatsApp"),
+            }
+
+            try:
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    resp = await client.post(n8n_url, json=payload)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        appt_id = data.get("appointment_id", "")
+                        amount = data.get("amount", "")
+                        payment_url = data.get("payment_url", "")
+                        pix_code = data.get("pix_code", "")
+                        msg = (
+                            f"Agendamento #{appt_id} orquestrado com sucesso pelo n8n!\n"
+                            f"Valor: {amount}\n"
+                            f"Link de Pagamento: {payment_url}\n"
+                            f"PIX Copia e Cola: {pix_code}"
+                        )
+                        return {"content": [{"type": "text", "text": msg}]}
+            except Exception as e:
+                logger.warning("Falha ao acionar orquestrador do n8n, executando fallback local: %s", e)
+
+            # Fallback local resiliente
+            user_service = UserService(db)
+            user = user_service.get_by_phone(arguments["phone"])
+            if not user:
+                user = user_service.create(
+                    UserCreate(
+                        name=arguments["client_name"],
+                        phone=arguments["phone"],
+                        whatsapp_number=arguments["phone"],
+                    )
+                )
+            appointment_service = AppointmentService(db)
+            appointment = appointment_service.create(
+                AppointmentCreate(
+                    user_id=user.id,
+                    professional_id=arguments["professional_id"],
+                    service_id=arguments["service_id"],
+                    start_time=arguments["start_time"],
+                    end_time=arguments["end_time"],
+                    notes=arguments.get("notes", "Agendado via Hermes WhatsApp"),
+                )
+            )
+            payment_service = PaymentService(db)
+            payment = payment_service.create_charge(appointment.id, billing_type="PIX")
+            pix_info = payment.pix_copy_paste or payment.invoice_url or "Link não disponível"
+            msg = (
+                f"Reserva #{appointment.id} criada com sucesso!\n"
+                f"Status: {appointment.status}\n"
+                f"Valor: R$ {payment.amount_cents / 100:.2f}\n"
+                f"Link/PIX: {pix_info}"
+            )
+            return {"content": [{"type": "text", "text": msg}]}
+
+        elif name == "solicitar_cancelamento_n8n":
+            n8n_base = getattr(settings, "n8n_webhook_url", "").replace("/webhook/pagamento-confirmado", "")
+            if not n8n_base:
+                n8n_base = "http://n8n:5678"
+            n8n_url = f"{n8n_base}/webhook/agendamento/cancelar"
+
+            appointment_id = arguments["appointment_id"]
+            payload = {
+                "appointment_id": appointment_id,
+                "phone": arguments.get("phone", ""),
+            }
+
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    resp = await client.post(n8n_url, json=payload)
+                    if resp.status_code == 200:
+                        return {
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": f"Reserva #{appointment_id} cancelada com sucesso via Subagente de Cancelamento do n8n.",
+                                }
+                            ]
+                        }
+            except Exception as e:
+                logger.warning("Falha ao acionar cancelamento via n8n, executando fallback local: %s", e)
+
+            appointment_service = AppointmentService(db)
+            appointment = appointment_service.cancel(appointment_id)
+            if not appointment:
+                return {"content": [{"type": "text", "text": "Reserva não encontrada."}]}
+            return {"content": [{"type": "text", "text": f"Reserva #{appointment.id} cancelada com sucesso."}]}
 
         else:
             return {
