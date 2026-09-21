@@ -47,6 +47,8 @@ def build_payment_notification_payload(appointment: Appointment, payment: Paymen
         "event": "payment.confirmed",
         "timestamp": datetime.now(UTC).isoformat(),
         "appointment_id": appointment.id,
+        "chatId": whatsapp,
+        "whatsapp": whatsapp,
         "payment_id": payment.id,
         "asaas_payment_id": payment.asaas_payment_id,
         "status": appointment.status,
