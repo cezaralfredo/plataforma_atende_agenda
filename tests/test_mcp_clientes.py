@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models.professional import Professional
+from app.models.professional_service import ProfessionalService
 from app.models.service import Service
 from app.repositories import UserRepository
 from tests.seed import seed_data
@@ -32,13 +33,10 @@ class TestMCPClientes:
         db_session.add(outro_profissional)
         db_session.flush()
         db_session.add(
-            Service(
+            ProfessionalService(
                 professional_id=outro_profissional.id,
-                name="Corte de cabelo",
-                description=entities["service"].description,
-                duration_minutes=60,
-                price_cents=5000,
-                category="corte",
+                service_id=entities["service"].id,
+                active=True,
             )
         )
         db_session.commit()
@@ -46,7 +44,7 @@ class TestMCPClientes:
         response = _mcp_call(client, "listar_servicos", {})
 
         text = response.json()["result"]["content"][0]["text"]
-        assert text.count("Corte de cabelo") == 2
+        assert "Corte de cabelo" in text
         assert "Maria Souza" in text
         assert "Ana Costa" in text
 
@@ -54,18 +52,6 @@ class TestMCPClientes:
         self, client: TestClient, db_session: Session
     ):
         entities = seed_data(db_session)
-        db_session.add(
-            Service(
-                professional_id=entities["professional"].id,
-                name="Corte de cabelo",
-                description=entities["service"].description,
-                duration_minutes=60,
-                price_cents=5000,
-                category="corte",
-            )
-        )
-        db_session.commit()
-
         response = _mcp_call(client, "listar_servicos", {})
 
         text = response.json()["result"]["content"][0]["text"]

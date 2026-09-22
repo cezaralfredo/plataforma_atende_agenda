@@ -26,10 +26,15 @@ class ServiceService:
     def list(
         self,
         category: str | None = None,
+        professional_id: int | None = None,
         skip: int = 0,
         limit: int = 100,
         active_only: bool = False,
     ):
+        if professional_id is not None:
+            return self.repo.list_by_professional(
+                professional_id, include_inactive=not active_only
+            )
         if category is not None:
             return self.repo.list_by_category(
                 category, skip=skip, limit=limit, active_only=active_only
