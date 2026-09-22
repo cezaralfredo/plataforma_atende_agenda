@@ -14,6 +14,23 @@ class UserService:
     def find_by_phone(self, phone: str) -> User | None:
         return self.repo.find_by_phone(phone)
 
+    def find_by_cpf(self, cpf: str) -> User | None:
+        return self.repo.find_by_cpf(cpf)
+
+    def find_by_name(self, name: str) -> User | None:
+        return self.repo.find_by_name(name)
+
+    def find_by_identifier(
+        self,
+        query: str | None = None,
+        phone: str | None = None,
+        name: str | None = None,
+        cpf_cnpj: str | None = None,
+    ) -> User | None:
+        return self.repo.find_by_identifier(
+            query=query, phone=phone, name=name, cpf_cnpj=cpf_cnpj
+        )
+
     def get_by_phone(self, phone: str) -> User | None:
         return self.find_by_phone(phone)
 
@@ -24,6 +41,12 @@ class UserService:
         dump = data.model_dump()
         if self.repo.find_by_phone(dump["phone"]):
             raise ValueError("Telefone já cadastrado")
+        if dump.get("cpf_cnpj"):
+            existing_cpf = self.repo.find_by_cpf(dump["cpf_cnpj"])
+            if existing_cpf:
+                raise ValueError(
+                    f"CPF/CNPJ já cadastrado para o cliente '{existing_cpf.name}' (ID #{existing_cpf.id})"
+                )
         if dump.get("email"):
             existing_email = self.repo.db.query(User).filter(User.email == dump["email"]).first()
             if existing_email:

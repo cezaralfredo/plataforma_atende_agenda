@@ -27,12 +27,13 @@ logger = logging.getLogger(__name__)
 TOOL_DEFINITIONS = [
     {
         "name": "buscar_cliente_por_telefone",
-        "description": "Busca um cliente cadastrado pelo número de telefone/WhatsApp ou pelo nome completo",
+        "description": "Busca um cliente cadastrado pelo número de telefone/WhatsApp, nome completo ou CPF/CNPJ",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "phone": {"type": "string", "description": "Número de telefone no formato 55XXXXXXXXXXX ou nome do cliente (opcional se name informado)"},
-                "name": {"type": "string", "description": "Nome completo do cliente (opcional se phone informado)"},
+                "phone": {"type": "string", "description": "Número de telefone ou WhatsApp (opcional)"},
+                "name": {"type": "string", "description": "Nome completo ou parcial do cliente (opcional)"},
+                "cpf_cnpj": {"type": "string", "description": "CPF ou CNPJ do cliente (opcional)"},
             },
         },
     },
@@ -187,13 +188,14 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "meus_agendamentos",
-        "description": "Lista todos os agendamentos de um cliente por ID, número de telefone/WhatsApp ou nome",
+        "description": "Lista todos os agendamentos de um cliente por ID, número de telefone/WhatsApp, nome ou CPF/CNPJ",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "user_id": {"type": "integer", "description": "ID do cliente (opcional se phone ou name informado)"},
-                "phone": {"type": "string", "description": "Número do telefone/WhatsApp ou nome do cliente (opcional se user_id informado)"},
-                "name": {"type": "string", "description": "Nome completo do cliente (opcional se user_id ou phone informado)"},
+                "user_id": {"type": "integer", "description": "ID do cliente (opcional se phone, name ou cpf_cnpj informado)"},
+                "phone": {"type": "string", "description": "Número do telefone/WhatsApp do cliente (opcional)"},
+                "name": {"type": "string", "description": "Nome completo ou parcial do cliente (opcional)"},
+                "cpf_cnpj": {"type": "string", "description": "CPF ou CNPJ do cliente (opcional)"},
             },
         },
     },
@@ -245,34 +247,59 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
     try:
         if name == "buscar_cliente_por_telefone":
             user_service = UserService(db)
-            query = arguments.get("phone") or arguments.get("name") or arguments.get("query")
-            if not query:
-                return {"content": [{"type": "text", "text": "Informe o telefone ou nome do cliente para a busca."}]}
-            user = user_service.find_by_phone(str(query).strip())
-            if not user and arguments.get("name") and str(arguments["name"]).strip() != str(query).strip():
-                user = user_service.find_by_phone(str(arguments["name"]).strip())
+            phone = arguments.get("phone")
+            name_arg = arguments.get("name")
+            cpf_cnpj = arguments.get("cpf_cnpj")
+            query = arguments.get("query")
+            if not any([phone, name_arg, cpf_cnpj, query]):
+                return {"content": [{"type": "text", "text": "Informe o telefone, nome ou CPF do cliente para a busca."}]}
+            user = user_service.find_by_identifier(
+                query=query, phone=phone, name=name_arg, cpf_cnpj=cpf_cnpj
+            )
             if not user:
                 return {"content": [{"type": "text", "text": "Cliente não encontrado."}]}
             return {"content": [{"type": "text", "text": _format_cliente(user)}]}
 
         elif name == "cadastrar_cliente":
             user_service = UserService(db)
-            user_create = UserCreate(
-                name=arguments["name"],
-                phone=arguments["phone"],
-                email=arguments.get("email"),
-                whatsapp_number=arguments.get("whatsapp_number"),
-                cpf_cnpj=arguments.get("cpf_cnpj"),
-            )
-            user = user_service.create(user_create)
-            return {
-                "content": [
-                    {
-                        "type": "text",
-                        "text": f"Cliente cadastrado com sucesso!\n{_format_cliente(user)}",
+            try:
+                user_create = UserCreate(
+                    name=arguments["name"],
+                    phone=arguments["phone"],
+                    email=arguments.get("email"),
+                    whatsapp_number=arguments.get("whatsapp_number"),
+                    cpf_cnpj=arguments.get("cpf_cnpj"),
+                )
+                user = user_service.create(user_create)
+                return {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": f"Cliente cadastrado com sucesso!\n{_format_cliente(user)}",
+                        }
+                    ]
+                }
+            except ValueError as e:
+                # Se já existe por telefone ou CPF, retornar o cadastro existente amigavelmente
+                existing = user_service.find_by_identifier(
+                    phone=arguments.get("phone"),
+                    cpf_cnpj=arguments.get("cpf_cnpj"),
+                    name=arguments.get("name"),
+                )
+                if existing:
+                    return {
+                        "isError": True,
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": (
+                                    f"Aviso: {str(e)}.\n"
+                                    f"O cliente já possui cadastro ativo no sistema:\n{_format_cliente(existing)}"
+                                ),
+                            }
+                        ],
                     }
-                ]
-            }
+                raise e
 
         elif name == "atualizar_cliente":
             user_service = UserService(db)
@@ -566,10 +593,14 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
 
         elif name == "meus_agendamentos":
             user_id = arguments.get("user_id")
-            query = arguments.get("phone") or arguments.get("name")
-            if not user_id and query:
+            if not user_id:
                 user_service = UserService(db)
-                user = user_service.find_by_phone(str(query).strip())
+                user = user_service.find_by_identifier(
+                    query=arguments.get("query"),
+                    phone=arguments.get("phone"),
+                    name=arguments.get("name"),
+                    cpf_cnpj=arguments.get("cpf_cnpj"),
+                )
                 if user:
                     user_id = user.id
             if not user_id:
@@ -577,7 +608,7 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
                     "content": [
                         {
                             "type": "text",
-                            "text": "Não foi possível localizar o cliente. Por favor, forneça o número de telefone, nome ou ID do cliente.",
+                            "text": "Não foi possível localizar o cliente. Por favor, forneça o número de telefone, nome ou CPF do cliente.",
                         }
                     ]
                 }
@@ -730,18 +761,23 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
             else:
                 serv_id = int(serv_arg)
 
-            # Auto-calcular end_time a partir da duração do serviço
-            service_obj = db.get(Service, serv_id)
-            if not service_obj:
-                return {
-                    "isError": True,
-                    "content": [{"type": "text", "text": f"Serviço com ID {serv_id} não encontrado."}],
-                }
-
-            from datetime import datetime as dt_cls, timedelta
-            start_dt = dt_cls.fromisoformat(arguments["start_time"])
-            computed_end_dt = start_dt + timedelta(minutes=service_obj.duration_minutes)
-            computed_end_time = computed_end_dt.isoformat()
+            # Auto-calcular end_time a partir da duração do serviço se não fornecido
+            computed_end_time = arguments.get("end_time")
+            if not computed_end_time:
+                service_obj = db.get(Service, serv_id)
+                if not service_obj:
+                    return {
+                        "isError": True,
+                        "content": [{"type": "text", "text": f"Serviço com ID {serv_id} não encontrado."}],
+                    }
+                try:
+                    duration = int(getattr(service_obj, "duration_minutes", 30))
+                except Exception:
+                    duration = 30
+                from datetime import datetime as dt_cls, timedelta
+                start_dt = dt_cls.fromisoformat(arguments["start_time"])
+                computed_end_dt = start_dt + timedelta(minutes=duration)
+                computed_end_time = computed_end_dt.isoformat()
 
             from urllib.parse import urlparse
             n8n_base = "http://n8n:5678"

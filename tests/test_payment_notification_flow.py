@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -7,7 +8,9 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.mcp.tools import handle_tool_call
+from app.models.appointment import Appointment
 from app.models.notification_log import NotificationLog
+from app.models.user import User
 from app.services.notification_service import (
     NotificationService,
     build_payment_notification_payload,
@@ -246,4 +249,66 @@ def test_mcp_tool_meus_agendamentos_rich_format(db_session: Session):
         handle_tool_call("meus_agendamentos", {"phone": "11000000000"}, db_session)
     )
     assert "Não foi possível localizar o cliente" in result_none["content"][0]["text"]
+
+
+def test_mcp_brazilian_phone_ninth_digit_and_cpf_and_tokenized_name(db_session: Session):
+    entities = seed_data(db_session)
+    # Cadastra usuário exatamente como no caso real do Rafael:
+    # Telefone com 12 dígitos (55 85 8643-8493, sem o nono dígito 9), nome "Rafael", CPF "01516443306"
+    user = User(
+        name="Rafael",
+        phone="558586438493",
+        whatsapp_number="558586438493",
+        cpf_cnpj="01516443306",
+    )
+    db_session.add(user)
+    db_session.flush()
+
+    appt = Appointment(
+        user_id=user.id,
+        professional_id=entities["professional"].id,
+        service_id=entities["service"].id,
+        start_time=datetime(2026, 9, 22, 12, 0),
+        end_time=datetime(2026, 9, 22, 12, 45),
+        status="confirmed",
+    )
+    db_session.add(appt)
+    db_session.commit()
+
+    # 1. Busca por telefone COM o nono dígito (85 9 8643-8493) quando cadastrado sem o 9
+    res_phone_9 = asyncio.run(
+        handle_tool_call("buscar_cliente_por_telefone", {"phone": "85986438493"}, db_session)
+    )
+    assert "Rafael" in res_phone_9["content"][0]["text"]
+
+    # 2. Busca por CPF diretamente
+    res_cpf = asyncio.run(
+        handle_tool_call("buscar_cliente_por_telefone", {"cpf_cnpj": "01516443306"}, db_session)
+    )
+    assert "Rafael" in res_cpf["content"][0]["text"]
+
+    # 3. Busca por nome composto ("Antonio Rafael") quando no banco está só "Rafael"
+    res_name = asyncio.run(
+        handle_tool_call("buscar_cliente_por_telefone", {"name": "Antonio Rafael"}, db_session)
+    )
+    assert "Rafael" in res_name["content"][0]["text"]
+
+    # 4. meus_agendamentos com o telefone com nono dígito
+    res_appts_phone = asyncio.run(
+        handle_tool_call("meus_agendamentos", {"phone": "85986438493"}, db_session)
+    )
+    assert f"#{appt.id}" in res_appts_phone["content"][0]["text"]
+
+    # 5. meus_agendamentos com CPF
+    res_appts_cpf = asyncio.run(
+        handle_tool_call("meus_agendamentos", {"cpf_cnpj": "01516443306"}, db_session)
+    )
+    assert f"#{appt.id}" in res_appts_cpf["content"][0]["text"]
+
+    # 6. meus_agendamentos com nome composto
+    res_appts_name = asyncio.run(
+        handle_tool_call("meus_agendamentos", {"name": "Antonio Rafael"}, db_session)
+    )
+    assert f"#{appt.id}" in res_appts_name["content"][0]["text"]
+
 
