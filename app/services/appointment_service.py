@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.business_time import as_business_time
 from app.models.professional import Professional
+from app.models.professional_service import ProfessionalService
 from app.models.service import Service
 from app.models.user import User
 from app.repositories import AppointmentRepository
@@ -26,19 +27,27 @@ class AppointmentService:
         self._expire_pending()
 
         if not self.repo.db.get(User, data.user_id):
-            raise ValueError("Cliente n\u00e3o encontrado")
+            raise ValueError("Cliente não encontrado")
         professional = self.repo.db.get(Professional, data.professional_id)
         if not professional or not professional.active:
-            raise ValueError("Profissional n\u00e3o encontrado ou inativo")
+            raise ValueError("Profissional não encontrado ou inativo")
         service = self.repo.db.get(Service, data.service_id)
-        if not service or service.professional_id != data.professional_id:
-            raise ValueError("Servi\u00e7o n\u00e3o pertence ao profissional informado")
+        if not service or not service.active:
+            raise ValueError("Serviço não encontrado ou inativo")
+
+        offering = self.repo.db.query(ProfessionalService).filter(
+            ProfessionalService.professional_id == data.professional_id,
+            ProfessionalService.service_id == data.service_id,
+            ProfessionalService.active.is_(True),
+        ).first()
+        if not offering:
+            raise ValueError("Serviço não pertence ao profissional informado")
 
         start_time = as_business_time(data.start_time)
         end_time = as_business_time(data.end_time)
         expected_end = start_time + timedelta(minutes=service.duration_minutes)
         if end_time != expected_end:
-            raise ValueError("A dura\u00e7\u00e3o da reserva deve corresponder \u00e0 dura\u00e7\u00e3o do servi\u00e7o")
+            raise ValueError("A duração da reserva deve corresponder à duração do serviço")
 
         available = self.availability_service.is_interval_available(
             data.professional_id, start_time, end_time

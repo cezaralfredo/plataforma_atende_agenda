@@ -67,7 +67,7 @@ class TestMCPProfissionaisDisponibilidade:
         )
         assert resp_id.status_code == 200
         text_id = resp_id.json()["result"]["content"][0]["text"]
-        assert "09:00:00" in text_id
+        assert "09:00" in text_id
         assert "Maria Souza" in text_id
 
         # Por nome do profissional
@@ -78,7 +78,7 @@ class TestMCPProfissionaisDisponibilidade:
         )
         assert resp_name.status_code == 200
         text_name = resp_name.json()["result"]["content"][0]["text"]
-        assert "09:00:00" in text_name
+        assert "09:00" in text_name
         assert "Maria Souza" in text_name
 
         # Passando nome dentro do campo professional_id (resiliência LLM)
@@ -89,7 +89,7 @@ class TestMCPProfissionaisDisponibilidade:
         )
         assert resp_resilient.status_code == 200
         text_resilient = resp_resilient.json()["result"]["content"][0]["text"]
-        assert "09:00:00" in text_resilient
+        assert "09:00" in text_resilient
 
     def test_meus_agendamentos_inclui_ids_de_servico_e_profissional(
         self, client: TestClient, db_session: Session

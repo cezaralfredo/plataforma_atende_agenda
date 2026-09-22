@@ -1,6 +1,8 @@
 import logging
 from datetime import datetime
 
+from app.business_time import as_business_time
+
 import httpx
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
@@ -101,13 +103,14 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "verificar_disponibilidade",
-        "description": "Verifica horários livres de um profissional em uma data específica. Pode informar o professional_id ou o professional_name",
+        "description": "Verifica horários livres de um profissional em uma data específica. Pode informar o professional_id ou o professional_name, e opcionalmente o service_id para listar os horários exatos de início",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "professional_id": {"description": "ID do profissional (número) ou nome do profissional (opcional se professional_name informado)"},
                 "professional_name": {"type": "string", "description": "Nome ou parte do nome do profissional (ex: 'Marilde Vieira')"},
                 "date": {"type": "string", "description": "Data no formato YYYY-MM-DD (ex: 2026-09-23)"},
+                "service_id": {"description": "ID ou nome do serviço (opcional). Quando informado, calcula e retorna os horários de início exatos para esse serviço."},
             },
             "required": ["date"],
         },
@@ -216,11 +219,11 @@ TOOL_DEFINITIONS = [
                 "cpf_cnpj": {"type": "string", "description": "CPF ou CNPJ do cliente (apenas números ou formatado) para emissão de cobrança no Asaas (opcional/recomendado)"},
                 "professional_id": {"description": "ID do profissional (número) ou nome do profissional"},
                 "service_id": {"description": "ID do serviço (número) ou nome do serviço"},
-                "start_time": {"type": "string", "description": "Horário início (ISO 8601, ex: 2026-09-25T14:00:00)"},
-                "end_time": {"type": "string", "description": "Horário fim (ISO 8601, ex: 2026-09-25T14:30:00)"},
+                "start_time": {"type": "string", "description": "Horário início (ISO 8601, ex: 2026-09-25T14:00:00-03:00)"},
+                "end_time": {"type": "string", "description": "Horário fim (ISO 8601). OPCIONAL: calculado automaticamente a partir da duração do serviço."},
                 "notes": {"type": "string", "description": "Observações (opcional)"},
             },
-            "required": ["client_name", "phone", "professional_id", "service_id", "start_time", "end_time"],
+            "required": ["client_name", "phone", "professional_id", "service_id", "start_time"],
         },
     },
     {
@@ -392,6 +395,46 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
                     ]
                 }
 
+            # Resolver service_id se fornecido
+            service_val = arguments.get("service_id")
+            service_id = None
+            service_obj = None
+            if service_val is not None:
+                if isinstance(service_val, int) or (isinstance(service_val, str) and service_val.strip().isdigit()):
+                    service_id = int(service_val)
+                    service_obj = db.get(Service, service_id)
+                else:
+                    service_obj = db.query(Service).filter(
+                        func.lower(Service.name).like(f"%{str(service_val).strip().lower()}%")
+                    ).first()
+                    if service_obj:
+                        service_id = service_obj.id
+
+            if service_id and service_obj:
+                slots = availability_service.get_time_slots_for_service(
+                    professional_id=prof_id,
+                    service_id=service_id,
+                    date_str=arguments["date"],
+                )
+                if not slots:
+                    return {
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": f"Não há horários disponíveis para {prof.name} em {arguments['date']} para o serviço '{service_obj.name}' ({service_obj.duration_minutes} min).",
+                            }
+                        ]
+                    }
+                start_times = [as_business_time(s.start).strftime("%H:%M") for s in slots]
+                last_time = start_times[-1]
+                text = (
+                    f"Horários de início disponíveis para {prof.name} (ID: {prof.id}) em {arguments['date']}\n"
+                    f"Serviço: {service_obj.name} (duração: {service_obj.duration_minutes} min):\n"
+                    f"  " + ", ".join(start_times) + "\n"
+                    f"(Atenção: o último horário de início disponível no dia é às {last_time}, pois o expediente encerra após este atendimento)."
+                )
+                return {"content": [{"type": "text", "text": text}]}
+
             slots = availability_service.check_availability(
                 professional_id=prof_id,
                 date_str=arguments["date"],
@@ -401,14 +444,16 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
                     "content": [
                         {
                             "type": "text",
-                            "text": f"Nenhum horário disponível para {prof.name} (ID: {prof.id}) na data {arguments['date']}.",
+                            "text": f"Nenhum horário de atendimento para {prof.name} (ID: {prof.id}) na data {arguments['date']}.",
                         }
                     ]
                 }
-            text = f"Horários disponíveis para {prof.name} (ID: {prof.id}) em {arguments['date']}:\n" + "\n".join(
-                f"  {s.start} - {s.end}" for s in slots
-            )
-            return {"content": [{"type": "text", "text": text}]}
+            lines = [f"Expediente/Horários de atendimento para {prof.name} (ID: {prof.id}) em {arguments['date']}:"]
+            for s in slots:
+                start_fmt = as_business_time(s.start).strftime("%H:%M")
+                end_fmt = as_business_time(s.end).strftime("%H:%M")
+                lines.append(f"  Das {start_fmt} às {end_fmt} (Atenção: o expediente encerra pontualmente às {end_fmt}; o agendamento deve iniciar antes das {end_fmt}, respeitando a duração do serviço).")
+            return {"content": [{"type": "text", "text": "\n".join(lines)}]}
 
         elif name == "criar_reserva":
             appointment_service = AppointmentService(db)
@@ -685,9 +730,26 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
             else:
                 serv_id = int(serv_arg)
 
-            n8n_base = getattr(settings, "n8n_webhook_url", "").replace("/webhook/pagamento-confirmado", "")
-            if not n8n_base:
-                n8n_base = "http://n8n:5678"
+            # Auto-calcular end_time a partir da duração do serviço
+            service_obj = db.get(Service, serv_id)
+            if not service_obj:
+                return {
+                    "isError": True,
+                    "content": [{"type": "text", "text": f"Serviço com ID {serv_id} não encontrado."}],
+                }
+
+            from datetime import datetime as dt_cls, timedelta
+            start_dt = dt_cls.fromisoformat(arguments["start_time"])
+            computed_end_dt = start_dt + timedelta(minutes=service_obj.duration_minutes)
+            computed_end_time = computed_end_dt.isoformat()
+
+            from urllib.parse import urlparse
+            n8n_base = "http://n8n:5678"
+            webhook_url = getattr(settings, "n8n_webhook_url", None)
+            if webhook_url:
+                parsed_url = urlparse(webhook_url)
+                if parsed_url.scheme and parsed_url.netloc:
+                    n8n_base = f"{parsed_url.scheme}://{parsed_url.netloc}"
             n8n_url = f"{n8n_base}/webhook/agendamento/criar"
 
             payload = {
@@ -697,7 +759,7 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
                 "professional_id": prof_id,
                 "service_id": serv_id,
                 "start_time": arguments["start_time"],
-                "end_time": arguments["end_time"],
+                "end_time": computed_end_time,
                 "notes": arguments.get("notes", "Agendado via Hermes WhatsApp"),
             }
 
@@ -722,7 +784,9 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
 
             # Fallback local resiliente
             user_service = UserService(db)
-            user = user_service.get_by_phone(arguments["phone"])
+            user = user_service.find_by_phone(arguments["phone"])
+            if not user and arguments.get("client_name"):
+                user = user_service.find_by_phone(arguments["client_name"])
             if not user:
                 user = user_service.create(
                     UserCreate(
@@ -744,25 +808,42 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
                     professional_id=prof_id,
                     service_id=serv_id,
                     start_time=arguments["start_time"],
-                    end_time=arguments["end_time"],
+                    end_time=computed_end_time,
                     notes=arguments.get("notes", "Agendado via Hermes WhatsApp"),
                 )
             )
+
             payment_service = PaymentService(db)
-            payment = payment_service.create_charge(appointment.id, billing_type="PIX")
-            pix_info = payment.pix_copy_paste or payment.invoice_url or "Link não disponível"
-            msg = (
-                f"Reserva #{appointment.id} criada com sucesso!\n"
-                f"Status: {appointment.status}\n"
-                f"Valor: R$ {payment.amount_cents / 100:.2f}\n"
-                f"Link/PIX: {pix_info}"
-            )
-            return {"content": [{"type": "text", "text": msg}]}
+            payment = await payment_service.create_charge(appointment.id, billing_type="PIX")
+
+            pix_code = ""
+            if payment.asaas_payment_id:
+                try:
+                    pix_res = await payment_service.asaas.get_pix_qr_code(payment.asaas_payment_id)
+                    pix_code = pix_res.get("payload", "")
+                except Exception as ex:
+                    logger.warning("Não foi possível buscar QR Code PIX: %s", ex)
+
+            invoice = payment.invoice_url or "Link não disponível"
+            lines = [
+                f"Reserva #{appointment.id} criada com sucesso!",
+                f"Status: {appointment.status}",
+                f"Valor: R$ {payment.amount_cents / 100:.2f}",
+                f"Link de Pagamento: {invoice}",
+            ]
+            if pix_code:
+                lines.append(f"PIX Copia e Cola: {pix_code}")
+
+            return {"content": [{"type": "text", "text": "\n".join(lines)}]}
 
         elif name == "solicitar_cancelamento_n8n":
-            n8n_base = getattr(settings, "n8n_webhook_url", "").replace("/webhook/pagamento-confirmado", "")
-            if not n8n_base:
-                n8n_base = "http://n8n:5678"
+            from urllib.parse import urlparse
+            n8n_base = "http://n8n:5678"
+            webhook_url = getattr(settings, "n8n_webhook_url", None)
+            if webhook_url:
+                parsed_url = urlparse(webhook_url)
+                if parsed_url.scheme and parsed_url.netloc:
+                    n8n_base = f"{parsed_url.scheme}://{parsed_url.netloc}"
             n8n_url = f"{n8n_base}/webhook/agendamento/cancelar"
 
             appointment_id = arguments["appointment_id"]

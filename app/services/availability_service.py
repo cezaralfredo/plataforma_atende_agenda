@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.business_time import as_business_time, business_datetime, utc_now
 from app.models.professional import Professional
+from app.models.professional_service import ProfessionalService
 from app.repositories import (
     AppointmentRepository,
     AvailabilityRepository,
@@ -121,7 +122,14 @@ class AvailabilityService:
 
     def get_time_slots_for_service(self, professional_id: int, service_id: int, date_str: str) -> builtins.list[TimeSlot]:
         service = self.service_repo.get(service_id)
-        if not service or service.professional_id != professional_id:
+        if not service:
+            return []
+        offering = self.repo.db.query(ProfessionalService).filter(
+            ProfessionalService.professional_id == professional_id,
+            ProfessionalService.service_id == service_id,
+            ProfessionalService.active.is_(True),
+        ).first()
+        if not offering:
             return []
 
         free_periods = self.check_availability(professional_id, date_str)

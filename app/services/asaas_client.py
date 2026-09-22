@@ -230,5 +230,8 @@ class AsaasClient:
         data = await self._safe_get("/payments", params)
         return data.get("data", [])
 
+    async def get_pix_qr_code(self, payment_id: str) -> dict:
+        return await self._safe_get(f"/payments/{payment_id}/pixQrCode")
+
     async def refund_payment(self, payment_id: str) -> dict:
         return await self._post(f"/payments/{payment_id}/refund", {})
