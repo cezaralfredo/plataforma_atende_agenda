@@ -168,13 +168,13 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "meus_agendamentos",
-        "description": "Lista todos os agendamentos de um cliente",
+        "description": "Lista todos os agendamentos de um cliente por ID ou número de telefone/WhatsApp",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "user_id": {"type": "integer", "description": "ID do cliente"},
+                "user_id": {"type": "integer", "description": "ID do cliente (opcional se phone informado)"},
+                "phone": {"type": "string", "description": "Número do telefone/WhatsApp do cliente (opcional se user_id informado)"},
             },
-            "required": ["user_id"],
         },
     },
     {
@@ -409,7 +409,23 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
             return {"content": [{"type": "text", "text": f"Agendamento {appointment.id} marcado como notificado."}]}
 
         elif name == "meus_agendamentos":
-            user_id = arguments["user_id"]
+            user_id = arguments.get("user_id")
+            phone = arguments.get("phone")
+            if not user_id and phone:
+                user_service = UserService(db)
+                user = user_service.find_by_phone(str(phone).strip())
+                if user:
+                    user_id = user.id
+            if not user_id:
+                return {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Não foi possível localizar o cliente. Por favor, forneça o número de telefone ou ID do cliente.",
+                        }
+                    ]
+                }
+
             appointments = (
                 db.query(Appointment)
                 .options(

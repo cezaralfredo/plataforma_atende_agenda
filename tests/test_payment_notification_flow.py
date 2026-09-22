@@ -220,3 +220,17 @@ def test_mcp_tool_meus_agendamentos_rich_format(db_session: Session):
     assert appointment.service.name in text
     assert appointment.professional.name in text
     assert "Pagamento: Confirmado" in text
+
+    # Test via phone
+    result_phone = asyncio.run(
+        handle_tool_call("meus_agendamentos", {"phone": entities["user"].phone}, db_session)
+    )
+    text_phone = result_phone["content"][0]["text"]
+    assert f"#{appointment.id}" in text_phone
+
+    # Test without valid user
+    result_none = asyncio.run(
+        handle_tool_call("meus_agendamentos", {"phone": "99999999999"}, db_session)
+    )
+    assert "Não foi possível localizar o cliente" in result_none["content"][0]["text"]
+
