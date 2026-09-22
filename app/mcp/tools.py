@@ -21,13 +21,13 @@ logger = logging.getLogger(__name__)
 TOOL_DEFINITIONS = [
     {
         "name": "buscar_cliente_por_telefone",
-        "description": "Busca um cliente pelo número de telefone/WhatsApp",
+        "description": "Busca um cliente cadastrado pelo número de telefone/WhatsApp ou pelo nome completo",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "phone": {"type": "string", "description": "Número de telefone no formato 55XXXXXXXXXXX"},
+                "phone": {"type": "string", "description": "Número de telefone no formato 55XXXXXXXXXXX ou nome do cliente (opcional se name informado)"},
+                "name": {"type": "string", "description": "Nome completo do cliente (opcional se phone informado)"},
             },
-            "required": ["phone"],
         },
     },
     {
@@ -168,12 +168,13 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "meus_agendamentos",
-        "description": "Lista todos os agendamentos de um cliente por ID ou número de telefone/WhatsApp",
+        "description": "Lista todos os agendamentos de um cliente por ID, número de telefone/WhatsApp ou nome",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "user_id": {"type": "integer", "description": "ID do cliente (opcional se phone informado)"},
-                "phone": {"type": "string", "description": "Número do telefone/WhatsApp do cliente (opcional se user_id informado)"},
+                "user_id": {"type": "integer", "description": "ID do cliente (opcional se phone ou name informado)"},
+                "phone": {"type": "string", "description": "Número do telefone/WhatsApp ou nome do cliente (opcional se user_id informado)"},
+                "name": {"type": "string", "description": "Nome completo do cliente (opcional se user_id ou phone informado)"},
             },
         },
     },
@@ -225,7 +226,12 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
     try:
         if name == "buscar_cliente_por_telefone":
             user_service = UserService(db)
-            user = user_service.find_by_phone(arguments["phone"])
+            query = arguments.get("phone") or arguments.get("name") or arguments.get("query")
+            if not query:
+                return {"content": [{"type": "text", "text": "Informe o telefone ou nome do cliente para a busca."}]}
+            user = user_service.find_by_phone(str(query).strip())
+            if not user and arguments.get("name") and str(arguments["name"]).strip() != str(query).strip():
+                user = user_service.find_by_phone(str(arguments["name"]).strip())
             if not user:
                 return {"content": [{"type": "text", "text": "Cliente não encontrado."}]}
             return {"content": [{"type": "text", "text": _format_cliente(user)}]}
@@ -410,10 +416,10 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
 
         elif name == "meus_agendamentos":
             user_id = arguments.get("user_id")
-            phone = arguments.get("phone")
-            if not user_id and phone:
+            query = arguments.get("phone") or arguments.get("name")
+            if not user_id and query:
                 user_service = UserService(db)
-                user = user_service.find_by_phone(str(phone).strip())
+                user = user_service.find_by_phone(str(query).strip())
                 if user:
                     user_id = user.id
             if not user_id:
@@ -421,7 +427,7 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
                     "content": [
                         {
                             "type": "text",
-                            "text": "Não foi possível localizar o cliente. Por favor, forneça o número de telefone ou ID do cliente.",
+                            "text": "Não foi possível localizar o cliente. Por favor, forneça o número de telefone, nome ou ID do cliente.",
                         }
                     ]
                 }

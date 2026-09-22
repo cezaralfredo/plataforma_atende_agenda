@@ -228,9 +228,22 @@ def test_mcp_tool_meus_agendamentos_rich_format(db_session: Session):
     text_phone = result_phone["content"][0]["text"]
     assert f"#{appointment.id}" in text_phone
 
+    # Test via name
+    result_name = asyncio.run(
+        handle_tool_call("meus_agendamentos", {"name": "João Silva"}, db_session)
+    )
+    text_name = result_name["content"][0]["text"]
+    assert f"#{appointment.id}" in text_name
+
+    # Test buscar_cliente_por_telefone via name
+    result_find_name = asyncio.run(
+        handle_tool_call("buscar_cliente_por_telefone", {"phone": "João Silva"}, db_session)
+    )
+    assert "João Silva" in result_find_name["content"][0]["text"]
+
     # Test without valid user
     result_none = asyncio.run(
-        handle_tool_call("meus_agendamentos", {"phone": "99999999999"}, db_session)
+        handle_tool_call("meus_agendamentos", {"phone": "11000000000"}, db_session)
     )
     assert "Não foi possível localizar o cliente" in result_none["content"][0]["text"]
 
