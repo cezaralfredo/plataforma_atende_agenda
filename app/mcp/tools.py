@@ -239,6 +239,18 @@ TOOL_DEFINITIONS = [
             "required": ["appointment_id"],
         },
     },
+    {
+        "name": "triar_mensagem",
+        "description": "Realiza triagem ultrarrápida de uma mensagem de cliente usando o TypeSafe Jev. Detecta intenção, pedido de atendimento humano, afirmação de pagamento PIX e nível de frustração.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "message": {"type": "string", "description": "Texto da mensagem enviada pelo cliente"},
+                "phone": {"type": "string", "description": "Telefone/WhatsApp do cliente (opcional)"},
+            },
+            "required": ["message"],
+        },
+    },
 ]
 
 
@@ -901,6 +913,32 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
             if not appointment:
                 return {"content": [{"type": "text", "text": "Reserva não encontrada."}]}
             return {"content": [{"type": "text", "text": f"Reserva #{appointment.id} cancelada com sucesso."}]}
+
+        elif name == "triar_mensagem":
+            from app.services.triage_service import TriageService
+            message_text = arguments.get("message", "")
+            phone = arguments.get("phone")
+            triage_service = TriageService()
+            result = await triage_service.evaluate(message=message_text, phone=phone)
+            human_str = "Sim" if result.is_human_handoff >= 0.8 else "Não"
+            pix_str = "Sim" if result.is_payment_claim >= 0.75 else "Não"
+            resp_str = f"- Resposta Rápida Sugerida: {result.fast_response_text}\n" if result.fast_response_text else ""
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": (
+                            f"Triagem Concluída:\n"
+                            f"- Intenção: {result.intent} (confiança: {result.intent_confidence})\n"
+                            f"- Pedido de Atendente Humano: {human_str} ({result.is_human_handoff})\n"
+                            f"- Afirmação de Pagamento PIX: {pix_str} ({result.is_payment_claim})\n"
+                            f"- Nível de Frustração: {result.frustration_level} (nota {result.frustration_score}/2.0)\n"
+                            f"- Ação Recomendada: {result.recommended_action}\n"
+                            + resp_str
+                        ),
+                    }
+                ]
+            }
 
         else:
             return {

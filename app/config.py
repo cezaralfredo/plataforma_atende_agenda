@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     notification_delivery_lease_seconds: int = 300
     notification_delivery_max_attempts: int = 8
 
+    # Triagem Ultrarrápida com TypeSafe Jev (OpenRouter Decisions API)
+    openrouter_api_key: str = ""
+    triage_enabled: bool = True
+    triage_model: str = "typesafe/jev-1.13"
+    triage_timeout_seconds: float = 10.0
+
+
     @model_validator(mode="after")
     def validate_production_secrets(self):
         if self.debug:

@@ -15,6 +15,7 @@ from app.api.notification_deliveries import router as notification_deliveries_ro
 from app.api.payments import router as payments_router
 from app.api.professionals import router as professionals_router
 from app.api.services import router as services_router
+from app.api.triage import router as triage_router
 from app.api.users import router as users_router
 from app.api.webhooks import router as webhooks_router
 from app.config import Settings, settings
@@ -76,6 +77,7 @@ def create_app(app_settings: Settings = settings) -> FastAPI:
     application.include_router(payments_router)
     application.include_router(webhooks_router)
     application.include_router(notification_deliveries_router)
+    application.include_router(triage_router)
     application.include_router(mcp_router)
     application.include_router(admin_router)
 
