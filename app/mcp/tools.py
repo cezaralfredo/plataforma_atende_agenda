@@ -1,19 +1,18 @@
 import logging
-from datetime import datetime
-
-from app.business_time import as_business_time
+from datetime import datetime as dt_cls
+from datetime import timedelta
 
 import httpx
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
+from app.business_time import as_business_time
 from app.config import settings
 from app.models.appointment import Appointment
-from app.models.notification_log import NotificationLog
 from app.models.professional import Professional
 from app.models.professional_service import ProfessionalService
 from app.models.service import Service
-from app.schemas.appointment import AppointmentCreate, AppointmentUpdate
+from app.schemas.appointment import AppointmentCreate
 from app.schemas.user import UserCreate, UserUpdate
 from app.services.appointment_service import AppointmentService
 from app.services.asaas_client import AsaasIntegrationError
@@ -177,7 +176,7 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "marcar_notificado",
-        "description": "Marca um agendamento como notificado (após envio de confirmação ao cliente)",
+        "description": "Legado: a confirmação de pagamento é registrada automaticamente após entrega pelo WhatsApp.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -293,7 +292,7 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
                             {
                                 "type": "text",
                                 "text": (
-                                    f"Aviso: {str(e)}.\n"
+                                    f"Aviso: {e!s}.\n"
                                     f"O cliente já possui cadastro ativo no sistema:\n{_format_cliente(existing)}"
                                 ),
                             }
@@ -578,18 +577,14 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
             }
 
         elif name == "marcar_notificado":
-            appointment_service = AppointmentService(db)
-            now = datetime.now()
-            appointment_update = AppointmentUpdate(notified_at=now)
-            appointment = appointment_service.update(arguments["appointment_id"], appointment_update)
-            if not appointment:
-                return {"content": [{"type": "text", "text": "Agendamento não encontrado."}]}
-            try:
-                db.add(NotificationLog(appointment_id=appointment.id, type="confirmation", sent_at=now))
-                db.commit()
-            except Exception as e:
-                logger.warning("Could not log NotificationLog in marcar_notificado: %s", e)
-            return {"content": [{"type": "text", "text": f"Agendamento {appointment.id} marcado como notificado."}]}
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "A confirmação é registrada automaticamente somente após o WhatsApp aceitar a mensagem.",
+                    }
+                ]
+            }
 
         elif name == "meus_agendamentos":
             user_id = arguments.get("user_id")
@@ -683,14 +678,13 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
             )
 
             if payment.status in {"received", "confirmed"}:
-                now = datetime.now()
-                if appointment and appointment.notified_at is None:
-                    appointment.notified_at = now
-                    try:
-                        db.add(NotificationLog(appointment_id=appointment.id, type="confirmation", sent_at=now))
-                        db.commit()
-                    except Exception as e:
-                        logger.warning("Could not log NotificationLog in verificar_status_pagamento: %s", e)
+                if appointment:
+                    from app.services.notification_service import NotificationService
+
+                    notification_service = NotificationService(db)
+                    delivery = notification_service.queue_payment_confirmed(appointment.id, payment.id)
+                    db.commit()
+                    await notification_service.dispatch_payment_confirmed(delivery.id)
 
                 cli_name = appointment.user.name if appointment and appointment.user else "Cliente"
                 serv_name = appointment.service.name if appointment and appointment.service else "Serviço"
@@ -774,7 +768,6 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
                     duration = int(getattr(service_obj, "duration_minutes", 30))
                 except Exception:
                     duration = 30
-                from datetime import datetime as dt_cls, timedelta
                 start_dt = dt_cls.fromisoformat(arguments["start_time"])
                 computed_end_dt = start_dt + timedelta(minutes=duration)
                 computed_end_time = computed_end_dt.isoformat()

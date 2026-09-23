@@ -1,93 +1,56 @@
 {
-  "name": "Confirmação de Pagamento - Notificação Hermes WhatsApp",
+  "name": "Confirmação de Pagamento - Entrega WhatsApp Confiável",
   "nodes": [
     {
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "pagamento-confirmado",
-        "responseMode": "responseNode",
-        "options": {}
-      },
-      "id": "webhook-node-1",
-      "name": "Webhook Pagamento Confirmado",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
-      "position": [180, 300],
-      "webhookId": "pagamento-confirmado"
+      "parameters": {"httpMethod": "POST", "path": "pagamento-confirmado", "responseMode": "responseNode", "options": {}},
+      "id": "webhook-payment-confirmed", "name": "Webhook Pagamento Confirmado", "type": "n8n-nodes-base.webhook", "typeVersion": 2, "position": [180, 260], "webhookId": "pagamento-confirmado"
     },
     {
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": "{\n  \"status\": \"received\",\n  \"dispatched\": true\n}",
-        "options": {
-          "responseCode": 200
-        }
-      },
-      "id": "respond-webhook-node-1",
-      "name": "Responder 200 OK à API",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
-      "position": [420, 180]
+      "parameters": {"respondWith": "json", "responseBody": "{\n  \"status\": \"accepted\"\n}", "options": {"responseCode": 202}},
+      "id": "respond-payment-webhook", "name": "Responder Aceite à API", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [420, 140]
     },
     {
-      "parameters": {
-        "jsCode": "// Extrai e prepara os dados recebidos da API Agenda Atende\nconst body = $input.first().json.body || $input.first().json;\n\nconst client = body.client || {};\nconst appointment = body.appointment || {};\nconst service = body.service || {};\nconst professional = body.professional || {};\n\n// Telefone WhatsApp de destino\nlet phone = client.whatsapp_number || client.phone || \"\";\nphone = phone.replace(/\\D/g, \"\"); // apenas números\nif (phone.length === 10 || phone.length === 11) {\n  phone = \"55\" + phone; // prefixo Brasil se necessário\n}\n\n// Mensagem formatada enviada pela API\nconst message = body.formatted_message || `Olá, ${client.name || 'Cliente'}! Seu pagamento foi confirmado com sucesso. Sua reserva #${body.appointment_id || ''} está garantida!`;\n\nreturn [{\n  json: {\n    appointment_id: body.appointment_id,\n    payment_id: body.payment_id,\n    client_name: client.name,\n    phone: phone,\n    service_name: service.name,\n    professional_name: professional.name,\n    start_time: appointment.start_time,\n    message: message\n  }\n}];"
-      },
-      "id": "code-node-extract",
-      "name": "Formatar Dados & Destinatário",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [420, 420]
+      "parameters": {"jsCode": "const body = $input.first().json.body || $input.first().json;\nconst deliveryId = Number(body.delivery_id);\nif (!Number.isInteger(deliveryId) || deliveryId <= 0) throw new Error('delivery_id inválido');\nreturn [{ json: { delivery_id: deliveryId } }];"},
+      "id": "extract-webhook-delivery", "name": "Extrair Entrega do Webhook", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, 300]
     },
     {
-      "parameters": {
-        "method": "POST",
-        "url": "={{ $env.HERMES_API_URL || 'http://hermes:8000/send-message' }}",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"phone\": \"{{ $json.phone }}\",\n  \"message\": {{ JSON.stringify($json.message) }},\n  \"context\": {\n    \"event\": \"payment.confirmed\",\n    \"appointment_id\": {{ $json.appointment_id }}\n  }\n}",
-        "options": {
-          "timeout": 15000
-        }
-      },
-      "id": "http-send-hermes",
-      "name": "Enviar Mensagem via Hermes WhatsApp",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [680, 420]
+      "parameters": {"rule": {"interval": [{"field": "cronExpression", "expression": "*/1 * * * *"}]}},
+      "id": "schedule-pending-deliveries", "name": "Retentar Pendências a Cada Minuto", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [180, 520]
+    },
+    {
+      "parameters": {"method": "GET", "url": "={{ ($env.AGENDA_API_URL || 'http://agenda-api:8000') + '/internal/notification-deliveries?limit=20' }}", "sendHeaders": true, "headerParameters": {"parameters": [{"name": "Authorization", "value": "={{ 'Bearer ' + ($env.AGENDA_API_KEY || $env.API_KEY || '') }}"}]}, "options": {}},
+      "id": "list-pending-deliveries", "name": "Listar Entregas Pendentes", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [420, 520]
+    },
+    {
+      "parameters": {"jsCode": "const deliveries = $input.first().json.deliveries || [];\nreturn deliveries.map((delivery) => ({ json: { delivery_id: delivery.id } }));"},
+      "id": "extract-pending-deliveries", "name": "Separar Entregas Pendentes", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [660, 520]
+    },
+    {
+      "parameters": {"method": "POST", "url": "={{ ($env.AGENDA_API_URL || 'http://agenda-api:8000') + '/internal/notification-deliveries/' + $json.delivery_id + '/claim' }}", "sendHeaders": true, "headerParameters": {"parameters": [{"name": "Authorization", "value": "={{ 'Bearer ' + ($env.AGENDA_API_KEY || $env.API_KEY || '') }}"}]}, "options": {}},
+      "id": "claim-delivery", "name": "Assumir Entrega", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [900, 380]
+    },
+    {
+      "parameters": {"method": "POST", "url": "={{ ($env.HERMES_WHATSAPP_BRIDGE_URL || 'http://hermes:3000') + '/send' }}", "sendHeaders": true, "headerParameters": {"parameters": [{"name": "Content-Type", "value": "application/json"}]}, "sendBody": true, "specifyBody": "json", "jsonBody": "={\n  \"chatId\": \"{{ $json.payload.chatId }}\",\n  \"message\": {{ JSON.stringify($json.payload.formatted_message) }}\n}", "options": {"timeout": 15000}},
+      "id": "send-whatsapp-hermes", "name": "Enviar Confirmação pelo WhatsApp Nativo Hermes", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1140, 380], "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {"method": "POST", "url": "={{ ($env.AGENDA_API_URL || 'http://agenda-api:8000') + '/internal/notification-deliveries/' + $('Assumir Entrega').first().json.delivery.id + '/sent' }}", "sendHeaders": true, "headerParameters": {"parameters": [{"name": "Authorization", "value": "={{ 'Bearer ' + ($env.AGENDA_API_KEY || $env.API_KEY || '') }}"}]}, "sendBody": true, "specifyBody": "json", "jsonBody": "={\n  \"provider_message_id\": {{ JSON.stringify($json.key?.id || $json.messageId || $json.id || null) }}\n}", "options": {}},
+      "id": "acknowledge-delivery", "name": "Confirmar Entrega na API", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1380, 380]
+    },
+    {
+      "parameters": {"method": "POST", "url": "={{ ($env.AGENDA_API_URL || 'http://agenda-api:8000') + '/internal/notification-deliveries/' + $('Assumir Entrega').first().json.delivery.id + '/failed' }}", "sendHeaders": true, "headerParameters": {"parameters": [{"name": "Authorization", "value": "={{ 'Bearer ' + ($env.AGENDA_API_KEY || $env.API_KEY || '') }}"}]}, "sendBody": true, "specifyBody": "json", "jsonBody": "={\n  \"error\": {{ JSON.stringify($json.error?.message || $json.message || 'Hermes não confirmou o envio pelo WhatsApp') }}\n}", "options": {}},
+      "id": "defer-failed-delivery", "name": "Registrar Falha para Retentativa", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1380, 560]
     }
   ],
   "connections": {
-    "Webhook Pagamento Confirmado": {
-      "main": [
-        [
-          {
-            "node": "Responder 200 OK à API",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Formatar Dados & Destinatário",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Formatar Dados & Destinatário": {
-      "main": [
-        [
-          {
-            "node": "Enviar Mensagem via Hermes WhatsApp",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    }
+    "Webhook Pagamento Confirmado": {"main": [[{"node": "Responder Aceite à API", "type": "main", "index": 0}, {"node": "Extrair Entrega do Webhook", "type": "main", "index": 0}]]},
+    "Extrair Entrega do Webhook": {"main": [[{"node": "Assumir Entrega", "type": "main", "index": 0}]]},
+    "Retentar Pendências a Cada Minuto": {"main": [[{"node": "Listar Entregas Pendentes", "type": "main", "index": 0}]]},
+    "Listar Entregas Pendentes": {"main": [[{"node": "Separar Entregas Pendentes", "type": "main", "index": 0}]]},
+    "Separar Entregas Pendentes": {"main": [[{"node": "Assumir Entrega", "type": "main", "index": 0}]]},
+    "Assumir Entrega": {"main": [[{"node": "Enviar Confirmação pelo WhatsApp Nativo Hermes", "type": "main", "index": 0}]]},
+    "Enviar Confirmação pelo WhatsApp Nativo Hermes": {"main": [[{"node": "Confirmar Entrega na API", "type": "main", "index": 0}], [{"node": "Registrar Falha para Retentativa", "type": "main", "index": 0}]]}
   },
   "active": true,
-  "settings": {
-    "executionOrder": "v1"
-  }
+  "settings": {"executionOrder": "v1"}
 }

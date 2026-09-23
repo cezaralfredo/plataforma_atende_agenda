@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     hermes_webhook_url: str = ""
     notification_webhook_url: str = ""
     notification_webhook_token: str = ""
+    notification_delivery_lease_seconds: int = 300
+    notification_delivery_max_attempts: int = 8
 
     @model_validator(mode="after")
     def validate_production_secrets(self):

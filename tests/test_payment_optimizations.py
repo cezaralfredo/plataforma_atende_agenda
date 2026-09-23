@@ -123,15 +123,15 @@ def test_mcp_tools_listar_pendentes_e_marcar_notificado(db_session: Session):
     assert f"Agendamento #{appointment.id}" in text_list
     assert "aguardando notificação" in text_list
 
-    # 2. Marcar como notificado
+    # 2. A confirmação manual não pode criar um falso positivo de entrega.
     res_mark = asyncio.run(
         handle_tool_call("marcar_notificado", {"appointment_id": appointment.id}, db_session)
     )
     text_mark = res_mark["content"][0]["text"]
-    assert f"Agendamento {appointment.id} marcado como notificado" in text_mark
+    assert "registrada automaticamente" in text_mark
 
     db_session.refresh(appointment)
-    assert appointment.notified_at is not None
+    assert appointment.notified_at is None
 
     # Verifica se registrou NotificationLog com type='confirmation'
     log = (
@@ -142,8 +142,8 @@ def test_mcp_tools_listar_pendentes_e_marcar_notificado(db_session: Session):
         )
         .first()
     )
-    assert log is not None
+    assert log is None
 
-    # 3. Listar pendentes novamente deve estar vazio
+    # 3. A pendência permanece até a confirmação do provedor WhatsApp.
     res_empty = asyncio.run(handle_tool_call("listar_pendentes_notificacao", {}, db_session))
-    assert "Nenhum agendamento pendente" in res_empty["content"][0]["text"]
+    assert f"Agendamento #{appointment.id}" in res_empty["content"][0]["text"]

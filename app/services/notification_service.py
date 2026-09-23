@@ -1,5 +1,5 @@
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -7,10 +7,16 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
 from app.models.appointment import Appointment
+from app.models.notification_delivery import NotificationDelivery
 from app.models.notification_log import NotificationLog
 from app.models.payment import Payment
 
 logger = logging.getLogger(__name__)
+
+
+def _as_utc(value: datetime) -> datetime:
+    """Normaliza valores do SQLite sem fuso para comparação segura em testes."""
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
 
 def format_payment_confirmation_message(appointment: Appointment, payment: Payment) -> str:
@@ -86,14 +92,80 @@ class NotificationService:
         self.db = db
 
     def get_effective_webhook_url(self) -> str:
-        return (
-            getattr(settings, "n8n_webhook_url", "")
-            or getattr(settings, "hermes_webhook_url", "")
-            or getattr(settings, "notification_webhook_url", "")
-        )
+        """O n8n é o único orquestrador de entregas assíncronas da Agenda.
 
-    async def dispatch_payment_confirmed(self, appointment_id: int, payment_id: int) -> bool:
-        """Envia notificação de pagamento confirmado para o n8n/Hermes e marca como notificado se configurado."""
+        O Hermes mantém a inteligência e o transporte nativo do WhatsApp, mas
+        não expõe um webhook de entrega compatível com a API da Agenda.
+        """
+        return getattr(settings, "n8n_webhook_url", "")
+
+    def queue_payment_confirmed(self, appointment_id: int, payment_id: int) -> NotificationDelivery:
+        """Registra a confirmação em uma outbox idempotente na mesma transação do pagamento."""
+        delivery = (
+            self.db.query(NotificationDelivery)
+            .filter(
+                NotificationDelivery.payment_id == payment_id,
+                NotificationDelivery.event == "payment.confirmed",
+            )
+            .first()
+        )
+        if delivery:
+            return delivery
+
+        delivery = NotificationDelivery(
+            appointment_id=appointment_id,
+            payment_id=payment_id,
+            event="payment.confirmed",
+            status="pending",
+        )
+        self.db.add(delivery)
+        self.db.flush()
+        return delivery
+
+    def recover_unnotified_payment_confirmations(self, limit: int = 100) -> int:
+        """Recupera confirmações já registradas antes de uma indisponibilidade do n8n."""
+        appointments = (
+            self.db.query(Appointment)
+            .join(Payment, Payment.appointment_id == Appointment.id)
+            .filter(
+                Appointment.status == "confirmed",
+                Appointment.notified_at.is_(None),
+                Payment.status.in_(("received", "confirmed")),
+            )
+            .order_by(Payment.received_at, Payment.id)
+            .limit(limit)
+            .all()
+        )
+        created = 0
+        for appointment in appointments:
+            payment = (
+                self.db.query(Payment)
+                .filter(
+                    Payment.appointment_id == appointment.id,
+                    Payment.status.in_(("received", "confirmed")),
+                )
+                .order_by(Payment.received_at.desc(), Payment.id.desc())
+                .first()
+            )
+            if not payment:
+                continue
+            existing = (
+                self.db.query(NotificationDelivery)
+                .filter(
+                    NotificationDelivery.payment_id == payment.id,
+                    NotificationDelivery.event == "payment.confirmed",
+                )
+                .first()
+            )
+            if existing:
+                continue
+            self.queue_payment_confirmed(appointment.id, payment.id)
+            created += 1
+        if created:
+            self.db.commit()
+        return created
+
+    def get_delivery_payload(self, delivery: NotificationDelivery) -> dict[str, Any] | None:
         appointment = (
             self.db.query(Appointment)
             .options(
@@ -101,27 +173,40 @@ class NotificationService:
                 joinedload(Appointment.service),
                 joinedload(Appointment.professional),
             )
-            .filter(Appointment.id == appointment_id)
+            .filter(Appointment.id == delivery.appointment_id)
             .first()
         )
         if not appointment:
-            logger.warning("Appointment %s not found for notification dispatch", appointment_id)
-            return False
+            logger.warning("Appointment %s not found for notification delivery", delivery.appointment_id)
+            return None
 
-        payment = self.db.query(Payment).filter(Payment.id == payment_id).first()
+        payment = self.db.query(Payment).filter(Payment.id == delivery.payment_id).first()
         if not payment:
-            logger.warning("Payment %s not found for notification dispatch", payment_id)
+            logger.warning("Payment %s not found for notification delivery", delivery.payment_id)
+            return None
+
+        payload = build_payment_notification_payload(appointment, payment)
+        payload["delivery_id"] = delivery.id
+        payload["attempt"] = delivery.attempts
+        return payload
+
+    async def dispatch_payment_confirmed(self, delivery_id: int) -> bool:
+        """Acorda o n8n, sem confundir aceitação do webhook com entrega da mensagem."""
+        delivery = self.db.get(NotificationDelivery, delivery_id)
+        if not delivery or delivery.status == "sent":
             return False
 
         webhook_url = self.get_effective_webhook_url()
         if not webhook_url:
             logger.info(
-                "No n8n/Hermes notification webhook URL configured. Appointment %s queued for Hermes pull via listar_pendentes_notificacao.",
-                appointment.id,
+                "No notification webhook configured. Delivery %s remains pending for retry.",
+                delivery.id,
             )
             return False
 
-        payload = build_payment_notification_payload(appointment, payment)
+        # Somente o identificador interno é enviado ao gatilho. O n8n busca os
+        # dados completos autenticado, evitando expor dados do cliente em logs.
+        payload = {"delivery_id": delivery.id, "event": delivery.event}
         headers = {"Content-Type": "application/json"}
         token = getattr(settings, "notification_webhook_token", "")
         if token:
@@ -132,28 +217,106 @@ class NotificationService:
                 response = await client.post(webhook_url, json=payload, headers=headers)
                 response.raise_for_status()
 
-            # Marca como notificado no banco de dados
-            now = datetime.now(UTC)
-            appointment.notified_at = now
-            self.db.add(
-                NotificationLog(
-                    appointment_id=appointment.id,
-                    type="confirmation",
-                    sent_at=now,
-                )
-            )
-            self.db.commit()
             logger.info(
-                "Payment confirmation successfully dispatched to %s for appointment %s",
+                "Payment confirmation delivery %s accepted by %s",
+                delivery.id,
                 webhook_url,
-                appointment.id,
             )
             return True
         except Exception as e:
             logger.warning(
-                "Failed to dispatch payment confirmation webhook to %s for appointment %s: %s",
+                "Failed to wake notification workflow %s for delivery %s: %s",
                 webhook_url,
-                appointment.id,
+                delivery.id,
                 e,
             )
             return False
+
+    def claim_delivery(self, delivery_id: int) -> NotificationDelivery | None:
+        """Reserva uma entrega para um único worker e recupera leases abandonados."""
+        delivery = (
+            self.db.query(NotificationDelivery)
+            .filter(NotificationDelivery.id == delivery_id)
+            .with_for_update()
+            .first()
+        )
+        if not delivery or delivery.status in {"sent", "failed"}:
+            return None
+
+        now = datetime.now(UTC)
+        lease_expired = (
+            delivery.status == "processing"
+            and delivery.claimed_at is not None
+            and _as_utc(delivery.claimed_at)
+            <= now - timedelta(seconds=settings.notification_delivery_lease_seconds)
+        )
+        if delivery.status == "processing" and not lease_expired:
+            return None
+        if delivery.status == "pending" and _as_utc(delivery.next_attempt_at) > now:
+            return None
+        if delivery.attempts >= settings.notification_delivery_max_attempts:
+            delivery.status = "failed"
+            delivery.last_error = "Número máximo de tentativas atingido sem confirmação do provedor."
+            self.db.commit()
+            return None
+
+        delivery.status = "processing"
+        delivery.attempts += 1
+        delivery.claimed_at = now
+        delivery.last_error = None
+        self.db.commit()
+        return delivery
+
+    def mark_delivery_sent(
+        self, delivery_id: int, provider_message_id: str | None = None
+    ) -> NotificationDelivery | None:
+        delivery = self.db.get(NotificationDelivery, delivery_id)
+        if not delivery:
+            return None
+        if delivery.status == "sent":
+            return delivery
+        if delivery.status != "processing":
+            return None
+
+        now = datetime.now(UTC)
+        delivery.status = "sent"
+        delivery.sent_at = now
+        delivery.provider_message_id = provider_message_id
+        delivery.last_error = None
+        appointment = self.db.get(Appointment, delivery.appointment_id)
+        if appointment:
+            appointment.notified_at = now
+            already_logged = (
+                self.db.query(NotificationLog)
+                .filter(
+                    NotificationLog.appointment_id == appointment.id,
+                    NotificationLog.type == "confirmation",
+                )
+                .first()
+            )
+            if not already_logged:
+                self.db.add(
+                    NotificationLog(
+                        appointment_id=appointment.id,
+                        type="confirmation",
+                        sent_at=now,
+                    )
+                )
+        self.db.commit()
+        return delivery
+
+    def defer_delivery(self, delivery_id: int, error: str) -> NotificationDelivery | None:
+        delivery = self.db.get(NotificationDelivery, delivery_id)
+        if not delivery or delivery.status == "sent":
+            return None
+        now = datetime.now(UTC)
+        delivery.last_error = error[:1000]
+        delivery.claimed_at = None
+        if delivery.attempts >= settings.notification_delivery_max_attempts:
+            delivery.status = "failed"
+        else:
+            delay_seconds = min(60 * (2 ** max(delivery.attempts - 1, 0)), 3600)
+            delivery.status = "pending"
+            delivery.next_attempt_at = now + timedelta(seconds=delay_seconds)
+        self.db.commit()
+        return delivery

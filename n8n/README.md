@@ -9,7 +9,7 @@ Este diretório contém a configuração e templates prontos para o **n8n** na a
 | Componente | Função Principal |
 |---|---|
 | **Hermes** | **Inteligência Central e Conversação**: conectado diretamente ao WhatsApp, atende os clientes, entende intenções e gera respostas humanizadas. |
-| **n8n** | **Orquestrador de Processos e Subagentes**: recebe webhooks da API, orquestra fluxos determinísticos, aciona o Hermes para disparos ativos e gerencia automações. |
+| **n8n** | **Orquestrador de Processos e Subagentes**: recebe webhooks da API, orquestra fluxos determinísticos e aciona o WhatsApp nativo do Hermes para mensagens ativas. |
 | **API Agenda** | **Base Transacional**: FastAPI + PostgreSQL gerenciando regras da agenda, pagamentos no Asaas e despachando eventos ao n8n. |
 
 ---
@@ -54,8 +54,8 @@ No painel do n8n (**Workflows** → menu **Import from File**), você pode impor
 
 2. **[notificacao_pagamento_hermes.json](workflows/notificacao_pagamento_hermes.json)** (Subagente Notificador de Pagamento):
    - **Gatilho**: Webhook `POST /webhook/pagamento-confirmado` (disparado pela API assim que o Asaas confirma).
-   - **Ação**: Extrai os dados do cliente e da reserva garantida, e aciona o Hermes para enviar a mensagem de confirmação no WhatsApp.
-   - Responde com `200 OK` imediatamente para a API.
+   - **Ação**: assume uma entrega persistida pela API, envia a confirmação pela bridge WhatsApp nativa do Hermes e só então confirma a entrega para a API.
+   - O cron também retenta a cada minuto as entregas sem confirmação do Hermes. Uma falha jamais é marcada como mensagem enviada.
 
 3. **[subagente_financeiro.json](workflows/subagente_financeiro.json)** (Subagente Financeiro e Reconciliação):
    - **Gatilho**: Cron a cada 15 minutos ou Webhook `POST /webhook/financeiro/verificar`.
@@ -68,3 +68,15 @@ No painel do n8n (**Workflows** → menu **Import from File**), você pode impor
 5. **[subagente_lembretes.json](workflows/subagente_lembretes.json)** (Subagente de Lembretes Preventivos):
    - **Gatilho**: Agendamento diário (Cron 08:00).
    - **Ação**: Consulta agendamentos confirmados e orquestra mensagens de lembrete preventivo no WhatsApp.
+
+## Variáveis obrigatórias do n8n
+
+Configure estas variáveis no container `agenda_n8n` pelo Portainer. Mantenha as chaves fora do repositório:
+
+```env
+AGENDA_API_URL=http://agenda-api:8000
+AGENDA_API_KEY=<mesma API_KEY interna da Agenda Atende>
+HERMES_WHATSAPP_BRIDGE_URL=http://hermes:3000
+```
+
+Depois de importar o workflow de confirmação, confirme que ele está **ativo**. Faça um PIX de teste: a API deve criar uma entrega `pending`, o n8n deve assumi-la e ela só aparecerá como `sent` após a bridge WhatsApp do Hermes devolver sucesso.

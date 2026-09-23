@@ -4,7 +4,6 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
 from fastapi import Depends, FastAPI, Response
-from fastapi.responses import RedirectResponse
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from prometheus_fastapi_instrumentator import Instrumentator
 
@@ -12,6 +11,7 @@ from app.admin.router import router as admin_router
 from app.api.appointments import router as appointments_router
 from app.api.availability import router as availability_router
 from app.api.health import router as health_router
+from app.api.notification_deliveries import router as notification_deliveries_router
 from app.api.payments import router as payments_router
 from app.api.professionals import router as professionals_router
 from app.api.services import router as services_router
@@ -75,6 +75,7 @@ def create_app(app_settings: Settings = settings) -> FastAPI:
     application.include_router(appointments_router)
     application.include_router(payments_router)
     application.include_router(webhooks_router)
+    application.include_router(notification_deliveries_router)
     application.include_router(mcp_router)
     application.include_router(admin_router)
 

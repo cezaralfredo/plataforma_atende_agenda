@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.mcp.tools import handle_tool_call
 from app.models.appointment import Appointment
+from app.models.notification_delivery import NotificationDelivery
 from app.models.notification_log import NotificationLog
 from app.models.user import User
 from app.services.notification_service import (
@@ -75,7 +76,9 @@ async def test_notification_service_dispatch_to_n8n(db_session: Session):
         patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post,
     ):
         mock_post.return_value = mock_resp
-        dispatched = await service.dispatch_payment_confirmed(appointment.id, payment.id)
+        delivery = service.queue_payment_confirmed(appointment.id, payment.id)
+        db_session.commit()
+        dispatched = await service.dispatch_payment_confirmed(delivery.id)
 
         assert dispatched is True
         assert mock_post.called
@@ -83,10 +86,10 @@ async def test_notification_service_dispatch_to_n8n(db_session: Session):
         assert call_args[0][0] == "https://n8n.test/webhook/payment"
         sent_json = call_args[1]["json"]
         assert sent_json["event"] == "payment.confirmed"
-        assert sent_json["appointment_id"] == appointment.id
+        assert sent_json["delivery_id"] == delivery.id
 
     db_session.refresh(appointment)
-    assert appointment.notified_at is not None
+    assert appointment.notified_at is None
 
     log = (
         db_session.query(NotificationLog)
@@ -96,7 +99,7 @@ async def test_notification_service_dispatch_to_n8n(db_session: Session):
         )
         .first()
     )
-    assert log is not None
+    assert log is None
 
 
 @pytest.mark.asyncio
@@ -114,7 +117,9 @@ async def test_notification_service_no_webhook_configured(db_session: Session):
         patch.object(settings, "hermes_webhook_url", ""),
         patch.object(settings, "notification_webhook_url", ""),
     ):
-        dispatched = await service.dispatch_payment_confirmed(appointment.id, payment.id)
+        delivery = service.queue_payment_confirmed(appointment.id, payment.id)
+        db_session.commit()
+        dispatched = await service.dispatch_payment_confirmed(delivery.id)
         assert dispatched is False
 
     db_session.refresh(appointment)
@@ -152,8 +157,8 @@ def test_asaas_webhook_dispatches_notification(client: TestClient, db_session: S
         assert appointment.status == "confirmed"
 
         assert mock_dispatch.called
-        assert mock_dispatch.call_args[0][0] == appointment.id
-        assert mock_dispatch.call_args[0][1] == payment.id
+        delivery = db_session.query(NotificationDelivery).one()
+        assert mock_dispatch.call_args[0][0] == delivery.id
 
 
 def test_mcp_tool_verificar_status_pagamento_confirmed(db_session: Session):
@@ -178,7 +183,115 @@ def test_mcp_tool_verificar_status_pagamento_confirmed(db_session: Session):
     assert appointment.service.name in text
 
     db_session.refresh(appointment)
+    assert appointment.notified_at is None
+
+    delivery = db_session.query(NotificationDelivery).one()
+    assert delivery.status == "pending"
+
+
+def test_delivery_only_marks_appointment_after_provider_acknowledgement(db_session: Session):
+    entities = seed_data(db_session)
+    appointment = seed_appointment(db_session, entities)
+    payment = seed_payment(db_session, appointment)
+    appointment.status = "confirmed"
+    db_session.commit()
+
+    service = NotificationService(db_session)
+    delivery = service.queue_payment_confirmed(appointment.id, payment.id)
+    db_session.commit()
+
+    claimed = service.claim_delivery(delivery.id)
+    assert claimed is not None
+    db_session.refresh(appointment)
+    assert appointment.notified_at is None
+
+    sent = service.mark_delivery_sent(delivery.id, "wamid.test.123")
+    assert sent is not None
+    assert sent.status == "sent"
+    assert sent.provider_message_id == "wamid.test.123"
+
+    db_session.refresh(appointment)
     assert appointment.notified_at is not None
+    assert (
+        db_session.query(NotificationLog)
+        .filter(
+            NotificationLog.appointment_id == appointment.id,
+            NotificationLog.type == "confirmation",
+        )
+        .count()
+        == 1
+    )
+
+
+def test_delivery_failure_remains_pending_for_retry(db_session: Session):
+    entities = seed_data(db_session)
+    appointment = seed_appointment(db_session, entities)
+    payment = seed_payment(db_session, appointment)
+    appointment.status = "confirmed"
+    db_session.commit()
+
+    service = NotificationService(db_session)
+    delivery = service.queue_payment_confirmed(appointment.id, payment.id)
+    db_session.commit()
+    assert service.claim_delivery(delivery.id) is not None
+
+    deferred = service.defer_delivery(delivery.id, "Evolution API indisponível")
+    assert deferred is not None
+    assert deferred.status == "pending"
+    assert deferred.attempts == 1
+    assert deferred.last_error == "Evolution API indisponível"
+
+    db_session.refresh(appointment)
+    assert appointment.notified_at is None
+
+
+def test_internal_delivery_claim_and_acknowledgement_api(
+    client: TestClient, db_session: Session
+):
+    entities = seed_data(db_session)
+    appointment = seed_appointment(db_session, entities)
+    payment = seed_payment(db_session, appointment)
+    appointment.status = "confirmed"
+    db_session.commit()
+
+    delivery = NotificationService(db_session).queue_payment_confirmed(
+        appointment.id, payment.id
+    )
+    db_session.commit()
+
+    claim = client.post(f"/internal/notification-deliveries/{delivery.id}/claim")
+    assert claim.status_code == 200
+    claimed = claim.json()
+    assert claimed["delivery"]["status"] == "processing"
+    assert claimed["payload"]["delivery_id"] == delivery.id
+    assert claimed["payload"]["chatId"] == appointment.user.phone
+
+    acknowledgement = client.post(
+        f"/internal/notification-deliveries/{delivery.id}/sent",
+        json={"provider_message_id": "wamid.api.123"},
+    )
+    assert acknowledgement.status_code == 200
+    assert acknowledgement.json()["delivery"]["status"] == "sent"
+
+    db_session.refresh(appointment)
+    assert appointment.notified_at is not None
+
+
+def test_due_delivery_list_recovers_preexisting_unnotified_confirmation(
+    client: TestClient, db_session: Session
+):
+    entities = seed_data(db_session)
+    appointment = seed_appointment(db_session, entities)
+    payment = seed_payment(db_session, appointment)
+    appointment.status = "confirmed"
+    payment.status = "confirmed"
+    db_session.commit()
+
+    response = client.get("/internal/notification-deliveries")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["recovered"] == 1
+    assert [delivery["payment_id"] for delivery in data["deliveries"]] == [payment.id]
 
 
 def test_mcp_tool_verificar_status_pagamento_pending(db_session: Session):

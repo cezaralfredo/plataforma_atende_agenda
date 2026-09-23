@@ -258,6 +258,16 @@ class PaymentService:
 
         if new_status != payment.status:
             apply_payment_state(payment, new_status, datetime.now(UTC))
+            if (
+                new_status in {"received", "confirmed"}
+                and payment.appointment.status == "confirmed"
+            ):
+                # A reconciliação também precisa alimentar a mesma outbox do webhook.
+                from app.services.notification_service import NotificationService
+
+                NotificationService(self.db).queue_payment_confirmed(
+                    payment.appointment_id, payment.id
+                )
             self.db.commit()
 
         return new_status

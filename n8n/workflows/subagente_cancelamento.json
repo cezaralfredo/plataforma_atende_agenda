@@ -39,10 +39,19 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.HERMES_API_URL || 'http://hermes:8000/send-message' }}",
+        "url": "={{ ($env.HERMES_WHATSAPP_BRIDGE_URL || 'http://hermes:3000') + '/send' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"phone\": \"{{ $('Webhook Cancelar Reserva').first().json.body?.phone || '' }}\",\n  \"message\": \"Seu agendamento #{{ $json.id }} foi cancelado com sucesso. O horário foi liberado na nossa agenda. Quando quiser marcar novamente, é só nos chamar!\",\n  \"context\": {\n    \"event\": \"appointment.cancelled\",\n    \"appointment_id\": {{ $json.id }}\n  }\n}",
+        "jsonBody": "={\n  \"chatId\": \"{{ $('Webhook Cancelar Reserva').first().json.body?.phone || '' }}\",\n  \"message\": \"Seu agendamento #{{ $json.id }} foi cancelado com sucesso. O horário foi liberado na nossa agenda. Quando quiser marcar novamente, é só nos chamar!\"\n}",
         "options": {
           "timeout": 10000
         }

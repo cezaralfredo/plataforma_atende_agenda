@@ -69,3 +69,37 @@ def test_docker_compose_n8n():
     assert "networks" in n8n_service
     assert "mcp_internal" in n8n_service["networks"]
     assert "npm" in n8n_service["networks"]
+
+
+def test_payment_confirmation_workflow_requires_provider_acknowledgement():
+    workflow = json.loads(
+        (WORKFLOWS_DIR / "notificacao_pagamento_hermes.json").read_text(encoding="utf-8")
+    )
+    serialized = json.dumps(workflow)
+    names = {node["name"] for node in workflow["nodes"]}
+
+    assert "http://hermes:8000/send-message" not in serialized
+    assert "HERMES_WHATSAPP_BRIDGE_URL" in serialized
+    assert "http://hermes:3000" in serialized
+    assert "EVOLUTION_API_URL" not in serialized
+    assert "Assumir Entrega" in names
+    assert "Enviar Confirmação pelo WhatsApp Nativo Hermes" in names
+    assert "Confirmar Entrega na API" in names
+    assert "Registrar Falha para Retentativa" in names
+
+
+def test_workflows_use_native_hermes_whatsapp_bridge_for_outbound_messages():
+    cancellation = json.loads(
+        (WORKFLOWS_DIR / "subagente_cancelamento.json").read_text(encoding="utf-8")
+    )
+    serialized = json.dumps(cancellation)
+
+    assert "http://hermes:8000/send-message" not in serialized
+    assert "HERMES_WHATSAPP_BRIDGE_URL" in serialized
+    assert "http://hermes:3000" in serialized
+    send_node = next(
+        node
+        for node in cancellation["nodes"]
+        if node["name"] == "Avisar Cancelamento via WhatsApp Hermes"
+    )
+    assert '"chatId"' in send_node["parameters"]["jsonBody"]

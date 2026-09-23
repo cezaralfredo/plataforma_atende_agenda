@@ -84,7 +84,7 @@ async def asaas_webhook(request: Request, db: Session = Depends(get_db)):
     new_status = STATUS_MAP.get(event)
     should_notify = False
     appointment_id = None
-    payment_id = payment.id
+    delivery_id = None
 
     if new_status:
         apply_payment_state(payment, new_status, datetime.now(UTC))
@@ -106,10 +106,15 @@ async def asaas_webhook(request: Request, db: Session = Depends(get_db)):
                 )
             except Exception as e:
                 logger.warning("Could not create NotificationLog for webhook: %s", e)
+            # A outbox participa da mesma transação que a confirmação do Asaas.
+            # Assim, não existe pagamento confirmado sem uma notificação pendente.
+            delivery_id = NotificationService(db).queue_payment_confirmed(
+                payment.appointment_id, payment.id
+            ).id
     db.commit()
 
-    if should_notify and appointment_id:
+    if should_notify and appointment_id and delivery_id:
         notification_service = NotificationService(db)
-        await notification_service.dispatch_payment_confirmed(appointment_id, payment_id)
+        await notification_service.dispatch_payment_confirmed(delivery_id)
 
     return {"status": "ok"}

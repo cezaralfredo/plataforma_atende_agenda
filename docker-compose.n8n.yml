@@ -24,6 +24,9 @@ services:
       - EXECUTIONS_DATA_PRUNE=true
       - EXECUTIONS_DATA_MAX_AGE=168  # 7 dias de retenção de logs
       - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
+      - AGENDA_API_URL=${AGENDA_API_URL:-http://agenda-api:8000}
+      - AGENDA_API_KEY=${API_KEY:?Defina API_KEY no Portainer}
+      - HERMES_WHATSAPP_BRIDGE_URL=${HERMES_WHATSAPP_BRIDGE_URL:-http://hermes:3000}
     volumes:
       - n8n_data:/home/node/.n8n
     networks:
