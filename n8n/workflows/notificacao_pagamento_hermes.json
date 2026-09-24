@@ -30,8 +30,12 @@
       "id": "claim-delivery", "name": "Assumir Entrega", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [900, 380]
     },
     {
-      "parameters": {"method": "POST", "url": "={{ ($env.HERMES_WHATSAPP_BRIDGE_URL || 'http://hermes:3000') + '/send' }}", "sendHeaders": true, "headerParameters": {"parameters": [{"name": "Content-Type", "value": "application/json"}]}, "sendBody": true, "specifyBody": "json", "jsonBody": "={\n  \"chatId\": \"{{ $json.payload.chatId }}\",\n  \"message\": {{ JSON.stringify($json.payload.formatted_message) }}\n}", "options": {"timeout": 15000}},
-      "id": "send-whatsapp-hermes", "name": "Enviar Confirmação pelo WhatsApp Nativo Hermes", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1140, 380], "onError": "continueErrorOutput"
+      "parameters": {"jsCode": "const rawChatId = String($json.payload?.chatId || '').trim();\nif (!rawChatId) throw new Error('Cliente sem WhatsApp para confirmação de pagamento');\nconst chatId = rawChatId.includes('@')\n  ? rawChatId\n  : `${rawChatId.replace(/\\D/g, '')}@s.whatsapp.net`;\nif (!/^\\d{12,13}@s\\.whatsapp\\.net$/.test(chatId) && !chatId.endsWith('@g.us')) {\n  throw new Error(`WhatsApp inválido para entrega: ${rawChatId}`);\n}\nreturn [{ json: { ...$json, chatId } }];"},
+      "id": "normalize-whatsapp-recipient", "name": "Normalizar Destinatário WhatsApp", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [1120, 380]
+    },
+    {
+      "parameters": {"method": "POST", "url": "={{ ($env.HERMES_WHATSAPP_BRIDGE_URL || 'http://hermes:3000') + '/send' }}", "sendHeaders": true, "headerParameters": {"parameters": [{"name": "Content-Type", "value": "application/json"}]}, "sendBody": true, "specifyBody": "json", "jsonBody": "={\n  \"chatId\": \"{{ $json.chatId }}\",\n  \"message\": {{ JSON.stringify($json.payload.formatted_message) }}\n}", "options": {"timeout": 15000}},
+      "id": "send-whatsapp-hermes", "name": "Enviar Confirmação pelo WhatsApp Nativo Hermes", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [1360, 380], "onError": "continueErrorOutput"
     },
     {
       "parameters": {"method": "POST", "url": "={{ ($env.AGENDA_API_URL || 'http://agenda-api:8000') + '/internal/notification-deliveries/' + $('Assumir Entrega').first().json.delivery.id + '/sent' }}", "sendHeaders": true, "headerParameters": {"parameters": [{"name": "Authorization", "value": "={{ 'Bearer ' + ($env.AGENDA_API_KEY || $env.API_KEY || '') }}"}]}, "sendBody": true, "specifyBody": "json", "jsonBody": "={\n  \"provider_message_id\": {{ JSON.stringify($json.key?.id || $json.messageId || $json.id || null) }}\n}", "options": {}},
@@ -48,7 +52,8 @@
     "Retentar Pendências a Cada Minuto": {"main": [[{"node": "Listar Entregas Pendentes", "type": "main", "index": 0}]]},
     "Listar Entregas Pendentes": {"main": [[{"node": "Separar Entregas Pendentes", "type": "main", "index": 0}]]},
     "Separar Entregas Pendentes": {"main": [[{"node": "Assumir Entrega", "type": "main", "index": 0}]]},
-    "Assumir Entrega": {"main": [[{"node": "Enviar Confirmação pelo WhatsApp Nativo Hermes", "type": "main", "index": 0}]]},
+    "Assumir Entrega": {"main": [[{"node": "Normalizar Destinatário WhatsApp", "type": "main", "index": 0}]]},
+    "Normalizar Destinatário WhatsApp": {"main": [[{"node": "Enviar Confirmação pelo WhatsApp Nativo Hermes", "type": "main", "index": 0}]]},
     "Enviar Confirmação pelo WhatsApp Nativo Hermes": {"main": [[{"node": "Confirmar Entrega na API", "type": "main", "index": 0}], [{"node": "Registrar Falha para Retentativa", "type": "main", "index": 0}]]}
   },
   "active": true,

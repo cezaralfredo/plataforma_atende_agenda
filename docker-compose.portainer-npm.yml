@@ -77,6 +77,7 @@ services:
       - npm
       - mcp_internal
       - agenda_db_internal
+      - hermes_internal
 
 volumes:
   agenda_db_data:
@@ -89,5 +90,10 @@ networks:
   mcp_internal:
     external: true
     name: ${AGENDA_MCP_NETWORK:-agenda_mcp_internal}
+  # Rede exclusiva que já contém o container Hermes e sua bridge WhatsApp.
+  # Não publique a porta 3000: o n8n é o único serviço da Agenda nela.
+  hermes_internal:
+    external: true
+    name: ${HERMES_NETWORK:-hermes_default}
   agenda_db_internal:
     driver: bridge

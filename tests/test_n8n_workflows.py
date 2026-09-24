@@ -69,6 +69,8 @@ def test_docker_compose_n8n():
     assert "networks" in n8n_service
     assert "mcp_internal" in n8n_service["networks"]
     assert "npm" in n8n_service["networks"]
+    assert "hermes_internal" in n8n_service["networks"]
+    assert data["networks"]["hermes_internal"]["external"] is True
 
 
 def test_payment_confirmation_workflow_requires_provider_acknowledgement():
@@ -86,6 +88,23 @@ def test_payment_confirmation_workflow_requires_provider_acknowledgement():
     assert "Enviar Confirmação pelo WhatsApp Nativo Hermes" in names
     assert "Confirmar Entrega na API" in names
     assert "Registrar Falha para Retentativa" in names
+    assert "Normalizar Destinatário WhatsApp" in names
+
+    send_node = next(
+        node
+        for node in workflow["nodes"]
+        if node["name"] == "Enviar Confirmação pelo WhatsApp Nativo Hermes"
+    )
+    normalizer = next(
+        node
+        for node in workflow["nodes"]
+        if node["name"] == "Normalizar Destinatário WhatsApp"
+    )
+    assert '"{{ $json.chatId }}"' in send_node["parameters"]["jsonBody"]
+    assert "@s.whatsapp.net" in normalizer["parameters"]["jsCode"]
+    assert workflow["connections"]["Assumir Entrega"]["main"][0][0]["node"] == (
+        "Normalizar Destinatário WhatsApp"
+    )
 
 
 def test_workflows_use_native_hermes_whatsapp_bridge_for_outbound_messages():

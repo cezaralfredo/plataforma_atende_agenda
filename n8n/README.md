@@ -77,6 +77,9 @@ Configure estas variáveis no container `agenda_n8n` pelo Portainer. Mantenha as
 AGENDA_API_URL=http://agenda-api:8000
 AGENDA_API_KEY=<mesma API_KEY interna da Agenda Atende>
 HERMES_WHATSAPP_BRIDGE_URL=http://hermes:3000
+HERMES_NETWORK=hermes_default
 ```
 
-Depois de importar o workflow de confirmação, confirme que ele está **ativo**. Faça um PIX de teste: a API deve criar uma entrega `pending`, o n8n deve assumi-la e ela só aparecerá como `sent` após a bridge WhatsApp do Hermes devolver sucesso.
+O n8n também deve estar conectado à rede Docker do Hermes (`hermes_default`, ou o nome informado em `HERMES_NETWORK`). Isso permite alcançar a bridge privada em `hermes:3000`, sem expor a porta para a internet.
+
+Depois de importar o workflow de confirmação, confirme que ele está **ativo**. Ele normaliza o telefone do cliente para o JID do WhatsApp antes do envio. Faça um PIX de teste: a API deve criar uma entrega `pending`, o n8n deve assumi-la e ela só aparecerá como `sent` após a bridge WhatsApp do Hermes devolver sucesso.

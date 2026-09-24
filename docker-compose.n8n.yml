@@ -32,6 +32,7 @@ services:
     networks:
       - npm
       - mcp_internal
+      - hermes_internal
 
 volumes:
   n8n_data:
@@ -43,3 +44,7 @@ networks:
   mcp_internal:
     external: true
     name: ${AGENDA_MCP_NETWORK:-agenda_mcp_internal}
+  # Rede do Hermes: necessária para o n8n alcançar a bridge WhatsApp privada.
+  hermes_internal:
+    external: true
+    name: ${HERMES_NETWORK:-hermes_default}
