@@ -25,7 +25,7 @@ class _AsaasRetryableError(AsaasIntegrationError):
 
 
 class AsaasClient:
-    def __init__(self):
+    def __init__(self, timeout_seconds: float = 15.0):
         self.base_url = settings.asaas_base_url.rstrip("/")
         self.api_key = settings.asaas_api_key
         self.headers = {
@@ -33,10 +33,21 @@ class AsaasClient:
             "Content-Type": "application/json",
             "User-Agent": f"{settings.app_name}/1.0",
         }
-        self.timeout = httpx.Timeout(30.0, connect=10.0)
+        self.timeout = httpx.Timeout(timeout_seconds, connect=5.0)
+        self._client: httpx.AsyncClient | None = None
 
     def _get_client(self) -> httpx.AsyncClient:
-        return httpx.AsyncClient(headers=self.headers, timeout=self.timeout)
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(
+                headers=self.headers,
+                timeout=self.timeout,
+                limits=httpx.Limits(max_keepalive_connections=10, max_connections=20),
+            )
+        return self._client
+
+    async def aclose(self) -> None:
+        if self._client is not None and not self._client.is_closed:
+            await self._client.aclose()
 
     @staticmethod
     def _error_message(response: httpx.Response) -> str:
@@ -82,8 +93,12 @@ class AsaasClient:
         path: str,
         params: Mapping[str, str | int] | None = None,
     ) -> dict[str, Any]:
-        async with self._get_client() as client:
+        client = self._get_client()
+        if client is self._client:
             response = await client.get(f"{self.base_url}{path}", params=params)
+        else:
+            async with client:
+                response = await client.get(f"{self.base_url}{path}", params=params)
         self._validate_response(response)
         payload = response.json()
         if not isinstance(payload, dict):
@@ -103,9 +118,13 @@ class AsaasClient:
             raise AsaasIntegrationError(str(exc)) from exc
 
     async def _post(self, path: str, payload: Mapping[str, Any]) -> dict[str, Any]:
+        client = self._get_client()
         try:
-            async with self._get_client() as client:
+            if client is self._client:
                 response = await client.post(f"{self.base_url}{path}", json=payload)
+            else:
+                async with client:
+                    response = await client.post(f"{self.base_url}{path}", json=payload)
         except (
             httpx.TimeoutException,
             httpx.ConnectError,
@@ -158,7 +177,6 @@ class AsaasClient:
     async def update_customer(
         self,
         customer_id: str,
-        *,
         name: str | None = None,
         phone: str | None = None,
         email: str | None = None,
@@ -173,8 +191,6 @@ class AsaasClient:
             payload["email"] = email
         if cpf_cnpj:
             payload["cpfCnpj"] = cpf_cnpj
-        if not payload:
-            return {}
         return await self._post(f"/customers/{customer_id}", payload)
 
     async def create_payment(
@@ -213,6 +229,9 @@ class AsaasClient:
             params["externalReference"] = external_reference
         data = await self._safe_get("/payments", params)
         return data.get("data", [])
+
+    async def get_pix_qr_code(self, payment_id: str) -> dict:
+        return await self._safe_get(f"/payments/{payment_id}/pixQrCode")
 
     async def refund_payment(self, payment_id: str) -> dict:
         return await self._post(f"/payments/{payment_id}/refund", {})

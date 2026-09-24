@@ -18,6 +18,7 @@ from app.services.appointment_service import AppointmentService
 from app.services.asaas_client import AsaasIntegrationError
 from app.services.availability_service import AvailabilityService
 from app.services.payment_service import PaymentService
+from app.services.professional_service_offering_service import ProfessionalOfferingService
 from app.services.service_service import ServiceService
 from app.services.user_service import UserService
 
@@ -267,7 +268,7 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
             user = user_service.find_by_identifier(
                 query=query, phone=phone, name=name_arg, cpf_cnpj=cpf_cnpj
             )
-            if not user:
+            if not user or not getattr(user, "active", True):
                 return {"content": [{"type": "text", "text": "Cliente não encontrado."}]}
             return {"content": [{"type": "text", "text": _format_cliente(user)}]}
 
@@ -374,7 +375,6 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
             return {"content": [{"type": "text", "text": "\n".join(lines)}]}
 
         elif name == "listar_servicos":
-            service_service = ServiceService(db)
             prof_id = arguments.get("professional_id")
             if isinstance(prof_id, str):
                 if prof_id.isdigit():
@@ -385,7 +385,7 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
                     ).first()
                     prof_id = prof_match.id if prof_match else None
 
-            services = service_service.list(
+            offerings = ProfessionalOfferingService(db).list_active(
                 professional_id=prof_id,
                 category=arguments.get("category"),
             )
@@ -394,8 +394,8 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
                     {
                         "type": "text",
                         "text": _format_servicos(
-                            services,
-                            professional_id=prof_id,
+                            offerings,
+                            include_professional=prof_id is None,
                         ),
                     }
                 ]
@@ -964,23 +964,24 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
         }
 
 
-def _format_servicos(services, professional_id: int | None = None) -> str:
-    if not services:
-        return "Nenhum serviço encontrado."
+def _format_servicos(offerings, include_professional: bool = True) -> str:
+    if not offerings:
+        return "Nenhum serviço disponível."
 
     lines = ["Serviços disponíveis:"]
-    for s in services:
-        price = f"R$ {s.price_cents / 100:.2f}"
-        if professional_id is not None:
-            line = f"  #{s.id} {s.name} - {price} ({s.duration_minutes}min)"
+    for offering in offerings:
+        service = offering.service
+        price = f"R$ {service.price_cents / 100:.2f}".replace(".", ",")
+        if include_professional:
+            line = (
+                f"  #{service.id} {service.name} - {price} "
+                f"({service.duration_minutes}min) — {offering.professional.name}"
+            )
         else:
-            profs = [
-                f"{off.professional.name} (ID: {off.professional_id})"
-                for off in getattr(s, "professional_offerings", [])
-                if off.active and off.professional and off.professional.active
-            ]
-            profs_str = f" — Profissionais: {', '.join(profs)}" if profs else ""
-            line = f"  #{s.id} {s.name} - {price} ({s.duration_minutes}min){profs_str}"
+            line = (
+                f"  #{service.id} {service.name} - {price} "
+                f"({service.duration_minutes}min)"
+            )
         lines.append(line)
     return "\n".join(lines)
 
