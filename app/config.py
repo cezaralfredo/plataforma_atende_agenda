@@ -18,6 +18,19 @@ class Settings(BaseSettings):
     asaas_base_url: str = "https://api-sandbox.asaas.com/v3"
     asaas_webhook_token: str = ""
 
+    n8n_webhook_url: str = ""
+    hermes_webhook_url: str = ""
+    notification_webhook_url: str = ""
+    notification_webhook_token: str = ""
+    notification_delivery_lease_seconds: int = 300
+    notification_delivery_max_attempts: int = 8
+
+    # Triagem Ultrarrápida com TypeSafe Jev (OpenRouter Decisions API)
+    openrouter_api_key: str = ""
+    triage_enabled: bool = True
+    triage_model: str = "typesafe/jev-1.13"
+    triage_timeout_seconds: float = 10.0
+
     @model_validator(mode="after")
     def validate_production_secrets(self):
         if self.debug:
