@@ -1,12 +1,14 @@
 from unittest.mock import AsyncMock, patch
+
 import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from app.config import Settings, settings as app_settings
+from app.config import Settings
+from app.config import settings as app_settings
 from app.main import app
 from app.mcp.tools import handle_tool_call
-from app.services.triage_service import TriageService, HUMAN_SUPPORT_URL
+from app.services.triage_service import HUMAN_SUPPORT_URL, TriageService
 
 
 @pytest.fixture

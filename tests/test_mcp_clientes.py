@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models.professional import Professional
 from app.models.professional_service import ProfessionalService
-from app.models.service import Service
 from app.repositories import UserRepository
 from tests.seed import seed_data
 
@@ -51,7 +50,7 @@ class TestMCPClientes:
     def test_listar_servicos_sem_filtro_nao_repete_duplicata_do_mesmo_profissional(
         self, client: TestClient, db_session: Session
     ):
-        entities = seed_data(db_session)
+        seed_data(db_session)
         response = _mcp_call(client, "listar_servicos", {})
 
         text = response.json()["result"]["content"][0]["text"]

@@ -72,7 +72,7 @@ def test_vps_cleanup_script_dry_run_executes_successfully(test_env_path: Path):
         "WARN_WAIT_SECONDS": "0",
     }
     
-    result = subprocess.run(
+    result = subprocess.run(  # noqa: S603 - the test invokes a fixed local Bash executable.
         [
             BASH,
             "-c",
@@ -110,7 +110,7 @@ def test_vps_cleanup_script_force_mode_executes_cleaning(test_env_path: Path):
         "WARN_WAIT_SECONDS": "0",
     }
     
-    result = subprocess.run(
+    result = subprocess.run(  # noqa: S603 - the test invokes a fixed local Bash executable.
         [
             BASH,
             "-c",

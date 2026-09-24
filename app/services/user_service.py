@@ -55,11 +55,11 @@ class UserService:
 
     def update(self, user_id: int, data: UserUpdate) -> User | None:
         values = data.model_dump(exclude_unset=True)
-        if "phone" in values and values["phone"]:
+        if values.get("phone"):
             existing = self.repo.find_by_phone(values["phone"])
             if existing and existing.id != user_id:
                 raise ValueError("Telefone já cadastrado")
-        if "email" in values and values["email"]:
+        if values.get("email"):
             existing_email = (
                 self.repo.db.query(User)
                 .filter(User.email == values["email"], User.id != user_id)

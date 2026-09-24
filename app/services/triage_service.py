@@ -1,8 +1,10 @@
 import logging
 from typing import Any
+
 import httpx
 
-from app.config import Settings, settings as default_settings
+from app.config import Settings
+from app.config import settings as default_settings
 from app.schemas.triage import TriageActionType, TriageResult
 
 logger = logging.getLogger(__name__)
