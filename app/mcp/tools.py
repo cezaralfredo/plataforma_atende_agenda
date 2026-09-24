@@ -19,7 +19,6 @@ from app.services.asaas_client import AsaasIntegrationError
 from app.services.availability_service import AvailabilityService
 from app.services.payment_service import PaymentService
 from app.services.professional_service_offering_service import ProfessionalOfferingService
-from app.services.service_service import ServiceService
 from app.services.user_service import UserService
 
 logger = logging.getLogger(__name__)
