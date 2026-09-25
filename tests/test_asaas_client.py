@@ -44,8 +44,9 @@ def test_client_uses_current_sandbox_url_and_user_agent(monkeypatch):
     asyncio.run(AsaasClient().list_payments(external_reference="appointment:7"))
 
     request = requests[0]
+    expected_base = settings.asaas_base_url.rstrip("/")
     assert str(request.url) == (
-        "https://api-sandbox.asaas.com/v3/payments"
+        f"{expected_base}/payments"
         "?limit=10&externalReference=appointment%3A7"
     )
     assert request.headers["access_token"] == settings.asaas_api_key

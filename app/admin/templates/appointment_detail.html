@@ -338,6 +338,17 @@ function appointmentDetail() {
                 if (response.ok) {
                     this.payment = result.payment;
                     this.notice = result.message;
+                    adminNotify({type: 'success', message: result.message});
+                    if (result.payment && result.payment.status === 'cancelled') {
+                        if (this.appointment.status === 'pending' || this.appointment.status === 'awaiting_payment') {
+                            this.appointment.status = 'cancelled';
+                        }
+                    } else if (result.payment && (result.payment.status === 'confirmed' || result.payment.status === 'received')) {
+                        if (this.appointment.status === 'pending' || this.appointment.status === 'awaiting_payment') {
+                            this.appointment.status = 'confirmed';
+                        }
+                    }
+                    setTimeout(() => location.reload(), 1200);
                 } else {
                     adminNotify({type: 'error', message: result.detail});
                 }

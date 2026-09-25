@@ -16,6 +16,10 @@ class AsaasIntegrationError(RuntimeError):
     """The provider rejected a request or could not be reached safely."""
 
 
+class AsaasNotFoundError(AsaasIntegrationError):
+    """The requested resource was not found on Asaas (HTTP 404)."""
+
+
 class AsaasUncertainResultError(AsaasIntegrationError):
     """A mutating request may have reached Asaas, so it must be reconciled."""
 
@@ -76,6 +80,8 @@ class AsaasClient:
         if response.is_success:
             return
         message = cls._error_message(response)
+        if response.status_code == 404:
+            raise AsaasNotFoundError(message)
         if response.status_code == 429 or response.status_code >= 500:
             raise _AsaasRetryableError(message)
         raise AsaasIntegrationError(message)
@@ -153,6 +159,9 @@ class AsaasClient:
             {"limit": 10, "externalReference": external_reference},
         )
         return data.get("data", [])
+
+    async def get_customer(self, customer_id: str) -> dict:
+        return await self._safe_get(f"/customers/{customer_id}")
 
     async def create_customer(
         self,

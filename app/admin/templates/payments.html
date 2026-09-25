@@ -287,6 +287,7 @@ function payments() {
                     const index = this.payments.findIndex(item => item.id === id);
                     if (index >= 0) this.payments[index] = result.payment;
                     this.notice = result.message;
+                    adminNotify({type: 'success', message: result.message});
                 } else {
                     adminNotify({type: 'error', message: result.detail});
                 }

@@ -11,6 +11,7 @@ from app.repositories.payment_repo import PaymentRepository
 from app.services.asaas_client import (
     AsaasClient,
     AsaasIntegrationError,
+    AsaasNotFoundError,
     AsaasUncertainResultError,
 )
 from app.services.payment_state_service import apply_payment_state
@@ -251,10 +252,19 @@ class PaymentService:
         if not payment.asaas_payment_id:
             return payment.status
 
-        resp = await self.asaas.get_payment(payment.asaas_payment_id)
-        asaas_status = resp.get("status", "")
+        try:
+            resp = await self.asaas.get_payment(payment.asaas_payment_id)
+            is_deleted = resp.get("deleted") is True
+            asaas_status = resp.get("status", "")
+        except AsaasNotFoundError:
+            resp = None
+            is_deleted = True
+            asaas_status = "CANCELLED"
 
-        new_status = ASAAS_STATUS_MAP.get(asaas_status, payment.status)
+        if is_deleted:
+            new_status = "cancelled"
+        else:
+            new_status = ASAAS_STATUS_MAP.get(asaas_status, payment.status)
 
         if new_status != payment.status:
             apply_payment_state(payment, new_status, datetime.now(UTC))
@@ -269,6 +279,28 @@ class PaymentService:
                     payment.appointment_id, payment.id
                 )
             self.db.commit()
+
+        # Se a fatura foi excluída/cancelada, verificar se o cliente associado também foi excluído no Asaas
+        if (
+            is_deleted
+            and payment.appointment
+            and payment.appointment.user
+            and payment.appointment.user.asaas_customer_id
+        ):
+            user = payment.appointment.user
+            try:
+                cust_resp = await self.asaas.get_customer(user.asaas_customer_id)
+                if cust_resp.get("deleted") is True:
+                    user.asaas_customer_id = None
+                    self.db.commit()
+            except AsaasNotFoundError:
+                user.asaas_customer_id = None
+                self.db.commit()
+            except Exception:
+                logger.warning(
+                    "Não foi possível verificar status do cliente %s no Asaas",
+                    user.id,
+                )
 
         return new_status
 

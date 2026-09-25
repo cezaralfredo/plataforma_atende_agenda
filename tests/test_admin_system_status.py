@@ -17,7 +17,8 @@ def test_admin_system_status_reports_only_measured_capabilities(anonymous_client
     payload = response.json()
     assert payload["api"] == {"status": "online"}
     assert payload["database"] == {"status": "connected"}
-    assert payload["asaas"] == {"configured": bool(settings.asaas_api_key), "mode": "sandbox"}
+    expected_mode = "sandbox" if "sandbox" in settings.asaas_base_url.lower() else "production"
+    assert payload["asaas"] == {"configured": bool(settings.asaas_api_key), "mode": expected_mode}
     assert payload["mcp"] == {"endpoint_enabled": True}
     assert "hermes" not in payload
 

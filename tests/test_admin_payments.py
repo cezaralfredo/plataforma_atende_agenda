@@ -4,7 +4,11 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.services.asaas_client import AsaasClient, AsaasIntegrationError
+from app.services.asaas_client import (
+    AsaasClient,
+    AsaasIntegrationError,
+    AsaasNotFoundError,
+)
 from tests.seed import seed_appointment, seed_data, seed_payment
 
 
@@ -140,3 +144,75 @@ def test_admin_payment_action_rejects_unknown_action(
     )
 
     assert response.status_code == 422
+
+
+def test_admin_refresh_cancels_when_provider_returns_deleted_true(
+    anonymous_client: TestClient,
+    db_session: Session,
+    monkeypatch,
+):
+    entities = seed_data(db_session)
+    appointment = seed_appointment(db_session, entities)
+    payment = seed_payment(db_session, appointment)
+    payment.status = "pending"
+    appointment.status = "pending"
+    db_session.commit()
+
+    get_payment = AsyncMock(
+        return_value={"id": payment.asaas_payment_id, "deleted": True, "status": "PENDING"}
+    )
+    monkeypatch.setattr(AsaasClient, "get_payment", get_payment)
+
+    response = anonymous_client.post(
+        f"/admin/payments/{payment.id}/action",
+        json={"action": "refresh"},
+        headers=_admin_headers(),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["message"] == "Pagamento sincronizado: cancelado."
+    assert payload["changed"] is True
+    assert payload["payment"]["status"] == "cancelled"
+    db_session.refresh(payment)
+    db_session.refresh(appointment)
+    assert payment.status == "cancelled"
+    assert appointment.status == "cancelled"
+
+
+def test_admin_refresh_cancels_when_provider_returns_404_not_found(
+    anonymous_client: TestClient,
+    db_session: Session,
+    monkeypatch,
+):
+    entities = seed_data(db_session)
+    user = entities["user"]
+    user.asaas_customer_id = "cus_deleted_123"
+    appointment = seed_appointment(db_session, entities)
+    payment = seed_payment(db_session, appointment)
+    payment.status = "pending"
+    appointment.status = "pending"
+    db_session.commit()
+
+    get_payment = AsyncMock(side_effect=AsaasNotFoundError("Asaas returned HTTP 404"))
+    get_customer = AsyncMock(side_effect=AsaasNotFoundError("Asaas returned HTTP 404"))
+    monkeypatch.setattr(AsaasClient, "get_payment", get_payment)
+    monkeypatch.setattr(AsaasClient, "get_customer", get_customer)
+
+    response = anonymous_client.post(
+        f"/admin/payments/{payment.id}/action",
+        json={"action": "refresh"},
+        headers=_admin_headers(),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["message"] == "Pagamento sincronizado: cancelado."
+    assert payload["changed"] is True
+    assert payload["payment"]["status"] == "cancelled"
+    db_session.refresh(payment)
+    db_session.refresh(appointment)
+    db_session.refresh(user)
+    assert payment.status == "cancelled"
+    assert appointment.status == "cancelled"
+    assert user.asaas_customer_id is None
