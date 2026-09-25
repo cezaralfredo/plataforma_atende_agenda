@@ -21,6 +21,8 @@ Ao executar qualquer limpeza no host, as seguintes regras são estritamente obse
 
 * [`scripts/vps_cleanup.sh`](file:///e:/Projetos/plataforma_atende_agenda/scripts/vps_cleanup.sh): Script principal de limpeza e auditoria com suporte a `--dry-run`, `--force` e `--cron`.
 * [`scripts/install_cleanup_cron.sh`](file:///e:/Projetos/plataforma_atende_agenda/scripts/install_cleanup_cron.sh): Script instalador para configurar a execução mensal no Linux (`/etc/cron.d/vps_cleanup`) e rotação de logs no `/etc/docker/daemon.json`.
+* [`scripts/reset_vps_database.sql`](file:///e:/Projetos/plataforma_atende_agenda/scripts/reset_vps_database.sql): Script de wipe permanente de clientes e agendamentos de teste para alinhamento com Asaas.
+* [`scripts/maintenance_cleanup.sql`](file:///e:/Projetos/plataforma_atende_agenda/scripts/maintenance_cleanup.sql): Script SQL de manutenção periódica (purga de outbox entregue, webhooks antigos e cancelamentos a cada 30 dias).
 
 ---
 

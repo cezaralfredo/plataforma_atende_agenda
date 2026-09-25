@@ -40,6 +40,9 @@ services:
       ASAAS_API_KEY: "${ASAAS_API_KEY:?Defina ASAAS_API_KEY no Portainer}"
       ASAAS_BASE_URL: "${ASAAS_BASE_URL:-https://api.asaas.com/v3}"
       ASAAS_WEBHOOK_TOKEN: "${ASAAS_WEBHOOK_TOKEN:?Defina ASAAS_WEBHOOK_TOKEN no Portainer}"
+      OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
+      TRIAGE_ENABLED: "${TRIAGE_ENABLED:-true}"
+      TRIAGE_MODEL: "${TRIAGE_MODEL:-typesafe/jev-1.13}"
     expose:
       - "8000"
     networks:
