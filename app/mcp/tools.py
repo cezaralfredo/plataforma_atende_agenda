@@ -187,7 +187,7 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "meus_agendamentos",
-        "description": "Lista todos os agendamentos de um cliente por ID, número de telefone/WhatsApp, nome ou CPF/CNPJ",
+        "description": "Lista os agendamentos de um cliente por ID, número de telefone/WhatsApp, nome ou CPF/CNPJ (oculta automaticamente reservas canceladas sem pagamento)",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -195,6 +195,7 @@ TOOL_DEFINITIONS = [
                 "phone": {"type": "string", "description": "Número do telefone/WhatsApp do cliente (opcional)"},
                 "name": {"type": "string", "description": "Nome completo ou parcial do cliente (opcional)"},
                 "cpf_cnpj": {"type": "string", "description": "CPF ou CNPJ do cliente (opcional)"},
+                "include_unpaid_cancelled": {"type": "boolean", "description": "Se verdadeiro, inclui reservas canceladas sem pagamento (padrão: false)"},
             },
         },
     },
@@ -619,6 +620,7 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
                     ]
                 }
 
+            include_unpaid_cancelled = bool(arguments.get("include_unpaid_cancelled", False))
             appointments = (
                 db.query(Appointment)
                 .options(
@@ -630,11 +632,23 @@ async def handle_tool_call(name: str, arguments: dict, db: Session) -> dict:
                 .order_by(Appointment.start_time.desc())
                 .all()
             )
-            if not appointments:
+
+            # Ocultar do histórico reservas canceladas sem pagamento recebido/confirmado
+            visible_appointments = []
+            for a in appointments:
+                has_paid_payment = any(
+                    p.status in {"received", "confirmed", "refunded"}
+                    for p in (a.payments or [])
+                )
+                if a.status == "cancelled" and not has_paid_payment and not include_unpaid_cancelled:
+                    continue
+                visible_appointments.append(a)
+
+            if not visible_appointments:
                 return {"content": [{"type": "text", "text": "Nenhum agendamento encontrado."}]}
 
             lines = ["Seus agendamentos:"]
-            for a in appointments:
+            for a in visible_appointments:
                 serv_name = a.service.name if a.service else "Serviço"
                 prof_name = a.professional.name if a.professional else "Profissional"
                 data_hora = a.start_time.strftime("%d/%m/%Y às %H:%M")

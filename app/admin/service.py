@@ -1,4 +1,6 @@
+import csv
 from datetime import date, datetime, timedelta
+import io
 
 from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -9,11 +11,14 @@ from app.config import Settings
 from app.models.admin_user import AdminUser
 from app.models.appointment import Appointment
 from app.models.availability import Availability
+from app.models.notification_delivery import NotificationDelivery
+from app.models.notification_log import NotificationLog
 from app.models.payment import Payment
 from app.models.professional import Professional
 from app.models.professional_service import ProfessionalService
 from app.models.service import Service
 from app.models.user import User
+from app.models.webhook_event import WebhookEvent
 from app.schemas.appointment import AppointmentCreate, AppointmentUpdate
 from app.schemas.user import UserCreate
 from app.services.appointment_service import AppointmentService
@@ -315,6 +320,7 @@ class AdminService:
         professional_id: int | None = None,
         status: str | None = None,
         search: str | None = None,
+        hide_unpaid_cancelled: bool = False,
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list[dict], int]:
@@ -338,6 +344,14 @@ class AdminService:
         ).outerjoin(Service, Appointment.service_id == Service.id).outerjoin(
             Payment, Payment.id == latest_payment_id
         )
+
+        if hide_unpaid_cancelled:
+            query = query.filter(
+                or_(
+                    Appointment.status != "cancelled",
+                    Payment.status.in_(["received", "confirmed", "refunded"]),
+                )
+            )
 
         if date_from:
             query = query.filter(func.date(Appointment.start_time) >= date_from)
@@ -1067,3 +1081,255 @@ class AdminService:
         except Exception:
             self.db.rollback()
             return False
+
+    # ------------------------------------------------------------------
+    # Limpeza e Retenção de Dados (Data Retention & Maintenance)
+    # ------------------------------------------------------------------
+    def _get_maintenance_target_ids(
+        self, cutoff_date: datetime, unpaid_cancelled_only: bool = False
+    ) -> list[int]:
+        """Retorna os IDs de agendamento que se enquadram nos critérios de corte."""
+        base_query = self.db.query(Appointment.id).filter(
+            Appointment.end_time < cutoff_date
+        )
+        if unpaid_cancelled_only:
+            paid_subquery = (
+                select(Payment.appointment_id)
+                .where(
+                    and_(
+                        Payment.appointment_id.isnot(None),
+                        Payment.status.in_(["received", "confirmed", "refunded"]),
+                    )
+                )
+                .scalar_subquery()
+            )
+            base_query = base_query.filter(
+                Appointment.status.in_(["cancelled", "pending"]),
+                Appointment.id.notin_(paid_subquery),
+            )
+        return [row[0] for row in base_query.all()]
+
+    def preview_maintenance(
+        self, cutoff_date: datetime, unpaid_cancelled_only: bool = False
+    ) -> dict:
+        target_ids = self._get_maintenance_target_ids(cutoff_date, unpaid_cancelled_only)
+        total_appointments = len(target_ids)
+
+        if total_appointments == 0:
+            return {
+                "cutoff_date": cutoff_date.isoformat(),
+                "unpaid_cancelled_only": unpaid_cancelled_only,
+                "appointments_count": 0,
+                "completed_count": 0,
+                "cancelled_unpaid_count": 0,
+                "payments_count": 0,
+                "notifications_count": 0,
+                "estimated_kb_freed": 0.0,
+            }
+
+        completed_count = (
+            self.db.query(func.count(Appointment.id))
+            .filter(Appointment.id.in_(target_ids), Appointment.status.in_(["completed", "confirmed"]))
+            .scalar()
+            or 0
+        )
+        cancelled_unpaid_count = total_appointments - completed_count
+
+        payments_count = (
+            self.db.query(func.count(Payment.id))
+            .filter(Payment.appointment_id.in_(target_ids))
+            .scalar()
+            or 0
+        )
+
+        notif_deliveries_count = (
+            self.db.query(func.count(NotificationDelivery.id))
+            .filter(NotificationDelivery.appointment_id.in_(target_ids))
+            .scalar()
+            or 0
+        )
+
+        notif_logs_count = (
+            self.db.query(func.count(NotificationLog.id))
+            .filter(NotificationLog.appointment_id.in_(target_ids))
+            .scalar()
+            or 0
+        )
+
+        total_notifs = notif_deliveries_count + notif_logs_count
+        estimated_kb = (total_appointments * 1.5) + (payments_count * 0.8) + (total_notifs * 0.5)
+
+        return {
+            "cutoff_date": cutoff_date.isoformat(),
+            "unpaid_cancelled_only": unpaid_cancelled_only,
+            "appointments_count": total_appointments,
+            "completed_count": completed_count,
+            "cancelled_unpaid_count": cancelled_unpaid_count,
+            "payments_count": payments_count,
+            "notifications_count": total_notifs,
+            "estimated_kb_freed": round(estimated_kb, 1),
+        }
+
+    def export_maintenance_csv(
+        self, cutoff_date: datetime, unpaid_cancelled_only: bool = False
+    ) -> str:
+        target_ids = self._get_maintenance_target_ids(cutoff_date, unpaid_cancelled_only)
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow([
+            "ID Agendamento",
+            "Data Início",
+            "Data Fim",
+            "Status",
+            "Cliente Nome",
+            "Cliente Telefone",
+            "Cliente Email",
+            "Profissional",
+            "Serviço",
+            "Valor (R$)",
+            "ID Pagamento",
+            "Status Pagamento",
+            "ID Asaas",
+            "Data Pagamento",
+            "Observações",
+        ])
+
+        if not target_ids:
+            return output.getvalue()
+
+        latest_payment_id = (
+            select(func.max(Payment.id))
+            .where(Payment.appointment_id == Appointment.id)
+            .correlate(Appointment)
+            .scalar_subquery()
+        )
+        query = (
+            self.db.query(
+                Appointment,
+                User.name.label("client_name"),
+                User.phone.label("client_phone"),
+                User.email.label("client_email"),
+                Professional.name.label("professional_name"),
+                Service.name.label("service_name"),
+                Payment.id.label("payment_id"),
+                Payment.status.label("payment_status"),
+                Payment.asaas_payment_id.label("asaas_id"),
+                Payment.amount_cents.label("payment_amount_cents"),
+                Payment.received_at.label("payment_received_at"),
+            )
+            .outerjoin(User, Appointment.user_id == User.id)
+            .outerjoin(Professional, Appointment.professional_id == Professional.id)
+            .outerjoin(Service, Appointment.service_id == Service.id)
+            .outerjoin(Payment, Payment.id == latest_payment_id)
+            .filter(Appointment.id.in_(target_ids))
+            .order_by(Appointment.start_time.asc())
+        )
+
+        for row in query.all():
+            apt = row.Appointment
+            price_reais = ""
+            amount = row.payment_amount_cents or apt.service_price_cents
+            if amount is not None:
+                price_reais = f"{(amount / 100):.2f}".replace(".", ",")
+
+            writer.writerow([
+                apt.id,
+                apt.start_time.strftime("%d/%m/%Y %H:%M") if apt.start_time else "",
+                apt.end_time.strftime("%d/%m/%Y %H:%M") if apt.end_time else "",
+                apt.status,
+                row.client_name or "",
+                row.client_phone or "",
+                row.client_email or "",
+                row.professional_name or "",
+                row.service_name or "",
+                price_reais,
+                row.payment_id or "",
+                row.payment_status or "",
+                row.asaas_id or "",
+                row.payment_received_at.strftime("%d/%m/%Y %H:%M") if row.payment_received_at else "",
+                (apt.notes or "").replace("\n", " "),
+            ])
+
+        return output.getvalue()
+
+    def execute_maintenance_purge(
+        self, cutoff_date: datetime, unpaid_cancelled_only: bool = False, run_vacuum: bool = True
+    ) -> dict:
+        target_ids = self._get_maintenance_target_ids(cutoff_date, unpaid_cancelled_only)
+        if not target_ids:
+            return {
+                "status": "success",
+                "deleted_appointments": 0,
+                "deleted_payments": 0,
+                "deleted_notifications": 0,
+                "deleted_webhooks": 0,
+                "vacuum_executed": False,
+                "message": "Nenhum agendamento encontrado para o período especificado.",
+            }
+
+        try:
+            # 1. Purgar notification_deliveries vinculadas
+            del_deliveries = (
+                self.db.query(NotificationDelivery)
+                .filter(NotificationDelivery.appointment_id.in_(target_ids))
+                .delete(synchronize_session=False)
+            )
+
+            # 2. Purgar notification_log
+            del_logs = (
+                self.db.query(NotificationLog)
+                .filter(NotificationLog.appointment_id.in_(target_ids))
+                .delete(synchronize_session=False)
+            )
+
+            # 3. Purgar payments vinculados
+            del_payments = (
+                self.db.query(Payment)
+                .filter(Payment.appointment_id.in_(target_ids))
+                .delete(synchronize_session=False)
+            )
+
+            # 4. Purgar appointments
+            del_appointments = (
+                self.db.query(Appointment)
+                .filter(Appointment.id.in_(target_ids))
+                .delete(synchronize_session=False)
+            )
+
+            # 5. Purgar webhooks antigos
+            del_webhooks = (
+                self.db.query(WebhookEvent)
+                .filter(WebhookEvent.received_at < cutoff_date)
+                .delete(synchronize_session=False)
+            )
+
+            self.db.commit()
+        except Exception as e:
+            self.db.rollback()
+            raise RuntimeError(f"Erro durante a limpeza de dados: {str(e)}") from e
+
+        vacuum_executed = False
+        if run_vacuum:
+            try:
+                dialect = self.db.bind.dialect.name if self.db.bind else ""
+                if dialect == "postgresql":
+                    with self.db.bind.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+                        conn.execute(text("VACUUM ANALYZE"))
+                    vacuum_executed = True
+                elif dialect == "sqlite":
+                    self.db.execute(text("VACUUM"))
+                    self.db.commit()
+                    vacuum_executed = True
+            except Exception:
+                vacuum_executed = False
+
+        total_notifs = del_deliveries + del_logs
+        return {
+            "status": "success",
+            "deleted_appointments": del_appointments,
+            "deleted_payments": del_payments,
+            "deleted_notifications": total_notifs,
+            "deleted_webhooks": del_webhooks,
+            "vacuum_executed": vacuum_executed,
+            "message": f"Limpeza concluída com sucesso! {del_appointments} agendamentos, {del_payments} pagamentos e {total_notifs} registros de notificação foram expurgados.",
+        }

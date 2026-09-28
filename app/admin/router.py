@@ -1,12 +1,12 @@
 import hmac
 import secrets
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Literal
 from urllib.parse import parse_qs
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -21,6 +21,9 @@ from app.admin.schemas import (
     AdminClientPage,
     AdminClientSummary,
     AdminClientUpdate,
+    AdminMaintenancePreview,
+    AdminMaintenancePurgeRequest,
+    AdminMaintenancePurgeResult,
     AdminProfessionalOfferingUpsert,
     AdminServiceCatalogCreate,
     AdminServiceCatalogUpdate,
@@ -197,6 +200,7 @@ async def appointments_page(
     professional_id: int | None = None,
     status: str | None = None,
     search: str | None = None,
+    hide_unpaid_cancelled: bool = False,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
@@ -208,6 +212,7 @@ async def appointments_page(
         professional_id=professional_id,
         status=status,
         search=search,
+        hide_unpaid_cancelled=hide_unpaid_cancelled,
         page=page,
         page_size=page_size,
     )
@@ -246,11 +251,12 @@ async def appointments_page(
         "page_size": page_size,
         "total_pages": total_pages,
         "filters": {
-            "date_from": date_from,
-            "date_to": date_to,
-            "professional_id": professional_id,
-            "status": status,
-            "search": search,
+            "date_from": date_from.isoformat() if date_from else "",
+            "date_to": date_to.isoformat() if date_to else "",
+            "professional_id": professional_id or "",
+            "status": status or "",
+            "search": search or "",
+            "hide_unpaid_cancelled": hide_unpaid_cancelled,
         },
         "appointment_options": appointment_options,
     })
@@ -762,6 +768,7 @@ async def api_appointments(
     professional_id: int | None = None,
     status: str | None = None,
     search: str | None = None,
+    hide_unpaid_cancelled: bool = False,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
@@ -773,6 +780,7 @@ async def api_appointments(
         professional_id=professional_id,
         status=status,
         search=search,
+        hide_unpaid_cancelled=hide_unpaid_cancelled,
         page=page,
         page_size=page_size,
     )
@@ -825,3 +833,101 @@ async def api_professionals(
     service = AdminService(db)
     professionals = service.list_professionals()
     return professionals[:limit] if limit is not None else professionals
+
+
+# ----------------------------------------------------------------------
+# Manutenção & Retenção de Dados do Banco
+# ----------------------------------------------------------------------
+@router.get("/maintenance", response_class=HTMLResponse, dependencies=[Depends(require_admin)])
+async def maintenance_page(request: Request):
+    six_months_ago = (datetime.now(UTC) - timedelta(days=180)).date().isoformat()
+    return templates.TemplateResponse("maintenance.html", {
+        "request": request,
+        "default_cutoff_date": six_months_ago,
+    })
+
+
+@router.get(
+    "/api/maintenance/preview",
+    response_model=AdminMaintenancePreview,
+    dependencies=[Depends(require_admin)],
+)
+async def api_maintenance_preview(
+    cutoff_date: str | None = None,
+    months: int | None = None,
+    unpaid_cancelled_only: bool = False,
+    db: Session = Depends(get_db),
+):
+    if months:
+        target_dt = datetime.now(UTC) - timedelta(days=months * 30)
+    elif cutoff_date:
+        try:
+            parsed_date = date.fromisoformat(cutoff_date)
+            target_dt = datetime.combine(parsed_date, datetime.min.time(), tzinfo=UTC)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Data de corte inválida (formato esperado: AAAA-MM-DD)")
+    else:
+        target_dt = datetime.now(UTC) - timedelta(days=180)
+
+    service = AdminService(db)
+    return service.preview_maintenance(target_dt, unpaid_cancelled_only=unpaid_cancelled_only)
+
+
+@router.get("/api/maintenance/export-csv", dependencies=[Depends(require_admin)])
+async def api_maintenance_export_csv(
+    cutoff_date: str | None = None,
+    months: int | None = None,
+    unpaid_cancelled_only: bool = False,
+    db: Session = Depends(get_db),
+):
+    if months:
+        target_dt = datetime.now(UTC) - timedelta(days=months * 30)
+    elif cutoff_date:
+        try:
+            parsed_date = date.fromisoformat(cutoff_date)
+            target_dt = datetime.combine(parsed_date, datetime.min.time(), tzinfo=UTC)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Data de corte inválida (formato esperado: AAAA-MM-DD)")
+    else:
+        target_dt = datetime.now(UTC) - timedelta(days=180)
+
+    service = AdminService(db)
+    csv_content = service.export_maintenance_csv(target_dt, unpaid_cancelled_only=unpaid_cancelled_only)
+    filename = f"backup_agendamentos_{target_dt.strftime('%Y%m%d')}.csv"
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Content-Type": "text/csv; charset=utf-8",
+        },
+    )
+
+
+@router.post(
+    "/api/maintenance/purge",
+    response_model=AdminMaintenancePurgeResult,
+    dependencies=[Depends(require_admin_mutation)],
+)
+async def api_maintenance_purge(
+    payload: AdminMaintenancePurgeRequest,
+    db: Session = Depends(get_db),
+):
+    if not payload.confirmed:
+        raise HTTPException(
+            status_code=400,
+            detail="Confirmação explícita necessária para executar a exclusão definitiva.",
+        )
+
+    try:
+        parsed_date = date.fromisoformat(payload.cutoff_date)
+        target_dt = datetime.combine(parsed_date, datetime.min.time(), tzinfo=UTC)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Data de corte inválida (formato esperado: AAAA-MM-DD)")
+
+    service = AdminService(db)
+    return service.execute_maintenance_purge(
+        target_dt,
+        unpaid_cancelled_only=payload.unpaid_cancelled_only,
+        run_vacuum=payload.run_vacuum,
+    )

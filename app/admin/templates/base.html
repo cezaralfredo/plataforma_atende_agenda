@@ -73,6 +73,11 @@
                         <i class="fas fa-concierge-bell mr-3 w-5 text-center"></i>
                         Serviços
                     </a>
+                    <a href="/admin/maintenance"
+                       class="flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors {% if request.url.path.startswith('/admin/maintenance') %}bg-blue-50 text-blue-700{% else %}text-slate-600 hover:bg-slate-100 hover:text-slate-900{% endif %}">
+                        <i class="fas fa-database mr-3 w-5 text-center"></i>
+                        Limpeza & Retenção
+                    </a>
                 </nav>
                 <div class="border-t border-slate-200 p-4">
                     {% if request.state.admin_context.method == 'session' %}

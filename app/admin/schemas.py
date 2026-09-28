@@ -231,3 +231,31 @@ class PaymentActionResult(BaseModel):
     message: str
     changed: bool
     payment: AdminPayment
+
+
+class AdminMaintenancePreview(BaseModel):
+    cutoff_date: str
+    unpaid_cancelled_only: bool
+    appointments_count: int
+    completed_count: int
+    cancelled_unpaid_count: int
+    payments_count: int
+    notifications_count: int
+    estimated_kb_freed: float
+
+
+class AdminMaintenancePurgeRequest(BaseModel):
+    cutoff_date: str
+    unpaid_cancelled_only: bool = False
+    run_vacuum: bool = True
+    confirmed: bool = True
+
+
+class AdminMaintenancePurgeResult(BaseModel):
+    status: str
+    deleted_appointments: int
+    deleted_payments: int
+    deleted_notifications: int
+    deleted_webhooks: int
+    vacuum_executed: bool
+    message: str

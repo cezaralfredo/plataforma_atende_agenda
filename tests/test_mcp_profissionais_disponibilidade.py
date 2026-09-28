@@ -100,6 +100,8 @@ class TestMCPProfissionaisDisponibilidade:
         serv = entities["service"]
 
         from datetime import datetime
+        from app.models.payment import Payment
+
         appt = Appointment(
             user_id=user.id,
             professional_id=prof.id,
@@ -109,6 +111,14 @@ class TestMCPProfissionaisDisponibilidade:
             status="cancelled",
         )
         db_session.add(appt)
+        db_session.flush()
+
+        payment = Payment(
+            appointment_id=appt.id,
+            amount_cents=5000,
+            status="confirmed",
+        )
+        db_session.add(payment)
         db_session.commit()
 
         resp = _mcp_call(client, "meus_agendamentos", {"phone": user.phone})
@@ -117,3 +127,41 @@ class TestMCPProfissionaisDisponibilidade:
         assert f"Serviço #{serv.id}" in text
         assert f"Profissional #{prof.id}" in text
         assert "Cancelado" in text
+        assert "Pagamento: Confirmado" in text
+
+    def test_meus_agendamentos_oculta_cancelados_nao_pagos(
+        self, client: TestClient, db_session: Session
+    ):
+        entities = seed_data(db_session)
+        user = entities["user"]
+        prof = entities["professional"]
+        serv = entities["service"]
+
+        from datetime import datetime
+        appt = Appointment(
+            user_id=user.id,
+            professional_id=prof.id,
+            service_id=serv.id,
+            start_time=datetime(2026, 9, 23, 15, 0),
+            end_time=datetime(2026, 9, 23, 15, 45),
+            status="cancelled",
+        )
+        db_session.add(appt)
+        db_session.commit()
+
+        # Por padrão, reserva cancelada sem pagamento NÃO deve aparecer no histórico
+        resp = _mcp_call(client, "meus_agendamentos", {"phone": user.phone})
+        assert resp.status_code == 200
+        text = resp.json()["result"]["content"][0]["text"]
+        assert "Nenhum agendamento encontrado" in text
+
+        # Se explicitamente solicitado com include_unpaid_cancelled=True, aparece
+        resp_incl = _mcp_call(
+            client,
+            "meus_agendamentos",
+            {"phone": user.phone, "include_unpaid_cancelled": True},
+        )
+        assert resp_incl.status_code == 200
+        text_incl = resp_incl.json()["result"]["content"][0]["text"]
+        assert f"Serviço #{serv.id}" in text_incl
+        assert "Cancelado" in text_incl
