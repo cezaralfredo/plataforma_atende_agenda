@@ -1,6 +1,6 @@
 import csv
-from datetime import date, datetime, timedelta
 import io
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -1306,7 +1306,7 @@ class AdminService:
             self.db.commit()
         except Exception as e:
             self.db.rollback()
-            raise RuntimeError(f"Erro durante a limpeza de dados: {str(e)}") from e
+            raise RuntimeError(f"Erro durante a limpeza de dados: {e!s}") from e
 
         vacuum_executed = False
         if run_vacuum:

@@ -100,6 +100,7 @@ class TestMCPProfissionaisDisponibilidade:
         serv = entities["service"]
 
         from datetime import datetime
+
         from app.models.payment import Payment
 
         appt = Appointment(

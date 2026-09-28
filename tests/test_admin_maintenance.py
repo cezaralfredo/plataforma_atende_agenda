@@ -1,18 +1,17 @@
-from datetime import UTC, datetime, timedelta
-import io
 import csv
+import io
+from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.admin.service import AdminService
 from app.config import settings
 from app.models.appointment import Appointment
 from app.models.notification_delivery import NotificationDelivery
 from app.models.notification_log import NotificationLog
 from app.models.payment import Payment
 from app.models.webhook_event import WebhookEvent
-from tests.seed import seed_data, seed_appointment, seed_payment
+from tests.seed import seed_data
 
 
 def _admin_headers() -> dict[str, str]:
