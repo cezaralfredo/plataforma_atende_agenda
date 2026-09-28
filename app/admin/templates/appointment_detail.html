@@ -7,36 +7,40 @@
 {% block content %}
 <div x-data="appointmentDetail()" class="space-y-6">
     <div x-show="notice" x-cloak role="status"
-         class="rounded-lg border border-green-200 bg-green-50 p-4 text-green-800" x-text="notice"></div>
+         class="rounded-2xl border border-emerald-200 bg-emerald-50/90 p-4 text-emerald-900 text-sm font-medium shadow-sm flex items-center gap-2" x-text="notice"></div>
+
     <!-- Header -->
-    <div class="bg-white rounded-lg shadow-sm border border-gray-100 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-            <h3 class="text-lg font-semibold text-gray-900">Agendamento #{{ detail.appointment.id }}</h3>
-            <p class="text-sm text-gray-500">Criado em <span x-text="formatDateTime(appointment.created_at)"></span></p>
+            <div class="flex items-center gap-3">
+                <h3 class="text-lg font-semibold tracking-tight text-slate-900">Agendamento #{{ detail.appointment.id }}</h3>
+                <span class="status-badge" :class="'status-' + appointment.status" x-text="formatStatus(appointment.status)"></span>
+            </div>
+            <p class="text-xs text-slate-500 mt-1">Criado em <span class="font-medium text-slate-700" x-text="formatDateTime(appointment.created_at)"></span></p>
         </div>
         <div class="flex items-center space-x-3">
             <a href="/admin/appointments"
-               class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm">
-                <i class="fas fa-arrow-left mr-2"></i> Voltar
+               class="px-4 py-2.5 bg-white hover:bg-slate-50 border border-slate-200/90 hover:border-slate-300 text-slate-700 hover:text-slate-900 rounded-xl transition-all text-sm font-medium shadow-xs inline-flex items-center">
+                <i class="fas fa-arrow-left mr-2 text-xs text-slate-400"></i> Voltar aos agendamentos
             </a>
         </div>
     </div>
 
-    <!-- Status Badge -->
-    <div class="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
-        <div class="flex flex-wrap items-center gap-4">
-            <div>
-                <span class="text-sm text-gray-500">Status:</span>
-                <span class="status-badge ml-2" :class="'status-' + appointment.status" x-text="formatStatus(appointment.status)"></span>
+    <!-- Status Overview Bar -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-5">
+        <div class="flex flex-wrap items-center gap-6">
+            <div class="flex items-center gap-2">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Status Operacional:</span>
+                <span class="status-badge" :class="'status-' + appointment.status" x-text="formatStatus(appointment.status)"></span>
             </div>
-            <div>
-                <span class="text-sm text-gray-500">Pagamento:</span>
-                <span class="status-badge ml-2" :class="'payment-' + (payment?.status || 'pending')" x-text="payment ? formatPaymentStatus(payment.status) : 'Sem pagamento'"></span>
+            <div class="flex items-center gap-2">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Status Financeiro:</span>
+                <span class="status-badge" :class="'payment-' + (payment?.status || 'pending')" x-text="payment ? formatPaymentStatus(payment.status) : 'Sem pagamento'"></span>
             </div>
             <template x-if="appointment.expires_at">
-                <div>
-                    <span class="text-sm text-gray-500">Expira:</span>
-                    <span class="ml-2 text-sm font-medium text-red-600" x-text="formatDateTime(appointment.expires_at)"></span>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Expira em:</span>
+                    <span class="text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-200/80 px-2.5 py-0.5 rounded-full" x-text="formatDateTime(appointment.expires_at)"></span>
                 </div>
             </template>
         </div>
@@ -46,56 +50,56 @@
         <!-- Main Info -->
         <div class="lg:col-span-2 space-y-6">
             <!-- Appointment Details -->
-            <div class="bg-white rounded-lg shadow-sm border border-gray-100">
-                <div class="p-4 border-b border-gray-100 bg-gray-50">
-                    <h4 class="font-semibold text-gray-900">Detalhes do Agendamento</h4>
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+                <div class="p-4 border-b border-slate-100 bg-slate-50/70">
+                    <h4 class="font-semibold text-slate-900 text-sm">Detalhes do Agendamento</h4>
                 </div>
-                <div class="p-4 space-y-4">
+                <div class="p-5 space-y-4">
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm text-gray-500">Data/Hora Início</label>
-                            <p class="font-medium text-gray-900" x-text="formatDateTime(appointment.start_time)"></p>
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Data/Hora Início</label>
+                            <p class="font-semibold text-slate-900 text-sm" x-text="formatDateTime(appointment.start_time)"></p>
                         </div>
                         <div>
-                            <label class="block text-sm text-gray-500">Data/Hora Fim</label>
-                            <p class="font-medium text-gray-900" x-text="formatDateTime(appointment.end_time)"></p>
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Data/Hora Fim</label>
+                            <p class="font-semibold text-slate-900 text-sm" x-text="formatDateTime(appointment.end_time)"></p>
                         </div>
                         <div>
-                            <label class="block text-sm text-gray-500">Duração</label>
-                            <p class="font-medium text-gray-900" x-text="service.duration_minutes + ' minutos'"></p>
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Duração Estimada</label>
+                            <p class="font-medium text-slate-800 text-sm" x-text="service.duration_minutes + ' minutos'"></p>
                         </div>
                         <div>
-                            <label class="block text-sm text-gray-500">Valor</label>
-                            <p class="font-medium text-gray-900" x-text="formatCurrency(service.price_cents)"></p>
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Valor do Serviço</label>
+                            <p class="font-semibold text-emerald-700 text-sm" x-text="formatCurrency(service.price_cents)"></p>
                         </div>
                     </div>
                     <template x-if="appointment.notes">
-                        <div class="border-t border-gray-100 pt-4">
-                            <label class="block text-sm text-gray-500">Observações</label>
-                            <p class="text-gray-900 whitespace-pre-wrap" x-text="appointment.notes"></p>
+                        <div class="border-t border-slate-100 pt-4">
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Observações do Atendimento</label>
+                            <p class="text-slate-800 text-sm whitespace-pre-wrap bg-slate-50 p-3 rounded-xl border border-slate-200/80" x-text="appointment.notes"></p>
                         </div>
                     </template>
                 </div>
             </div>
 
             <!-- Client Info -->
-            <div class="bg-white rounded-lg shadow-sm border border-gray-100">
-                <div class="p-4 border-b border-gray-100 bg-gray-50">
-                    <h4 class="font-semibold text-gray-900">Cliente</h4>
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+                <div class="p-4 border-b border-slate-100 bg-slate-50/70">
+                    <h4 class="font-semibold text-slate-900 text-sm">Dados do Cliente</h4>
                 </div>
-                <div class="p-4 space-y-3">
+                <div class="p-5 space-y-3">
                     <div class="flex items-center">
-                        <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                            <span class="text-lg font-medium text-blue-600" x-text="client.name.charAt(0)"></span>
+                        <div class="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 border border-blue-100/90 flex items-center justify-center font-semibold text-base">
+                            <span x-text="client.name.charAt(0)"></span>
                         </div>
-                        <div class="ml-3">
-                            <p class="font-medium text-gray-900" x-text="client.name"></p>
-                            <p class="text-sm text-gray-500" x-text="client.phone"></p>
+                        <div class="ml-3.5">
+                            <p class="font-semibold text-slate-900 text-sm" x-text="client.name"></p>
+                            <p class="text-xs text-slate-500 mt-0.5" x-text="client.phone"></p>
                         </div>
                     </div>
                     <template x-if="client.email">
-                        <div class="text-sm text-gray-600">
-                            <i class="fas fa-envelope mr-2"></i>
+                        <div class="text-xs text-slate-600 flex items-center pt-2 border-t border-slate-100">
+                            <i class="fas fa-envelope mr-2 text-slate-400"></i>
                             <span x-text="client.email"></span>
                         </div>
                     </template>
@@ -103,46 +107,41 @@
             </div>
 
             <!-- Professional Info -->
-            <div class="bg-white rounded-lg shadow-sm border border-gray-100">
-                <div class="p-4 border-b border-gray-100 bg-gray-50">
-                    <h4 class="font-semibold text-gray-900">Profissional</h4>
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+                <div class="p-4 border-b border-slate-100 bg-slate-50/70">
+                    <h4 class="font-semibold text-slate-900 text-sm">Profissional Responsável</h4>
                 </div>
-                <div class="p-4 space-y-3">
+                <div class="p-5 space-y-3">
                     <div class="flex items-center">
-                        <div class="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                            <span class="text-lg font-medium text-green-600" x-text="professional.name.charAt(0)"></span>
+                        <div class="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100/90 flex items-center justify-center font-semibold text-base">
+                            <span x-text="professional.name.charAt(0)"></span>
                         </div>
-                        <div class="ml-3">
-                            <p class="font-medium text-gray-900" x-text="professional.name"></p>
+                        <div class="ml-3.5">
+                            <p class="font-semibold text-slate-900 text-sm" x-text="professional.name"></p>
+                            <p class="text-xs text-slate-500 mt-0.5" x-text="professional.phone || 'Sem telefone cadastrado'"></p>
                         </div>
                     </div>
-                    <template x-if="professional.phone">
-                        <div class="text-sm text-gray-600">
-                            <i class="fas fa-phone mr-2"></i>
-                            <span x-text="professional.phone"></span>
-                        </div>
-                    </template>
                 </div>
             </div>
 
             <!-- Service Info -->
-            <div class="bg-white rounded-lg shadow-sm border border-gray-100">
-                <div class="p-4 border-b border-gray-100 bg-gray-50">
-                    <h4 class="font-semibold text-gray-900">Serviço</h4>
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+                <div class="p-4 border-b border-slate-100 bg-slate-50/70">
+                    <h4 class="font-semibold text-slate-900 text-sm">Serviço Contratado</h4>
                 </div>
-                <div class="p-4 space-y-3">
-                    <p class="font-medium text-gray-900" x-text="service.name"></p>
+                <div class="p-5 space-y-3">
+                    <p class="font-semibold text-slate-900 text-sm" x-text="service.name"></p>
                     <template x-if="service.description">
-                        <p class="text-sm text-gray-600" x-text="service.description"></p>
+                        <p class="text-xs text-slate-600" x-text="service.description"></p>
                     </template>
-                    <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div class="grid grid-cols-2 gap-4 text-xs pt-2 border-t border-slate-100">
                         <div>
-                            <span class="text-gray-500">Categoria:</span>
-                            <span class="font-medium ml-2" x-text="service.category || 'Não definida'"></span>
+                            <span class="text-slate-500">Categoria:</span>
+                            <span class="font-medium text-slate-800 ml-1" x-text="service.category || 'Não definida'"></span>
                         </div>
                         <div>
-                            <span class="text-gray-500">Duração:</span>
-                            <span class="font-medium ml-2" x-text="service.duration_minutes + ' min'"></span>
+                            <span class="text-slate-500">Duração prevista:</span>
+                            <span class="font-medium text-slate-800 ml-1" x-text="service.duration_minutes + ' min'"></span>
                         </div>
                     </div>
                 </div>
@@ -152,54 +151,54 @@
         <!-- Sidebar: Payment & Actions -->
         <div class="lg:col-span-1 space-y-6">
             <!-- Payment Card -->
-            <div class="bg-white rounded-lg shadow-sm border border-gray-100">
-                <div class="p-4 border-b border-gray-100 bg-gray-50">
-                    <h4 class="font-semibold text-gray-900">Pagamento</h4>
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+                <div class="p-4 border-b border-slate-100 bg-slate-50/70">
+                    <h4 class="font-semibold text-slate-900 text-sm">Cobrança & Pagamento</h4>
                 </div>
-                <div class="p-4 space-y-4">
+                <div class="p-5 space-y-4">
                     <template x-if="payment">
-                        <div class="space-y-3">
+                        <div class="space-y-3.5">
                             <div>
-                                <label class="block text-sm text-gray-500">ID Asaas</label>
-                                <p class="font-mono text-sm text-gray-900" x-text="payment.asaas_payment_id"></p>
+                                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">ID no Asaas</label>
+                                <p class="font-mono text-xs text-slate-700 bg-slate-50 p-2 rounded-lg border border-slate-200/80" x-text="payment.asaas_payment_id"></p>
                             </div>
                             <div>
-                                <label class="block text-sm text-gray-500">Tipo</label>
-                                <p class="font-medium text-gray-900" x-text="formatBillingType(payment.billing_type)"></p>
+                                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Forma de Pagamento</label>
+                                <p class="font-medium text-slate-800 text-sm" x-text="formatBillingType(payment.billing_type)"></p>
                             </div>
                             <div>
-                                <label class="block text-sm text-gray-500">Valor</label>
-                                <p class="text-xl font-bold text-gray-900" x-text="formatCurrency(payment.amount_cents)"></p>
+                                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Valor Cobrado</label>
+                                <p class="text-2xl font-semibold tracking-tight text-slate-900" x-text="formatCurrency(payment.amount_cents)"></p>
                             </div>
                             <div>
-                                <label class="block text-sm text-gray-500">Status</label>
+                                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Status da Cobrança</label>
                                 <span class="status-badge" :class="'payment-' + payment.status" x-text="formatPaymentStatus(payment.status)"></span>
                             </div>
                             <template x-if="payment.received_at">
                                 <div>
-                                    <label class="block text-sm text-gray-500">Recebido em</label>
-                                    <p class="font-medium text-gray-900" x-text="formatDateTime(payment.received_at)"></p>
+                                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Recebido em</label>
+                                    <p class="font-medium text-slate-800 text-xs" x-text="formatDateTime(payment.received_at)"></p>
                                 </div>
                             </template>
                             <template x-if="payment.invoice_url">
-                                <div>
+                                <div class="pt-2">
                                     <a :href="payment.invoice_url" target="_blank"
-                                       class="block w-full text-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                                        <i class="fas fa-file-invoice mr-2"></i> Ver Fatura
+                                       class="w-full text-center px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium text-sm transition-all shadow-sm flex items-center justify-center gap-2">
+                                        <i class="fas fa-file-invoice text-xs"></i> Ver Fatura
                                     </a>
                                 </div>
                             </template>
-                            <div class="border-t border-gray-100 pt-3 space-y-2">
+                            <div class="border-t border-slate-100 pt-3 space-y-2">
                                 <button @click="refreshPayment(payment.id)"
                                         :disabled="syncingPaymentId === payment.id"
-                                        class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-wait">
-                                    <i class="fas fa-sync-alt mr-2"></i>
+                                        class="w-full px-4 py-2.5 border border-slate-200 bg-white hover:bg-slate-50 rounded-xl text-xs font-medium text-slate-700 transition-all disabled:opacity-50 disabled:cursor-wait shadow-xs flex items-center justify-center gap-2">
+                                    <i class="fas fa-sync-alt" :class="{ 'fa-spin': syncingPaymentId === payment.id }"></i>
                                     <span x-text="syncingPaymentId === payment.id ? 'Sincronizando...' : 'Sincronizar com Asaas'"></span>
                                 </button>
                                 <template x-if="payment.status === 'received' || payment.status === 'confirmed'">
                                     <button @click="refundPayment(payment.id)"
-                                            class="w-full px-4 py-2 border border-red-300 text-red-600 rounded-lg text-sm hover:bg-red-50 transition-colors">
-                                        <i class="fas fa-undo mr-2"></i> Estornar
+                                            class="w-full px-4 py-2.5 border border-rose-200 bg-rose-50/70 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-medium transition-all shadow-xs flex items-center justify-center gap-2">
+                                        <i class="fas fa-undo"></i> Estornar Pagamento
                                     </button>
                                 </template>
                             </div>
@@ -207,11 +206,11 @@
                     </template>
                     <template x-if="!payment">
                         <div class="text-center py-8">
-                            <i class="fas fa-exclamation-circle text-4xl text-gray-300 mb-2"></i>
-                            <p class="text-gray-500">Nenhum pagamento vinculado</p>
+                            <i class="fas fa-exclamation-circle text-4xl text-slate-300 mb-2"></i>
+                            <p class="text-sm text-slate-500 font-medium">Nenhum pagamento vinculado</p>
                             <a :href="'/api/docs#/Payments/create_payment_payments__post'"
                                target="_blank"
-                               class="mt-3 inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+                               class="mt-3 inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-medium transition-all shadow-sm">
                                 Criar Cobrança
                             </a>
                         </div>
@@ -220,35 +219,39 @@
             </div>
 
             <!-- Actions Card -->
-            <div class="bg-white rounded-lg shadow-sm border border-gray-100">
-                <div class="p-4 border-b border-gray-100 bg-gray-50">
-                    <h4 class="font-semibold text-gray-900">Ações</h4>
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+                <div class="p-4 border-b border-slate-100 bg-slate-50/70">
+                    <h4 class="font-semibold text-slate-900 text-sm">Ações do Agendamento</h4>
                 </div>
-                <div class="p-4 space-y-3">
+                <div class="p-5 space-y-3">
                     <template x-if="appointment.status === 'pending'">
-                        <button @click="confirmAppointment()"
-                                class="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center">
-                            <i class="fas fa-check mr-2"></i> Confirmar Agendamento
-                        </button>
-                        <button @click="cancelAppointment()"
-                                class="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center">
-                            <i class="fas fa-times mr-2"></i> Cancelar Agendamento
-                        </button>
+                        <div class="space-y-2">
+                            <button @click="confirmAppointment()"
+                                    class="w-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-medium text-sm transition-all shadow-sm flex items-center justify-center gap-2">
+                                <i class="fas fa-check text-xs"></i> Confirmar Agendamento
+                            </button>
+                            <button @click="cancelAppointment()"
+                                    class="w-full px-4 py-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 rounded-xl font-medium text-sm transition-all shadow-xs flex items-center justify-center gap-2">
+                                <i class="fas fa-times text-xs"></i> Cancelar Agendamento
+                            </button>
+                        </div>
                     </template>
                     <template x-if="appointment.status === 'confirmed'">
-                        <button @click="cancelAppointment()"
-                                class="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center">
-                            <i class="fas fa-times mr-2"></i> Cancelar Agendamento
-                        </button>
-                        <button @click="completeAppointment()"
-                                class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center">
-                            <i class="fas fa-check-double mr-2"></i> Marcar Concluído
-                        </button>
+                        <div class="space-y-2">
+                            <button @click="completeAppointment()"
+                                    class="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium text-sm transition-all shadow-sm flex items-center justify-center gap-2">
+                                <i class="fas fa-check-double text-xs"></i> Marcar Concluído
+                            </button>
+                            <button @click="cancelAppointment()"
+                                    class="w-full px-4 py-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 rounded-xl font-medium text-sm transition-all shadow-xs flex items-center justify-center gap-2">
+                                <i class="fas fa-times text-xs"></i> Cancelar Agendamento
+                            </button>
+                        </div>
                     </template>
                     <template x-if="appointment.status === 'cancelled' || appointment.status === 'completed'">
-                        <div class="text-center py-4 text-gray-500">
-                            <i class="fas fa-lock text-xl mb-2"></i>
-                            <p>Agendamento finalizado - ações não disponíveis</p>
+                        <div class="text-center py-6 text-slate-400">
+                            <i class="fas fa-lock text-2xl mb-2 text-slate-300"></i>
+                            <p class="text-xs font-medium">Agendamento finalizado — ações não disponíveis</p>
                         </div>
                     </template>
                 </div>
