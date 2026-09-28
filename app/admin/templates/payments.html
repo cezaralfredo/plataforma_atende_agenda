@@ -15,82 +15,156 @@
     </div>
     <div x-show="notice" x-cloak role="status"
          class="rounded-lg border border-green-200 bg-green-50 p-4 text-green-800" x-text="notice"></div>
+
+    <!-- Summary Cards (Dashboard de Pagamentos) -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Valor Recebido -->
+        <div class="bg-white rounded-xl shadow-sm p-5 border border-emerald-100 flex items-center justify-between">
+            <div>
+                <p class="text-xs font-semibold uppercase tracking-wider text-emerald-600 mb-1">Valor Recebido</p>
+                <p class="text-2xl font-bold text-slate-900" x-text="formatCurrency(summary.received_cents)"></p>
+                <p class="text-xs text-slate-500 mt-1">
+                    <span class="font-medium text-emerald-700" x-text="summary.received_count || 0"></span> recebido(s)/confirmado(s)
+                </p>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <i class="fas fa-check-circle text-xl"></i>
+            </div>
+        </div>
+
+        <!-- Valores Pendentes -->
+        <div class="bg-white rounded-xl shadow-sm p-5 border border-amber-100 flex items-center justify-between">
+            <div>
+                <p class="text-xs font-semibold uppercase tracking-wider text-amber-600 mb-1">Valores Pendentes</p>
+                <p class="text-2xl font-bold text-slate-900" x-text="formatCurrency(summary.pending_cents)"></p>
+                <p class="text-xs text-slate-500 mt-1">
+                    <span class="font-medium text-amber-700" x-text="summary.pending_count || 0"></span> aguardando pagamento
+                </p>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                <i class="fas fa-clock text-xl"></i>
+            </div>
+        </div>
+
+        <!-- Valor Total -->
+        <div class="bg-white rounded-xl shadow-sm p-5 border border-blue-100 flex items-center justify-between">
+            <div>
+                <p class="text-xs font-semibold uppercase tracking-wider text-blue-600 mb-1">Valor Total (Filtro)</p>
+                <p class="text-2xl font-bold text-slate-900" x-text="formatCurrency(summary.total_cents)"></p>
+                <p class="text-xs text-slate-500 mt-1">
+                    Volume financeiro do recorte
+                </p>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                <i class="fas fa-wallet text-xl"></i>
+            </div>
+        </div>
+
+        <!-- Total de Transações -->
+        <div class="bg-white rounded-xl shadow-sm p-5 border border-indigo-100 flex items-center justify-between">
+            <div>
+                <p class="text-xs font-semibold uppercase tracking-wider text-indigo-600 mb-1">Total Transações</p>
+                <p class="text-2xl font-bold text-slate-900" x-text="total"></p>
+                <p class="text-xs text-slate-500 mt-1">
+                    Exibindo <span class="font-medium" x-text="payments.length"></span> nesta página
+                </p>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                <i class="fas fa-receipt text-xl"></i>
+            </div>
+        </div>
+    </div>
+
     <!-- Filters -->
-    <div class="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
-        <form id="filters-form" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Data Início</label>
-                <input type="date" name="date_from" :value="filters.date_from"
-                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <form id="filters-form" @submit.prevent="applyFilters()" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4">
+            <!-- Data Início -->
+            <div class="lg:col-span-2">
+                <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Data Início</label>
+                <input type="date" name="date_from" x-model="filters.date_from"
+                       class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
             </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Data Fim</label>
-                <input type="date" name="date_to" :value="filters.date_to"
-                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+
+            <!-- Data Fim -->
+            <div class="lg:col-span-2">
+                <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Data Fim</label>
+                <input type="date" name="date_to" x-model="filters.date_to"
+                       class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
             </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Profissional</label>
-                <select name="professional_id"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+
+            <!-- Tipo de Data -->
+            <div class="lg:col-span-2">
+                <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Filtrar Data Por</label>
+                <select name="date_type" x-model="filters.date_type"
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    <option value="payment">Data do Pagamento</option>
+                    <option value="appointment">Data do Agendamento</option>
+                </select>
+            </div>
+
+            <!-- Profissional -->
+            <div class="lg:col-span-2">
+                <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Profissional</label>
+                <select name="professional_id" x-model="filters.professional_id"
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                     <option value="">Todos</option>
                     <template x-for="prof in professionals" :key="prof.id">
-                        <option :value="prof.id" :selected="filters.professional_id == prof.id" x-text="prof.name"></option>
+                        <option :value="prof.id" x-text="prof.name"></option>
                     </template>
                 </select>
             </div>
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                <select name="status"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                    <option value="">Todos</option>
-                    <option value="pending" :selected="filters.status == 'pending'">Pendente</option>
-                    <option value="confirmed" :selected="filters.status == 'confirmed'">Confirmado</option>
-                    <option value="received" :selected="filters.status == 'received'">Recebido</option>
-                    <option value="overdue" :selected="filters.status == 'overdue'">Vencido</option>
-                    <option value="refunded" :selected="filters.status == 'refunded'">Estornado</option>
-                    <option value="cancelled" :selected="filters.status == 'cancelled'">Cancelado</option>
+
+            <!-- Status -->
+            <div class="lg:col-span-2">
+                <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Status</label>
+                <select name="status" x-model="filters.status"
+                        class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    <option value="">Todos os status</option>
+                    <option value="received">Recebido</option>
+                    <option value="confirmed">Confirmado</option>
+                    <option value="pending">Pendente</option>
+                    <option value="overdue">Vencido</option>
+                    <option value="refunded">Estornado</option>
+                    <option value="cancelled">Cancelado</option>
                 </select>
             </div>
+
+            <!-- Buscar -->
             <div class="lg:col-span-2">
-                <label class="block text-sm font-medium text-gray-700 mb-1">Buscar</label>
-                <input type="text" name="search" :value="filters.search" placeholder="Cliente, ID Asaas, profissional..."
-                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">Buscar</label>
+                <input type="text" name="search" x-model.trim="filters.search" placeholder="Cliente, telefone, ID, serviço..."
+                       class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
             </div>
-            <div class="lg:col-span-6 flex items-end space-x-4">
-                <button type="submit"
-                        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center">
-                    <i class="fas fa-search mr-2"></i> Filtrar
-                </button>
-                <a href="/admin/payments"
-                   class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center">
-                    <i class="fas fa-times mr-2"></i> Limpar
-                </a>
+
+            <!-- Ações do Filtro -->
+            <div class="lg:col-span-12 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-3 border-t border-slate-100">
+                <div class="text-xs text-slate-500">
+                    <span x-show="hasActiveFilters()" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                        <i class="fas fa-filter text-xs"></i> Filtros aplicados
+                    </span>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <button type="button" @click="resetFilters()"
+                            class="px-4 py-2 bg-slate-100 text-slate-700 font-medium text-sm rounded-lg hover:bg-slate-200 transition-colors flex items-center">
+                        <i class="fas fa-times mr-2 text-slate-400"></i> Limpar
+                    </button>
+                    <button type="submit"
+                            class="px-4 py-2 bg-blue-600 text-white font-medium text-sm rounded-lg hover:bg-blue-700 transition-colors flex items-center shadow-sm">
+                        <i class="fas fa-search mr-2"></i> Filtrar
+                    </button>
+                </div>
             </div>
         </form>
-    </div>
-
-    <!-- Summary Cards -->
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div class="bg-white rounded-lg shadow-sm p-4 border border-gray-100">
-            <p class="text-sm text-gray-500">Total Exibido</p>
-            <p class="text-2xl font-bold text-gray-900" x-text="payments.length"></p>
-        </div>
-        <div class="bg-white rounded-lg shadow-sm p-4 border border-gray-100">
-            <p class="text-sm text-gray-500">Valor Total</p>
-            <p class="text-2xl font-bold text-gray-900" x-text="formatCurrency(totalAmount)"></p>
-        </div>
-        <div class="bg-white rounded-lg shadow-sm p-4 border border-gray-100">
-            <p class="text-sm text-gray-500">Total Geral</p>
-            <p class="text-2xl font-bold text-gray-900" x-text="total"></p>
-        </div>
     </div>
 
     <!-- Table -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
         <div class="p-4 border-b border-gray-100 flex items-center justify-between">
-            <h3 class="text-lg font-semibold text-gray-900">Pagamentos</h3>
+            <h3 class="text-lg font-semibold text-gray-900">
+                Pagamentos (<span x-text="total"></span>)
+            </h3>
             <div class="flex items-center space-x-2">
-                <select x-model="pageSize" @change="loadPayments()"
+                <select x-model="pageSize" @change="page = 1; loadPayments()"
                         class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
                     <option value="10">10 por página</option>
                     <option value="20">20 por página</option>
@@ -103,12 +177,36 @@
         <div class="admin-mobile-list md:hidden divide-y divide-slate-100">
             <template x-for="pay in payments" :key="pay.id">
                 <article class="space-y-3 p-4">
-                    <div class="flex items-start justify-between gap-3"><div><p class="font-semibold text-slate-900" x-text="pay.service_name || 'Serviço não informado'"></p><p class="text-sm text-slate-500" x-text="formatDate(pay.created_at)"></p></div><span class="status-badge" :class="'payment-' + pay.status" x-text="formatPaymentStatus(pay.status)"></span></div>
-                    <div class="grid grid-cols-2 gap-3 text-sm"><div><p class="text-xs text-slate-500">Cliente</p><p class="font-medium" x-text="pay.client_name || 'N/A'"></p><p class="text-xs text-slate-500" x-text="maskPhone(pay.client_phone)"></p></div><div><p class="text-xs text-slate-500">Valor</p><p class="font-semibold" x-text="formatCurrency(pay.amount_cents)"></p><p class="text-xs text-slate-500" x-text="formatBillingType(pay.billing_type)"></p></div></div>
-                    <div class="flex flex-wrap gap-3 border-t border-slate-100 pt-3 text-sm font-semibold"><a x-show="pay.invoice_url" :href="pay.invoice_url" target="_blank" class="text-blue-600">Ver fatura</a><button @click="refreshPayment(pay.id)" :disabled="syncingPaymentId === pay.id" class="text-indigo-600 disabled:opacity-50" x-text="syncingPaymentId === pay.id ? 'Sincronizando...' : 'Sincronizar'"></button><button x-show="pay.status === 'received' || pay.status === 'confirmed'" @click="refundPayment(pay.id)" class="text-red-600">Estornar</button></div>
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <p class="font-semibold text-slate-900" x-text="pay.service_name || 'Serviço não informado'"></p>
+                            <p class="text-sm text-slate-500" x-text="'Pagamento: ' + formatDate(pay.created_at) + (pay.appointment_start ? ' · Agendamento: ' + formatDate(pay.appointment_start) : '')"></p>
+                        </div>
+                        <span class="status-badge" :class="'payment-' + pay.status" x-text="formatPaymentStatus(pay.status)"></span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                            <p class="text-xs text-slate-500">Cliente</p>
+                            <p class="font-medium" x-text="pay.client_name || 'N/A'"></p>
+                            <p class="text-xs text-slate-500" x-text="maskPhone(pay.client_phone)"></p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-slate-500">Valor</p>
+                            <p class="font-semibold" x-text="formatCurrency(pay.amount_cents)"></p>
+                            <p class="text-xs text-slate-500" x-text="formatBillingType(pay.billing_type)"></p>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap gap-3 border-t border-slate-100 pt-3 text-sm font-semibold">
+                        <a x-show="pay.invoice_url" :href="pay.invoice_url" target="_blank" class="text-blue-600">Ver fatura</a>
+                        <button @click="refreshPayment(pay.id)" :disabled="syncingPaymentId === pay.id" class="text-indigo-600 disabled:opacity-50" x-text="syncingPaymentId === pay.id ? 'Sincronizando...' : 'Sincronizar'"></button>
+                        <button x-show="pay.status === 'received' || pay.status === 'confirmed'" @click="refundPayment(pay.id)" class="text-red-600">Estornar</button>
+                    </div>
                 </article>
             </template>
-            <div x-show="payments.length === 0 && !loading && !loadError" class="p-6 text-center"><p class="text-sm text-slate-500">Nenhum pagamento encontrado.</p><a href="/admin/payments" class="mt-3 inline-block text-sm font-semibold text-blue-600">Limpar filtros</a></div>
+            <div x-show="payments.length === 0 && !loading && !loadError" class="p-6 text-center">
+                <p class="text-sm text-slate-500">Nenhum pagamento encontrado com os filtros selecionados.</p>
+                <button type="button" @click="resetFilters()" class="mt-3 inline-block text-sm font-semibold text-blue-600">Limpar filtros</button>
+            </div>
         </div>
 
         <div class="admin-table hidden md:block overflow-x-auto">
@@ -130,9 +228,12 @@
                 <tbody class="divide-y divide-gray-100">
                     <template x-for="pay in payments" :key="pay.id">
                         <tr class="hover:bg-gray-50">
-                            <td class="py-3 px-4 text-sm font-mono text-gray-600" x-text="pay.id"></td>
+                            <td class="py-3 px-4 text-sm font-mono text-gray-600" x-text="'#' + pay.id"></td>
                             <td class="py-3 px-4 text-sm font-mono text-gray-600" x-text="pay.asaas_payment_id || 'N/A'"></td>
-                            <td class="py-3 px-4 text-sm text-gray-900" x-text="formatDate(pay.created_at)"></td>
+                            <td class="py-3 px-4 text-sm text-gray-900">
+                                <div class="font-medium" x-text="formatDate(pay.created_at)"></div>
+                                <div x-show="pay.appointment_start" class="text-xs text-slate-400" x-text="'Agendado: ' + formatDate(pay.appointment_start)"></div>
+                            </td>
                             <td class="py-3 px-4">
                                 <div class="text-sm font-medium text-gray-900" x-text="pay.client_name || 'N/A'"></div>
                                 <div class="text-xs text-gray-500" x-text="pay.client_phone || ''"></div>
@@ -168,13 +269,16 @@
                         </tr>
                     </template>
                     <tr x-show="payments.length === 0 && !loading && !loadError">
-                        <td colspan="10" class="py-8 text-center text-gray-500"><p>Nenhum pagamento encontrado.</p><a href="/admin/payments" class="mt-2 inline-block font-semibold text-blue-600">Limpar filtros</a></td>
+                        <td colspan="10" class="py-8 text-center text-gray-500">
+                            <p>Nenhum pagamento encontrado com os filtros selecionados.</p>
+                            <button type="button" @click="resetFilters()" class="mt-2 inline-block font-semibold text-blue-600">Limpar filtros</button>
+                        </td>
                     </tr>
                     <tr x-show="loading">
                         <td colspan="10" class="py-8 text-center text-gray-500">
                             <div class="flex justify-center items-center">
                                 <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                                <span class="ml-2">Carregando...</span>
+                                <span class="ml-2">Carregando pagamentos...</span>
                             </div>
                         </td>
                     </tr>
@@ -205,26 +309,102 @@
 <script>
 function payments() {
     return {
-        payments: [],
-        professionals: [],
-        total: 0,
-        page: 1,
-        pageSize: 20,
-        totalPages: 1,
+        payments: {{ payments | tojson | safe if payments is defined else '[]' }},
+        professionals: {{ professionals | tojson | safe if professionals is defined else '[]' }},
+        total: {{ total if total is defined else 0 }},
+        summary: {{ summary | tojson | safe if summary is defined else '{"received_cents": 0, "received_count": 0, "pending_cents": 0, "pending_count": 0, "total_cents": 0}' }},
+        page: {{ page if page is defined else 1 }},
+        pageSize: {{ page_size if page_size is defined else 20 }},
+        totalPages: {{ total_pages if total_pages is defined else 1 }},
         loading: false,
         loadError: '',
         notice: '',
         syncingPaymentId: null,
         filters: {
-            date_from: '',
-            date_to: '',
-            professional_id: '',
-            status: '',
-            search: ''
+            date_from: '{{ filters.date_from if filters is defined and filters.date_from else "" }}',
+            date_to: '{{ filters.date_to if filters is defined and filters.date_to else "" }}',
+            date_type: '{{ filters.date_type if filters is defined and filters.date_type else "payment" }}',
+            professional_id: '{{ filters.professional_id if filters is defined and filters.professional_id else "" }}',
+            status: '{{ filters.status if filters is defined and filters.status else "" }}',
+            search: '{{ filters.search if filters is defined and filters.search else "" }}'
         },
 
         async reload() {
+            // Ler query params da URL se existirem para restaurar filtros
+            const urlParams = new URLSearchParams(window.location.search);
+            ['date_from', 'date_to', 'date_type', 'professional_id', 'status', 'search'].forEach(key => {
+                if (urlParams.has(key)) {
+                    this.filters[key] = urlParams.get(key);
+                }
+            });
+            if (urlParams.has('page')) {
+                this.page = parseInt(urlParams.get('page')) || 1;
+            }
+            if (urlParams.has('page_size')) {
+                this.pageSize = parseInt(urlParams.get('page_size')) || 20;
+            }
+
+            // Carregar profissionais para o select se não vieram pré-renderizados
+            if (!this.professionals || this.professionals.length === 0) {
+                await this.loadProfessionals();
+            }
+
             await this.loadPayments();
+        },
+
+        async loadProfessionals() {
+            try {
+                const response = await adminFetch('/admin/api/professionals');
+                if (response.ok) {
+                    this.professionals = await response.json();
+                }
+            } catch (err) {
+                console.warn('Erro ao carregar profissionais:', err);
+            }
+        },
+
+        hasActiveFilters() {
+            return Boolean(
+                this.filters.date_from ||
+                this.filters.date_to ||
+                this.filters.professional_id ||
+                this.filters.status ||
+                this.filters.search
+            );
+        },
+
+        applyFilters() {
+            this.page = 1;
+            this.syncUrl();
+            this.loadPayments();
+        },
+
+        resetFilters() {
+            this.filters = {
+                date_from: '',
+                date_to: '',
+                date_type: 'payment',
+                professional_id: '',
+                status: '',
+                search: ''
+            };
+            this.page = 1;
+            this.syncUrl();
+            this.loadPayments();
+        },
+
+        syncUrl() {
+            const params = new URLSearchParams();
+            if (this.page > 1) params.set('page', this.page);
+            if (this.pageSize !== 20) params.set('page_size', this.pageSize);
+            Object.entries(this.filters).forEach(([key, val]) => {
+                if (val && (key !== 'date_type' || val !== 'payment')) {
+                    params.set(key, val);
+                }
+            });
+            const queryString = params.toString();
+            const newUrl = window.location.pathname + (queryString ? '?' + queryString : '');
+            window.history.replaceState({}, '', newUrl);
         },
 
         async loadPayments() {
@@ -245,16 +425,16 @@ function payments() {
                 this.total = data.total;
                 this.page = data.page;
                 this.totalPages = data.total_pages;
+                if (data.summary) {
+                    this.summary = data.summary;
+                }
+                this.syncUrl();
             } catch (error) {
                 console.error('Erro ao carregar pagamentos:', error);
                 this.loadError = 'Não foi possível carregar os dados. Tente novamente.';
             } finally {
                 this.loading = false;
             }
-        },
-
-        get totalAmount() {
-            return this.payments.reduce((sum, p) => sum + (p.amount_cents || 0), 0);
         },
 
         prevPage() {
@@ -288,6 +468,8 @@ function payments() {
                     if (index >= 0) this.payments[index] = result.payment;
                     this.notice = result.message;
                     adminNotify({type: 'success', message: result.message});
+                    // Recarregar os dados/sumário atualizados
+                    this.loadPayments();
                 } else {
                     adminNotify({type: 'error', message: result.detail});
                 }
@@ -316,6 +498,7 @@ function payments() {
                 });
                 const result = await response.json();
                 if (response.ok) {
+                    adminNotify({type: 'success', message: 'Estorno solicitado com sucesso.'});
                     this.loadPayments();
                 } else {
                     adminNotify({type: 'error', message: result.detail});
@@ -334,7 +517,7 @@ function payments() {
         },
 
         formatCurrency(cents) {
-            if (!cents) return 'R$ 0,00';
+            if (!cents && cents !== 0) return 'R$ 0,00';
             const reais = (cents / 100).toFixed(2);
             return 'R$ ' + reais.replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
         },

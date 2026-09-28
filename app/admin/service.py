@@ -2,7 +2,7 @@ import csv
 import io
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import and_, func, or_, select, text
+from sqlalchemy import String, and_, case, cast, func, or_, select, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -280,6 +280,16 @@ class AdminService:
             )
         ).scalar() or 0
 
+        # Total revenue received all time
+        revenue_total = self.db.query(func.coalesce(func.sum(Payment.amount_cents), 0)).filter(
+            Payment.status.in_(["received", "confirmed"])
+        ).scalar() or 0
+
+        # Total pending/overdue amount all time
+        pending_total = self.db.query(func.coalesce(func.sum(Payment.amount_cents), 0)).filter(
+            Payment.status.in_(["pending", "overdue"])
+        ).scalar() or 0
+
         # Payments pending/overdue
         payments_pending = self.db.query(func.count(Payment.id)).filter(
             Payment.status == "pending"
@@ -306,6 +316,8 @@ class AdminService:
             "revenue_today_cents": int(revenue_today),
             "revenue_week_cents": int(revenue_week),
             "revenue_month_cents": int(revenue_month),
+            "revenue_total_cents": int(revenue_total),
+            "pending_total_cents": int(pending_total),
             "payments_pending": payments_pending,
             "payments_overdue": payments_overdue,
             "professionals_active": professionals_active,
@@ -412,12 +424,13 @@ class AdminService:
         self,
         date_from: date | None = None,
         date_to: date | None = None,
+        date_type: str = "payment",
         professional_id: int | None = None,
         status: str | None = None,
         search: str | None = None,
         page: int = 1,
         page_size: int = 20,
-    ) -> tuple[list[dict], int]:
+    ) -> tuple[list[dict], int, dict]:
         query = self.db.query(
             Payment,
             User.name.label("client_name"),
@@ -432,25 +445,95 @@ class AdminService:
         )
 
         if date_from:
-            query = query.filter(func.date(Appointment.start_time) >= date_from)
+            if date_type == "appointment":
+                query = query.filter(func.date(Appointment.start_time) >= date_from)
+            else:
+                query = query.filter(func.date(Payment.created_at) >= date_from)
+
         if date_to:
-            query = query.filter(func.date(Appointment.start_time) <= date_to)
+            if date_type == "appointment":
+                query = query.filter(func.date(Appointment.start_time) <= date_to)
+            else:
+                query = query.filter(func.date(Payment.created_at) <= date_to)
+
         if professional_id:
             query = query.filter(Appointment.professional_id == professional_id)
+
         if status:
-            query = query.filter(Payment.status == status)
+            if status == "paid":
+                query = query.filter(Payment.status.in_(["received", "confirmed"]))
+            elif status == "unpaid":
+                query = query.filter(Payment.status.in_(["pending", "overdue"]))
+            else:
+                query = query.filter(Payment.status == status)
+
         if search:
-            search_term = f"%{search}%"
+            clean_search = search.strip().lstrip("#")
+            search_term = f"%{clean_search}%"
             query = query.filter(
                 or_(
                     User.name.ilike(search_term),
                     User.phone.ilike(search_term),
+                    User.email.ilike(search_term),
+                    User.cpf_cnpj.ilike(search_term),
                     Professional.name.ilike(search_term),
+                    Service.name.ilike(search_term),
                     Payment.asaas_payment_id.ilike(search_term),
+                    Payment.billing_type.ilike(search_term),
+                    cast(Payment.id, String).ilike(search_term),
+                    cast(Appointment.id, String).ilike(search_term),
                 )
             )
 
-        total = query.count()
+        summary_query = query.with_entities(
+            func.count(Payment.id).label("total_count"),
+            func.coalesce(func.sum(Payment.amount_cents), 0).label("total_cents"),
+            func.coalesce(
+                func.sum(case((Payment.status.in_(["received", "confirmed"]), Payment.amount_cents), else_=0)), 0
+            ).label("received_cents"),
+            func.coalesce(
+                func.sum(case((Payment.status.in_(["received", "confirmed"]), 1), else_=0)), 0
+            ).label("received_count"),
+            func.coalesce(
+                func.sum(case((Payment.status.in_(["pending", "overdue"]), Payment.amount_cents), else_=0)), 0
+            ).label("pending_cents"),
+            func.coalesce(
+                func.sum(case((Payment.status.in_(["pending", "overdue"]), 1), else_=0)), 0
+            ).label("pending_count"),
+            func.coalesce(
+                func.sum(case((Payment.status == "overdue", Payment.amount_cents), else_=0)), 0
+            ).label("overdue_cents"),
+            func.coalesce(
+                func.sum(case((Payment.status == "overdue", 1), else_=0)), 0
+            ).label("overdue_count"),
+            func.coalesce(
+                func.sum(case((Payment.status == "refunded", Payment.amount_cents), else_=0)), 0
+            ).label("refunded_cents"),
+            func.coalesce(
+                func.sum(case((Payment.status == "refunded", 1), else_=0)), 0
+            ).label("refunded_count"),
+            func.coalesce(
+                func.sum(case((Payment.status == "cancelled", Payment.amount_cents), else_=0)), 0
+            ).label("cancelled_cents"),
+            func.coalesce(
+                func.sum(case((Payment.status == "cancelled", 1), else_=0)), 0
+            ).label("cancelled_count"),
+        ).first()
+
+        total = int(summary_query.total_count or 0)
+        summary = {
+            "total_cents": int(summary_query.total_cents or 0),
+            "received_cents": int(summary_query.received_cents or 0),
+            "received_count": int(summary_query.received_count or 0),
+            "pending_cents": int(summary_query.pending_cents or 0),
+            "pending_count": int(summary_query.pending_count or 0),
+            "overdue_cents": int(summary_query.overdue_cents or 0),
+            "overdue_count": int(summary_query.overdue_count or 0),
+            "refunded_cents": int(summary_query.refunded_cents or 0),
+            "refunded_count": int(summary_query.refunded_count or 0),
+            "cancelled_cents": int(summary_query.cancelled_cents or 0),
+            "cancelled_count": int(summary_query.cancelled_count or 0),
+        }
 
         query = query.order_by(Payment.created_at.desc())
         query = query.offset((page - 1) * page_size).limit(page_size)
@@ -459,7 +542,7 @@ class AdminService:
 
         payments = [self._serialize_payment_row(row) for row in results]
 
-        return payments, total
+        return payments, total, summary
 
     def get_payment(self, payment_id: int) -> dict | None:
         row = self.db.query(

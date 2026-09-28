@@ -24,6 +24,7 @@ from app.admin.schemas import (
     AdminMaintenancePreview,
     AdminMaintenancePurgeRequest,
     AdminMaintenancePurgeResult,
+    AdminPaymentsResponse,
     AdminProfessionalOfferingUpsert,
     AdminServiceCatalogCreate,
     AdminServiceCatalogUpdate,
@@ -307,6 +308,7 @@ async def payments_page(
     request: Request,
     date_from: date | None = None,
     date_to: date | None = None,
+    date_type: str = "payment",
     professional_id: int | None = None,
     status: str | None = None,
     search: str | None = None,
@@ -315,9 +317,10 @@ async def payments_page(
     db: Session = Depends(get_db),
 ):
     service = AdminService(db)
-    payments, total = service.list_payments(
+    payments, total, summary = service.list_payments(
         date_from=date_from,
         date_to=date_to,
+        date_type=date_type,
         professional_id=professional_id,
         status=status,
         search=search,
@@ -326,22 +329,24 @@ async def payments_page(
     )
     professionals = service.list_professionals()
 
-    total_pages = (total + page_size - 1) // page_size
+    total_pages = (total + page_size - 1) // page_size if total > 0 else 1
 
     return templates.TemplateResponse("payments.html", {
         "request": request,
-        "payments": payments,
-        "professionals": professionals,
+        "payments": jsonable_encoder(payments),
+        "professionals": jsonable_encoder(professionals),
         "total": total,
+        "summary": jsonable_encoder(summary),
         "page": page,
         "page_size": page_size,
         "total_pages": total_pages,
         "filters": {
-            "date_from": date_from,
-            "date_to": date_to,
-            "professional_id": professional_id,
-            "status": status,
-            "search": search,
+            "date_from": date_from.isoformat() if date_from else "",
+            "date_to": date_to.isoformat() if date_to else "",
+            "date_type": date_type or "payment",
+            "professional_id": professional_id or "",
+            "status": status or "",
+            "search": search or "",
         },
     })
 
@@ -794,10 +799,15 @@ async def api_appointments(
     }
 
 
-@router.get("/api/payments", dependencies=[Depends(require_admin)])
+@router.get(
+    "/api/payments",
+    response_model=AdminPaymentsResponse,
+    dependencies=[Depends(require_admin)],
+)
 async def api_payments(
     date_from: date | None = None,
     date_to: date | None = None,
+    date_type: str = "payment",
     professional_id: int | None = None,
     status: str | None = None,
     search: str | None = None,
@@ -806,19 +816,21 @@ async def api_payments(
     db: Session = Depends(get_db),
 ):
     service = AdminService(db)
-    payments, total = service.list_payments(
+    payments, total, summary = service.list_payments(
         date_from=date_from,
         date_to=date_to,
+        date_type=date_type,
         professional_id=professional_id,
         status=status,
         search=search,
         page=page,
         page_size=page_size,
     )
-    total_pages = (total + page_size - 1) // page_size
+    total_pages = (total + page_size - 1) // page_size if total > 0 else 1
     return {
         "data": payments,
         "total": total,
+        "summary": summary,
         "page": page,
         "page_size": page_size,
         "total_pages": total_pages,

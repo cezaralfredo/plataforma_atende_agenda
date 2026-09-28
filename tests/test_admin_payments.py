@@ -216,3 +216,132 @@ def test_admin_refresh_cancels_when_provider_returns_404_not_found(
     assert payment.status == "cancelled"
     assert appointment.status == "cancelled"
     assert user.asaas_customer_id is None
+
+
+def test_admin_payments_api_summary_and_filters(
+    anonymous_client: TestClient,
+    db_session: Session,
+):
+    entities = seed_data(db_session)
+    appointment1 = seed_appointment(db_session, entities)
+    payment1 = seed_payment(db_session, appointment1)
+    payment1.status = "received"
+    payment1.amount_cents = 5000
+
+    from datetime import UTC, datetime, timedelta
+
+    from app.models.appointment import Appointment
+    from app.models.payment import Payment
+
+    appointment2 = Appointment(
+        user_id=entities["user"].id,
+        professional_id=entities["professional"].id,
+        service_id=entities["service"].id,
+        start_time=datetime.now(UTC) + timedelta(days=2),
+        end_time=datetime.now(UTC) + timedelta(days=2, hours=1),
+        status="pending",
+    )
+    db_session.add(appointment2)
+    db_session.flush()
+
+    payment2 = Payment(
+        appointment_id=appointment2.id,
+        amount_cents=3500,
+        billing_type="pix",
+        status="pending",
+        asaas_payment_id="pay_test_pending_456",
+    )
+    db_session.add(payment2)
+    db_session.commit()
+
+    # 1. Total & Summary test
+    response = anonymous_client.get("/admin/api/payments", headers=_admin_headers())
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] >= 2
+    summary = data["summary"]
+    assert summary["received_cents"] >= 5000
+    assert summary["received_count"] >= 1
+    assert summary["pending_cents"] >= 3500
+    assert summary["pending_count"] >= 1
+
+    # 2. Filter by status 'received'
+    r_recv = anonymous_client.get(
+        "/admin/api/payments?status=received", headers=_admin_headers()
+    )
+    assert r_recv.status_code == 200
+    recv_data = r_recv.json()
+    assert all(p["status"] == "received" for p in recv_data["data"])
+    assert any(p["id"] == payment1.id for p in recv_data["data"])
+    assert not any(p["id"] == payment2.id for p in recv_data["data"])
+
+    # 3. Filter by status 'pending'
+    r_pend = anonymous_client.get(
+        "/admin/api/payments?status=pending", headers=_admin_headers()
+    )
+    assert r_pend.status_code == 200
+    pend_data = r_pend.json()
+    assert all(p["status"] == "pending" for p in pend_data["data"])
+    assert any(p["id"] == payment2.id for p in pend_data["data"])
+    assert not any(p["id"] == payment1.id for p in pend_data["data"])
+
+    # 4. Filter by status alias 'paid'
+    r_paid = anonymous_client.get(
+        "/admin/api/payments?status=paid", headers=_admin_headers()
+    )
+    assert r_paid.status_code == 200
+    assert any(p["id"] == payment1.id for p in r_paid.json()["data"])
+    assert not any(p["id"] == payment2.id for p in r_paid.json()["data"])
+
+    # 5. Search by Payment ID with '#'
+    r_search_id = anonymous_client.get(
+        f"/admin/api/payments?search=%23{payment1.id}", headers=_admin_headers()
+    )
+    assert r_search_id.status_code == 200
+    assert any(p["id"] == payment1.id for p in r_search_id.json()["data"])
+
+    # 6. Search by Service Name
+    r_search_svc = anonymous_client.get(
+        f"/admin/api/payments?search={entities['service'].name}",
+        headers=_admin_headers(),
+    )
+    assert r_search_svc.status_code == 200
+    assert len(r_search_svc.json()["data"]) >= 2
+
+    # 7. Search by Client Name
+    r_search_cli = anonymous_client.get(
+        f"/admin/api/payments?search={entities['user'].name[:4]}",
+        headers=_admin_headers(),
+    )
+    assert r_search_cli.status_code == 200
+    assert len(r_search_cli.json()["data"]) >= 2
+
+
+def test_admin_kpis_includes_revenue_and_pending_totals(
+    anonymous_client: TestClient,
+    db_session: Session,
+):
+    _appointment, _payment = _received_payment(db_session)
+    response = anonymous_client.get("/admin/api/kpis", headers=_admin_headers())
+    assert response.status_code == 200
+    kpis = response.json()
+    assert "revenue_total_cents" in kpis
+    assert "pending_total_cents" in kpis
+    assert kpis["revenue_total_cents"] >= 0
+
+
+def test_admin_payments_html_page_renders_new_dashboard_and_filters(
+    anonymous_client: TestClient,
+    db_session: Session,
+):
+    _appointment, _payment = _received_payment(db_session)
+    response = anonymous_client.get("/admin/payments", headers=_admin_headers())
+    assert response.status_code == 200
+    html = response.text
+    assert "Valor Recebido" in html
+    assert "Valores Pendentes" in html
+    assert "Valor Total (Filtro)" in html
+    assert "Filtrar Data Por" in html
+    assert "applyFilters()" in html
+    assert "resetFilters()" in html
+

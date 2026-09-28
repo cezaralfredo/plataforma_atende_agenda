@@ -30,6 +30,8 @@ class AdminKPIs(BaseModel):
     revenue_today_cents: int
     revenue_week_cents: int
     revenue_month_cents: int
+    revenue_total_cents: int = 0
+    pending_total_cents: int = 0
     payments_pending: int
     payments_overdue: int
     professionals_active: int
@@ -101,6 +103,29 @@ class AdminPayment(BaseModel):
     professional_name: str | None = None
     service_name: str | None = None
     appointment_start: datetime | None = None
+
+
+class AdminPaymentSummary(BaseModel):
+    total_cents: int = 0
+    received_cents: int = 0
+    received_count: int = 0
+    pending_cents: int = 0
+    pending_count: int = 0
+    overdue_cents: int = 0
+    overdue_count: int = 0
+    refunded_cents: int = 0
+    refunded_count: int = 0
+    cancelled_cents: int = 0
+    cancelled_count: int = 0
+
+
+class AdminPaymentsResponse(BaseModel):
+    data: list[AdminPayment]
+    total: int
+    summary: AdminPaymentSummary
+    page: int
+    page_size: int
+    total_pages: int
 
 
 class AdminProfessional(BaseModel):
