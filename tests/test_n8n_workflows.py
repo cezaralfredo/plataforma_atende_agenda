@@ -122,3 +122,52 @@ def test_workflows_use_native_hermes_whatsapp_bridge_for_outbound_messages():
         if node["name"] == "Avisar Cancelamento via WhatsApp Hermes"
     )
     assert '"chatId"' in send_node["parameters"]["jsonBody"]
+
+
+def test_payment_confirmation_workflow_supports_multi_provider_routing():
+    workflow = json.loads(
+        (WORKFLOWS_DIR / "notificacao_pagamento_hermes.json").read_text(encoding="utf-8")
+    )
+    names = {node["name"] for node in workflow["nodes"]}
+
+    assert "Roteador de Provedor WhatsApp" in names
+    assert "Enviar Confirmação pela Meta Cloud API" in names
+    assert "Enviar Confirmação pelo WhatsApp Nativo Hermes" in names
+
+    router_node = next(
+        node for node in workflow["nodes"] if node["name"] == "Roteador de Provedor WhatsApp"
+    )
+    assert router_node["type"] == "n8n-nodes-base.if"
+
+    # Verifica que o roteador conecta a ambos os ramos (Meta no true/index 0, Hermes no false/index 1)
+    router_connections = workflow["connections"]["Roteador de Provedor WhatsApp"]["main"]
+    assert len(router_connections) == 2
+    assert router_connections[0][0]["node"] == "Enviar Confirmação pela Meta Cloud API"
+    assert router_connections[1][0]["node"] == "Enviar Confirmação pelo WhatsApp Nativo Hermes"
+
+    # Ambos os provedores convergem para confirmação ou tratamento de erro
+    for provider_node_name in [
+        "Enviar Confirmação pela Meta Cloud API",
+        "Enviar Confirmação pelo WhatsApp Nativo Hermes",
+    ]:
+        conns = workflow["connections"][provider_node_name]["main"]
+        assert conns[0][0]["node"] == "Confirmar Entrega na API"
+        assert conns[1][0]["node"] == "Registrar Falha para Retentativa"
+
+    # Suporte a IDs de mensagem de ambos os provedores (wamid da Meta ou Baileys/Hermes)
+    ack_node = next(
+        node for node in workflow["nodes"] if node["name"] == "Confirmar Entrega na API"
+    )
+    assert "messages" in ack_node["parameters"]["jsonBody"]
+
+    # Validação do normalizador de destinatário: contém lógica de fallback e variáveis
+    normalizer = next(
+        node for node in workflow["nodes"] if node["name"] == "Normalizar Destinatário WhatsApp"
+    )
+    js_code = normalizer["parameters"]["jsCode"]
+    assert "selected_provider" in js_code
+    assert "WHATSAPP_NOTIFICATION_PROVIDER" in js_code
+    assert "META_ACCESS_TOKEN" in js_code
+    assert "META_PHONE_NUMBER_ID" in js_code
+    assert "provider_fallback_reason" in js_code
+

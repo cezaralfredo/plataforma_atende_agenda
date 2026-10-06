@@ -76,10 +76,29 @@ Configure estas variáveis no container `agenda_n8n` pelo Portainer. Mantenha as
 ```env
 AGENDA_API_URL=http://agenda-api:8000
 AGENDA_API_KEY=<mesma API_KEY interna da Agenda Atende>
+
+# Seleção de Provedor WhatsApp para Notificações:
+# Valores possíveis: 'hermes' (padrão) ou 'meta'
+WHATSAPP_NOTIFICATION_PROVIDER=hermes
+
+# Configuração Hermes (WhatsApp Nativo):
 HERMES_WHATSAPP_BRIDGE_URL=http://hermes:3000
 HERMES_NETWORK=hermes_default
+
+# Configuração Meta WhatsApp Cloud API (opcional, quando WHATSAPP_NOTIFICATION_PROVIDER=meta):
+META_WHATSAPP_API_URL=https://graph.facebook.com/v21.0
+META_PHONE_NUMBER_ID=<Seu Phone Number ID na Meta>
+META_ACCESS_TOKEN=<Seu Token de Acesso Permanente na Meta>
+META_PAYMENT_TEMPLATE_NAME=confirmacao_pagamento
+META_TEMPLATE_LANGUAGE=pt_BR
+META_MESSAGE_TYPE=template
 ```
 
-O n8n também deve estar conectado à rede Docker do Hermes (`hermes_default`, ou o nome informado em `HERMES_NETWORK`). Isso permite alcançar a bridge privada em `hermes:3000`, sem expor a porta para a internet.
+### 🛡️ Roteamento Seguro e Resiliente de Provedores
+O workflow [`notificacao_pagamento_hermes.json`](workflows/notificacao_pagamento_hermes.json) possui um roteador inteligente:
+1. **Padrão Atual (`hermes`)**: Enquanto `WHATSAPP_NOTIFICATION_PROVIDER` for mantido como `hermes` (ou não configurado), o fluxo opera exatamente como antes, despachando via bridge Hermes em `hermes:3000`.
+2. **Ativação da Meta Oficial (`meta`)**: Quando desejar usar o WhatsApp Oficial da Meta, basta definir `WHATSAPP_NOTIFICATION_PROVIDER=meta` e preencher `META_PHONE_NUMBER_ID` e `META_ACCESS_TOKEN`.
+3. **Fallback Automático contra Falhas**: Caso o provedor seja alterado para `meta` mas as credenciais da Meta estejam vazias ou incompletas, o roteador **não quebra a entrega**. Ele realiza fallback seguro automático para o `hermes` e registra o motivo no log da execução, garantindo que o cliente receba a notificação sem interrupção.
 
-Depois de importar o workflow de confirmação, confirme que ele está **ativo**. Ele normaliza o telefone do cliente para o JID do WhatsApp antes do envio. Faça um PIX de teste: a API deve criar uma entrega `pending`, o n8n deve assumi-la e ela só aparecerá como `sent` após a bridge WhatsApp do Hermes devolver sucesso.
+Depois de importar o workflow de confirmação, confirme que ele está **ativo**. Ele normaliza o telefone do cliente para o JID do WhatsApp antes do envio. Faça um PIX de teste: a API deve criar uma entrega `pending`, o n8n deve assumi-la e ela só aparecerá como `sent` após a confirmação de sucesso do provedor ativo devolver o ID da mensagem.
+

@@ -26,7 +26,16 @@ services:
       - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
       - AGENDA_API_URL=${AGENDA_API_URL:-http://agenda-api:8000}
       - AGENDA_API_KEY=${API_KEY:?Defina API_KEY no Portainer}
+      # Provedor de Notificação: 'hermes' (padrão) ou 'meta'
+      - WHATSAPP_NOTIFICATION_PROVIDER=${WHATSAPP_NOTIFICATION_PROVIDER:-hermes}
       - HERMES_WHATSAPP_BRIDGE_URL=${HERMES_WHATSAPP_BRIDGE_URL:-http://hermes:3000}
+      # Configurações para quando WHATSAPP_NOTIFICATION_PROVIDER=meta
+      - META_WHATSAPP_API_URL=${META_WHATSAPP_API_URL:-https://graph.facebook.com/v21.0}
+      - META_PHONE_NUMBER_ID=${META_PHONE_NUMBER_ID:-}
+      - META_ACCESS_TOKEN=${META_ACCESS_TOKEN:-}
+      - META_PAYMENT_TEMPLATE_NAME=${META_PAYMENT_TEMPLATE_NAME:-confirmacao_pagamento}
+      - META_TEMPLATE_LANGUAGE=${META_TEMPLATE_LANGUAGE:-pt_BR}
+      - META_MESSAGE_TYPE=${META_MESSAGE_TYPE:-template}
     volumes:
       - n8n_data:/home/node/.n8n
     networks:
