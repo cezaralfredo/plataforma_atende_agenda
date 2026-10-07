@@ -1,4 +1,5 @@
 {
+  "id": "pagamento-confirmado-wf",
   "name": "Confirmação de Pagamento - Entrega WhatsApp Confiável",
   "nodes": [
     {
