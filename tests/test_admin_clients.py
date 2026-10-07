@@ -133,3 +133,75 @@ def test_admin_client_api_import_csv(anonymous_client, db_session):
     assert payload["errors"] == 0
     assert db_session.query(User).filter(User.phone == "5585994445555").first() is not None
 
+
+def test_admin_client_api_standardized_fields_and_validation(anonymous_client, db_session):
+    # Name is mandatory
+    resp_empty_name = anonymous_client.post(
+        "/admin/api/clients",
+        headers=_admin_headers(),
+        json={"name": "   ", "phone": "11988887777"},
+    )
+    assert resp_empty_name.status_code == 422
+
+    # Phone is mandatory
+    resp_empty_phone = anonymous_client.post(
+        "/admin/api/clients",
+        headers=_admin_headers(),
+        json={"name": "Carlos", "phone": ""},
+    )
+    assert resp_empty_phone.status_code == 422
+
+    # Creation with standardized fields (matching CSV model)
+    created = anonymous_client.post(
+        "/admin/api/clients",
+        headers=_admin_headers(),
+        json={
+            "name": "Carlos Silva",
+            "phone": "11988887777",
+            "email": "carlos@teste.com",
+            "city": "São Paulo",
+            "state": "sp",
+            "tags": ["vip", "recorrente"],
+            "notes": "Cliente preferencial",
+        },
+    )
+    assert created.status_code == 201
+    data = created.json()
+    assert data["name"] == "Carlos Silva"
+    assert data["phone"] == "11988887777"
+    assert data["city"] == "São Paulo"
+    assert data["state"] == "SP"
+    assert data["tags"] == ["vip", "recorrente"]
+    assert data["notes"] == "Cliente preferencial"
+
+    client_id = data["id"]
+
+    # Update with tags as comma-separated string and changed notes
+    updated = anonymous_client.put(
+        f"/admin/api/clients/{client_id}",
+        headers=_admin_headers(),
+        json={
+            "city": "Campinas",
+            "state": "SP",
+            "tags": "vip, fidelidade",
+            "notes": "Atendido com sucesso",
+        },
+    )
+    assert updated.status_code == 200
+    up_data = updated.json()
+    assert up_data["city"] == "Campinas"
+    assert up_data["tags"] == ["vip", "fidelidade"]
+    assert up_data["notes"] == "Atendido com sucesso"
+
+    # Search by city works
+    list_resp = anonymous_client.get(
+        "/admin/api/clients?search=Campinas",
+        headers=_admin_headers(),
+    )
+    assert list_resp.status_code == 200
+    assert list_resp.json()["total"] >= 1
+    found = next(c for c in list_resp.json()["data"] if c["id"] == client_id)
+    assert found["city"] == "Campinas"
+    assert found["tags"] == ["vip", "fidelidade"]
+
+

@@ -1,9 +1,10 @@
 from datetime import date, datetime, time
 from decimal import Decimal
 from enum import Enum
-from typing import Literal
+import re
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class AppointmentStatus(str, Enum):
@@ -161,6 +162,45 @@ class AdminClientCreate(BaseModel):
     phone: str
     email: str | None = None
     whatsapp_number: str | None = None
+    city: str | None = None
+    state: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    notes: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        cleaned = v.strip() if isinstance(v, str) else ""
+        if not cleaned:
+            raise ValueError("O nome do cliente é obrigatório.")
+        return cleaned
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, v: str) -> str:
+        cleaned = v.strip() if isinstance(v, str) else ""
+        if not cleaned or len(cleaned) < 8:
+            raise ValueError("O telefone do cliente é obrigatório e deve ser válido.")
+        return cleaned
+
+    @field_validator("state")
+    @classmethod
+    def normalize_state(cls, v: str | None) -> str | None:
+        if not v:
+            return None
+        cleaned = v.strip().upper()
+        return cleaned[:2] if cleaned else None
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def normalize_tags(cls, v: Any) -> list[str]:
+        if v is None:
+            return []
+        if isinstance(v, list):
+            return [str(t).strip() for t in v if str(t).strip()]
+        if isinstance(v, str):
+            return [t.strip() for t in re.split(r"[,;|]", v) if t.strip()]
+        return []
 
 
 class AdminClientUpdate(BaseModel):
@@ -168,6 +208,49 @@ class AdminClientUpdate(BaseModel):
     phone: str | None = None
     email: str | None = None
     whatsapp_number: str | None = None
+    city: str | None = None
+    state: str | None = None
+    tags: list[str] | str | None = None
+    notes: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str | None) -> str | None:
+        if v is not None:
+            cleaned = v.strip() if isinstance(v, str) else ""
+            if not cleaned:
+                raise ValueError("O nome do cliente não pode ser vazio.")
+            return cleaned
+        return None
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, v: str | None) -> str | None:
+        if v is not None:
+            cleaned = v.strip() if isinstance(v, str) else ""
+            if not cleaned or len(cleaned) < 8:
+                raise ValueError("O telefone do cliente deve ser válido.")
+            return cleaned
+        return None
+
+    @field_validator("state")
+    @classmethod
+    def normalize_state(cls, v: str | None) -> str | None:
+        if not v:
+            return None
+        cleaned = v.strip().upper()
+        return cleaned[:2] if cleaned else None
+
+    @field_validator("tags", mode="before")
+    @classmethod
+    def normalize_tags(cls, v: Any) -> list[str] | None:
+        if v is None:
+            return None
+        if isinstance(v, list):
+            return [str(t).strip() for t in v if str(t).strip()]
+        if isinstance(v, str):
+            return [t.strip() for t in re.split(r"[,;|]", v) if t.strip()]
+        return None
 
 
 class AdminClientSummary(BaseModel):
@@ -176,6 +259,10 @@ class AdminClientSummary(BaseModel):
     phone: str
     email: str | None = None
     whatsapp_number: str | None = None
+    city: str | None = None
+    state: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    notes: str | None = None
     active: bool
     appointments_total: int
     payments_received_total: int

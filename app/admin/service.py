@@ -175,7 +175,14 @@ class AdminService:
             query = query.filter(User.active.is_(False))
         if search:
             term = f"%{search.strip()}%"
-            query = query.filter(or_(User.name.ilike(term), User.phone.ilike(term), User.email.ilike(term)))
+            query = query.filter(
+                or_(
+                    User.name.ilike(term),
+                    User.phone.ilike(term),
+                    User.email.ilike(term),
+                    User.city.ilike(term),
+                )
+            )
         total = query.count()
         rows = query.order_by(User.name, User.id).offset((page - 1) * page_size).limit(page_size).all()
         return [
@@ -185,6 +192,10 @@ class AdminService:
                 "phone": user.phone,
                 "email": user.email,
                 "whatsapp_number": user.whatsapp_number,
+                "city": user.city,
+                "state": user.state,
+                "tags": user.tags if isinstance(user.tags, list) else [],
+                "notes": user.notes,
                 "active": user.active,
                 "appointments_total": appointment_count,
                 "payments_received_total": payment_count,
@@ -199,7 +210,11 @@ class AdminService:
             name=data.name.strip(),
             phone=data.phone.strip(),
             email=data.email.strip() if data.email else None,
-            whatsapp_number=data.whatsapp_number.strip() if data.whatsapp_number else None,
+            whatsapp_number=data.whatsapp_number.strip() if data.whatsapp_number else (data.phone.strip() if data.phone else None),
+            city=data.city.strip() if getattr(data, "city", None) else None,
+            state=data.state.strip().upper()[:2] if getattr(data, "state", None) else None,
+            tags=data.tags if isinstance(getattr(data, "tags", None), list) else [],
+            notes=data.notes.strip() if getattr(data, "notes", None) else None,
         )
         self.db.add(user)
         self.db.commit()
@@ -215,7 +230,17 @@ class AdminService:
         email = values.get("email", user.email)
         self._ensure_unique_client_contacts(phone, email, exclude_id=user_id)
         for field, value in values.items():
-            setattr(user, field, value.strip() if isinstance(value, str) else value)
+            if field == "state" and value:
+                value = str(value).strip().upper()[:2]
+            elif field == "tags":
+                if isinstance(value, str):
+                    import re
+                    value = [t.strip() for t in re.split(r"[,;|]", value) if t.strip()]
+                elif not isinstance(value, list):
+                    value = []
+            elif isinstance(value, str):
+                value = value.strip()
+            setattr(user, field, value)
         self.db.commit()
         self.db.refresh(user)
         return user

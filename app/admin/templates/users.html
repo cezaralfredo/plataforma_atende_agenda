@@ -24,7 +24,7 @@
         <p class="text-xs text-slate-500 mt-0.5"><span class="font-medium text-slate-800" x-text="total"></span> cliente(s) encontrado(s)</p>
       </div>
       <div class="flex flex-col gap-2 sm:flex-row">
-        <input x-model.trim="search" @keydown.enter.prevent="page=1; reload()" type="search" placeholder="Buscar nome, telefone ou e-mail..." class="rounded-xl border border-slate-300/80 px-3.5 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+        <input x-model.trim="search" @keydown.enter.prevent="page=1; reload()" type="search" placeholder="Buscar nome, telefone, e-mail ou cidade..." class="rounded-xl border border-slate-300/80 px-3.5 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
         <select x-model="status" @change="page=1; reload()" class="rounded-xl border border-slate-300/80 px-3.5 py-2 text-xs text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
           <option value="active">Ativos</option>
           <option value="archived">Arquivados</option>
@@ -52,8 +52,24 @@
             <div class="flex items-start justify-between gap-3">
               <div>
                 <p class="font-semibold text-slate-900" x-text="client.name"></p>
-                <p class="text-xs text-slate-500" x-text="maskPhone(client.phone)"></p>
+                <template x-if="client.city || client.state">
+                  <p class="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                    <i class="fas fa-map-marker-alt text-[10px] text-slate-400"></i>
+                    <span x-text="[client.city, client.state].filter(Boolean).join(' - ')"></span>
+                  </p>
+                </template>
+                <p class="text-xs text-slate-500 mt-0.5" x-text="maskPhone(client.phone)"></p>
                 <p class="text-xs text-slate-400" x-text="maskEmail(client.email)"></p>
+                <template x-if="client.tags && client.tags.length">
+                  <div class="flex flex-wrap gap-1 mt-1.5">
+                    <template x-for="tag in client.tags" :key="tag">
+                      <span class="inline-flex items-center rounded-md bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 border border-blue-200/60" x-text="tag"></span>
+                    </template>
+                  </div>
+                </template>
+                <template x-if="client.notes">
+                  <p class="text-[11px] text-slate-400 mt-1 italic" x-text="client.notes"></p>
+                </template>
               </div>
               <span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="client.active ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80' : 'bg-slate-100 text-slate-600 border border-slate-200/80'" x-text="client.active ? 'Ativo' : 'Arquivado'"></span>
             </div>
@@ -96,7 +112,25 @@
           <tbody class="divide-y divide-slate-100/80 text-sm text-slate-700">
             <template x-for="client in clients" :key="client.id">
               <tr :class="client.active ? 'hover:bg-blue-50/20' : 'bg-slate-50/50 text-slate-400 hover:bg-slate-50'" class="transition-colors">
-                <td class="px-5 py-3.5 font-medium text-slate-900" x-text="client.name"></td>
+                <td class="px-5 py-3.5">
+                  <div class="font-medium text-slate-900" x-text="client.name"></div>
+                  <template x-if="client.city || client.state">
+                    <p class="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
+                      <i class="fas fa-map-marker-alt text-[10px] text-slate-400"></i>
+                      <span x-text="[client.city, client.state].filter(Boolean).join(' - ')"></span>
+                    </p>
+                  </template>
+                  <template x-if="client.tags && client.tags.length">
+                    <div class="flex flex-wrap gap-1 mt-1.5">
+                      <template x-for="tag in client.tags" :key="tag">
+                        <span class="inline-flex items-center rounded-md bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 border border-blue-200/60" x-text="tag"></span>
+                      </template>
+                    </div>
+                  </template>
+                  <template x-if="client.notes">
+                    <p class="text-[11px] text-slate-400 mt-1 truncate max-w-xs italic" :title="client.notes" x-text="client.notes"></p>
+                  </template>
+                </td>
                 <td class="px-5 py-3.5 text-xs">
                   <p class="font-medium text-slate-800" x-text="maskPhone(client.phone)"></p>
                   <p class="text-[11px] text-slate-500" x-text="maskEmail(client.email)"></p>
@@ -140,29 +174,86 @@
 
   <!-- Modal de Criação / Edição de Cliente -->
   <div x-show="formOpen" x-cloak class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 backdrop-blur-xs p-4" @keydown.escape.window="formOpen=false">
-    <div class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-200/80" @click.outside="formOpen=false">
-      <div class="mb-5 flex items-center justify-between">
-        <h3 class="text-base font-semibold tracking-tight text-slate-900" x-text="editingId?'Editar cliente':'Novo cliente'"></h3>
+    <div class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-200/80 max-h-[90vh] overflow-y-auto" @click.outside="formOpen=false">
+      <div class="mb-5 flex items-center justify-between border-b border-slate-100 pb-3">
+        <div>
+          <h3 class="text-base font-semibold tracking-tight text-slate-900" x-text="editingId?'Editar cliente':'Novo cliente'"></h3>
+          <p class="text-xs text-slate-500">Preencha os dados do cliente (campos com * são obrigatórios).</p>
+        </div>
         <button type="button" @click="formOpen=false" aria-label="Fechar" class="rounded-lg p-1 text-slate-400 hover:text-slate-700 transition-colors">
           <i class="fas fa-times text-sm"></i>
         </button>
       </div>
       <form class="space-y-4" @submit.prevent="save()">
         <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
-          Nome
-          <input x-model.trim="form.name" required placeholder="Nome do cliente" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+          Nome <span class="text-rose-500">*</span>
+          <input x-model.trim="form.name" required placeholder="Nome completo do cliente" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+        </label>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+            Telefone <span class="text-rose-500">*</span>
+            <input x-model.trim="form.phone" required inputmode="tel" placeholder="(11) 99999-8888" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+          </label>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+            E-mail
+            <input x-model.trim="form.email" type="email" placeholder="cliente@exemplo.com" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+          </label>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div class="sm:col-span-2">
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+              Cidade
+              <input x-model.trim="form.city" placeholder="Ex: São Paulo" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+            </label>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+              Estado (UF)
+              <select x-model="form.state" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+                <option value="">UF</option>
+                <option value="AC">AC</option>
+                <option value="AL">AL</option>
+                <option value="AP">AP</option>
+                <option value="AM">AM</option>
+                <option value="BA">BA</option>
+                <option value="CE">CE</option>
+                <option value="DF">DF</option>
+                <option value="ES">ES</option>
+                <option value="GO">GO</option>
+                <option value="MA">MA</option>
+                <option value="MT">MT</option>
+                <option value="MS">MS</option>
+                <option value="MG">MG</option>
+                <option value="PA">PA</option>
+                <option value="PB">PB</option>
+                <option value="PR">PR</option>
+                <option value="PE">PE</option>
+                <option value="PI">PI</option>
+                <option value="RJ">RJ</option>
+                <option value="RN">RN</option>
+                <option value="RS">RS</option>
+                <option value="RO">RO</option>
+                <option value="RR">RR</option>
+                <option value="SC">SC</option>
+                <option value="SP">SP</option>
+                <option value="SE">SE</option>
+                <option value="TO">TO</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
+          Tags
+          <input x-model.trim="form.tags" placeholder="vip, recorrente, indicação" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+          <span class="mt-1 block text-[11px] font-normal text-slate-400">Separe os marcadores por vírgula</span>
         </label>
         <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
-          Telefone
-          <input x-model.trim="form.phone" required inputmode="tel" placeholder="+5511999999999" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+          Observações
+          <textarea x-model.trim="form.notes" rows="2" placeholder="Observações, preferências ou notas adicionais..." class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs"></textarea>
         </label>
         <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
-          E-mail
-          <input x-model.trim="form.email" type="email" placeholder="cliente@exemplo.com" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
-        </label>
-        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600">
-          WhatsApp
-          <input x-model.trim="form.whatsapp_number" inputmode="tel" placeholder="+5511999999999" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
+          WhatsApp <span class="font-normal text-slate-400 normal-case">(opcional, se diferente do telefone)</span>
+          <input x-model.trim="form.whatsapp_number" inputmode="tel" placeholder="Mesmo do telefone se em branco" class="mt-1.5 w-full rounded-xl border border-slate-300/80 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-xs">
         </label>
         <div class="flex justify-end gap-3 pt-3 border-t border-slate-100">
           <button type="button" @click="formOpen=false" class="rounded-xl border border-slate-200/90 bg-white px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-all shadow-xs">Cancelar</button>
@@ -325,15 +416,52 @@
 {% block scripts %}
 <script>
 function clientsPage(){return{
-  clients:[],total:0,page:1,pageSize:20,totalPages:0,search:'',status:'active',loading:false,loadError:'',formOpen:false,editingId:null,saving:false,form:{name:'',phone:'',email:'',whatsapp_number:''},
+  clients:[],total:0,page:1,pageSize:20,totalPages:0,search:'',status:'active',loading:false,loadError:'',formOpen:false,editingId:null,saving:false,
+  form:{name:'',phone:'',email:'',whatsapp_number:'',city:'',state:'',tags:'',notes:''},
   importModalOpen:false,importing:false,importFile:null,importSource:'import_csv',importStrategy:'update',importSummary:null,
   maskPhone(value){const digits=String(value||'').replace(/\D/g,'');return digits.length<6?'Não informado':`${digits.slice(0,4)}••••${digits.slice(-3)}`},
   maskEmail(value){if(!value||!value.includes('@'))return '';const [name,domain]=value.split('@');return `${name.slice(0,2)}•••@${domain}`},
   formatDate(value){return value?new Intl.DateTimeFormat('pt-BR').format(new Date(value)):'Nenhum'},
   async request(url,options={}){const response=await adminFetch(url,{headers:{'Content-Type':'application/json'},...options});if(!response.ok){const body=await response.json().catch(()=>({}));throw new Error(body.detail||'Não foi possível concluir a operação.')}return response.status===204?null:response.json()},
   async reload(){this.loading=true;this.loadError='';try{const query=new URLSearchParams({page:this.page,page_size:this.pageSize,status:this.status});if(this.search)query.set('search',this.search);const result=await this.request(`/admin/api/clients?${query}`);this.clients=result.data||[];this.total=result.total||0;this.totalPages=result.total_pages||0}catch(error){this.clients=[];this.loadError=error.message}finally{this.loading=false}},
-  openCreate(){this.editingId=null;this.form={name:'',phone:'',email:'',whatsapp_number:''};this.formOpen=true},openEdit(client){this.editingId=client.id;this.form={name:client.name,phone:client.phone,email:client.email||'',whatsapp_number:client.whatsapp_number||''};this.formOpen=true},
-  async save(){this.saving=true;try{await this.request(this.editingId?`/admin/api/clients/${this.editingId}`:'/admin/api/clients',{method:this.editingId?'PUT':'POST',body:JSON.stringify(this.form)});this.formOpen=false;await this.reload();adminNotify({type:'success',message:'Cliente salvo com sucesso.'})}catch(error){adminNotify({type:'error',message:error.message})}finally{this.saving=false}},
+  openCreate(){this.editingId=null;this.form={name:'',phone:'',email:'',whatsapp_number:'',city:'',state:'',tags:'',notes:''};this.formOpen=true},
+  openEdit(client){
+    this.editingId=client.id;
+    this.form={
+      name:client.name,
+      phone:client.phone,
+      email:client.email||'',
+      whatsapp_number:client.whatsapp_number||'',
+      city:client.city||'',
+      state:client.state||'',
+      tags:Array.isArray(client.tags)?client.tags.join(', '):(client.tags||''),
+      notes:client.notes||''
+    };
+    this.formOpen=true;
+  },
+  async save(){
+    this.saving=true;
+    try{
+      const payload={
+        name:this.form.name,
+        phone:this.form.phone,
+        email:this.form.email||null,
+        whatsapp_number:this.form.whatsapp_number||null,
+        city:this.form.city||null,
+        state:this.form.state||null,
+        tags:this.form.tags||[],
+        notes:this.form.notes||null
+      };
+      await this.request(this.editingId?`/admin/api/clients/${this.editingId}`:'/admin/api/clients',{method:this.editingId?'PUT':'POST',body:JSON.stringify(payload)});
+      this.formOpen=false;
+      await this.reload();
+      adminNotify({type:'success',message:'Cliente salvo com sucesso.'});
+    }catch(error){
+      adminNotify({type:'error',message:error.message});
+    }finally{
+      this.saving=false;
+    }
+  },
   async remove(client){const decision=await adminConfirm({title:'Arquivar cliente',message:`Deseja arquivar ${client.name}? Se não houver histórico, o cadastro será removido definitivamente.`,confirmLabel:'Continuar',tone:'danger'});if(!decision.confirmed)return;try{const result=await this.request(`/admin/api/clients/${client.id}`,{method:'DELETE'});await this.reload();adminNotify({type:'success',message:result.outcome==='deleted'?'Cliente sem histórico removido.':'Cliente arquivado; o histórico foi preservado.'})}catch(error){adminNotify({type:'error',message:error.message})}},
   async reactivate(client){try{await this.request(`/admin/api/clients/${client.id}/reactivate`,{method:'POST'});await this.reload();adminNotify({type:'success',message:`${client.name} foi reativado.`})}catch(error){adminNotify({type:'error',message:error.message})}},
   previousPage(){if(this.page>1){this.page--;this.reload()}},nextPage(){if(this.page<this.totalPages){this.page++;this.reload()}},
