@@ -1,10 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.repositories.base import RelatedRecordsError
-from app.schemas.user import UserCreate, UserRead, UserUpdate
+from app.schemas.user import (
+    UserCreate,
+    UserImportRequest,
+    UserImportSummary,
+    UserRead,
+    UserUpdate,
+)
 from app.security import require_api_key
+from app.services.client_import_service import ClientImportService
 from app.services.user_service import UserService
 
 router = APIRouter(
@@ -25,6 +32,33 @@ def create_user(data: UserCreate, db: Session = Depends(get_db)):
 @router.get("", response_model=list[UserRead])
 def list_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     return UserService(db).repo.list(skip=skip, limit=limit)
+
+
+@router.post("/import", response_model=UserImportSummary)
+def import_users_json(data: UserImportRequest, db: Session = Depends(get_db)):
+    return ClientImportService(db).import_items(data)
+
+
+@router.post("/import/csv", response_model=UserImportSummary)
+async def import_users_csv(
+    file: UploadFile = File(...),
+    source: str = Query("import_csv", description="Identificador da plataforma ou origem"),
+    deduplication_strategy: str = Query("update", pattern="^(update|skip|error)$"),
+    import_batch_id: str | None = Query(None),
+    db: Session = Depends(get_db),
+):
+    try:
+        content_bytes = await file.read()
+        csv_text = content_bytes.decode("utf-8-sig", errors="replace")
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Erro ao ler arquivo CSV: {exc}") from exc
+
+    return ClientImportService(db).import_csv_content(
+        csv_text=csv_text,
+        source=source,
+        deduplication_strategy=deduplication_strategy,
+        import_batch_id=import_batch_id,
+    )
 
 
 @router.get("/{user_id}", response_model=UserRead)
