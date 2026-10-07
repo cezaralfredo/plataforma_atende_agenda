@@ -4,7 +4,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Literal
 from urllib.parse import parse_qs
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
@@ -41,9 +41,11 @@ from app.models.service import Service
 from app.models.user import User
 from app.schemas.availability import AvailabilityCreate, AvailabilityUpdate
 from app.schemas.professional import ProfessionalCreate, ProfessionalUpdate
+from app.schemas.user import UserImportRequest, UserImportSummary
 from app.security import AdminContext, require_admin, require_admin_mutation, require_csrf_token
 from app.services.asaas_client import AsaasIntegrationError
 from app.services.availability_service import AvailabilityService
+from app.services.client_import_service import ClientImportService
 from app.services.payment_service import PaymentService
 from app.services.professional_service import ProfessionalService
 
@@ -502,6 +504,45 @@ async def create_admin_client(data: AdminClientCreate, db: Session = Depends(get
         db.rollback()
         raise HTTPException(status_code=409, detail="Telefone ou e-mail já cadastrado.") from exc
     return _client_summary(db, client)
+
+
+@router.post(
+    "/api/clients/import",
+    response_model=UserImportSummary,
+    dependencies=[Depends(require_admin_mutation)],
+)
+async def api_import_clients_json(
+    data: UserImportRequest,
+    db: Session = Depends(get_db),
+):
+    return ClientImportService(db).import_items(data)
+
+
+@router.post(
+    "/api/clients/import/csv",
+    response_model=UserImportSummary,
+    dependencies=[Depends(require_admin_mutation)],
+)
+async def api_import_clients_csv(
+    file: UploadFile = File(...),
+    source: str = Query("import_csv"),
+    deduplication_strategy: str = Query("update", pattern="^(update|skip|error)$"),
+    import_batch_id: str | None = Query(None),
+    db: Session = Depends(get_db),
+):
+    try:
+        content_bytes = await file.read()
+        csv_text = content_bytes.decode("utf-8-sig", errors="replace")
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Erro ao ler arquivo CSV: {exc}") from exc
+
+    return ClientImportService(db).import_csv_content(
+        csv_text=csv_text,
+        source=source,
+        deduplication_strategy=deduplication_strategy,
+        import_batch_id=import_batch_id,
+    )
+
 
 
 @router.put(

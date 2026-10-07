@@ -113,3 +113,23 @@ def test_admin_clients_page_is_in_navigation_and_hides_sensitive_identifiers(
     assert "ID Asaas" not in response.text
     assert "admin-mobile-list md:hidden" in response.text
     assert "admin-table hidden md:block" in response.text
+    assert "Importar clientes" in response.text
+    assert "openImport()" in response.text
+    assert "importModalOpen" in response.text
+
+
+def test_admin_client_api_import_csv(anonymous_client, db_session):
+    csv_bytes = b"Nome,Telefone,Email,Cidade,Tags\nAdmin Importado,85994445555,admin.imp@teste.com,Fortaleza,vip\n"
+    response = anonymous_client.post(
+        "/admin/api/clients/import/csv?source=admin_panel",
+        headers=_admin_headers(),
+        files={"file": ("clientes.csv", csv_bytes, "text/csv")},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 1
+    assert payload["created"] == 1
+    assert payload["errors"] == 0
+    assert db_session.query(User).filter(User.phone == "5585994445555").first() is not None
+
